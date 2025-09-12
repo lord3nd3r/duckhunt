@@ -1,0 +1,543 @@
+[2025-09-11 18:30:40,346] INFO: Loaded 3 players from duckhunt.json
+[2025-09-11 18:30:40,346] INFO: DuckHunt Bot initializing...
+[2025-09-11 18:30:40,347] INFO: Starting DuckHunt Bot...
+[2025-09-11 18:30:40,347] INFO: Loaded 3 players from duckhunt.json
+[2025-09-11 18:30:40,420] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-11 18:30:40,579] INFO: Connected successfully!
+[2025-09-11 18:30:40,579] INFO: Registering as DuckHuntBot
+[2025-09-11 18:30:41,067] INFO: Successfully registered!
+[2025-09-11 18:30:41,067] INFO: Joining #colby
+[2025-09-11 18:30:41,118] INFO: Successfully joined #colby
+[2025-09-11 18:30:41,582] INFO: Starting duck spawning...
+[2025-09-11 18:30:46,583] INFO: Admin spawned normal duck 965d7945 in #colby
+[2025-09-11 18:30:46,583] INFO: Waiting 56m 37s for next duck
+[2025-09-11 18:31:46,591] INFO: Duck 965d7945 timed out in #colby
+[2025-09-11 18:38:33,894] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-11 18:38:34,097] INFO: Shutdown requested, stopping all tasks...
+[2025-09-11 18:38:34,097] INFO: Starting cleanup process...
+[2025-09-11 18:38:35,211] INFO: IRC connection closed
+[2025-09-11 18:38:35,225] INFO: Final database save completed - 3 players saved
+[2025-09-11 18:38:35,226] INFO: Cleanup completed successfully
+[2025-09-11 18:38:35,234] INFO: DuckHunt Bot shutdown complete
+[2025-09-11 18:38:53,536] INFO: Loaded 3 players from duckhunt.json
+[2025-09-11 18:38:53,536] INFO: DuckHunt Bot initializing...
+[2025-09-11 18:38:53,537] INFO: Starting DuckHunt Bot...
+[2025-09-11 18:38:53,537] INFO: Loaded 3 players from duckhunt.json
+[2025-09-11 18:38:53,607] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-11 18:38:53,785] INFO: Connected successfully!
+[2025-09-11 18:38:53,785] INFO: SASL authentication enabled
+[2025-09-11 18:38:54,162] INFO: SASL capability available
+[2025-09-11 18:38:54,221] INFO: SASL capability acknowledged
+[2025-09-11 18:38:54,221] INFO: Authenticating via SASL as duckhunt
+[2025-09-11 18:38:54,645] INFO: Server ready for SASL authentication
+[2025-09-11 18:38:54,645] ERROR: SASL authentication failed!
+[2025-09-11 18:38:54,645] INFO: Registering as DuckHunt
+[2025-09-11 18:39:27,102] WARNING: Connection closed by server
+[2025-09-11 18:39:27,103] WARNING: A main task completed unexpectedly
+[2025-09-11 18:39:27,103] INFO: Starting cleanup process...
+[2025-09-11 18:39:27,105] INFO: Final database save completed - 3 players saved
+[2025-09-11 18:39:27,105] INFO: Cleanup completed successfully
+[2025-09-11 18:39:27,106] INFO: DuckHunt Bot shutdown complete
+[2025-09-11 18:41:03,279] INFO: Loaded 3 players from duckhunt.json
+[2025-09-11 18:41:03,279] INFO: DuckHunt Bot initializing...
+[2025-09-11 18:41:03,280] INFO: Starting DuckHunt Bot...
+[2025-09-11 18:41:03,280] INFO: Loaded 3 players from duckhunt.json
+[2025-09-11 18:41:03,354] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-11 18:41:03,516] INFO: Connected successfully!
+[2025-09-11 18:41:03,517] INFO: SASL authentication enabled
+[2025-09-11 18:41:03,611] INFO: SASL capability available
+[2025-09-11 18:41:03,660] INFO: SASL capability acknowledged
+[2025-09-11 18:41:03,660] INFO: Authenticating via SASL as duckhunt
+[2025-09-11 18:41:04,075] INFO: Server ready for SASL authentication
+[2025-09-11 18:41:04,076] ERROR: SASL authentication failed! (904 - Invalid credentials or account not found)
+[2025-09-11 18:41:04,076] ERROR: Attempted username: duckhunt
+[2025-09-11 18:41:04,076] INFO: Registering as DuckHunt
+[2025-09-11 18:41:36,030] WARNING: Connection closed by server
+[2025-09-11 18:41:36,031] WARNING: A main task completed unexpectedly
+[2025-09-11 18:41:36,031] INFO: Starting cleanup process...
+[2025-09-11 18:41:36,032] INFO: Final database save completed - 3 players saved
+[2025-09-11 18:41:36,032] INFO: Cleanup completed successfully
+[2025-09-11 18:41:36,033] INFO: DuckHunt Bot shutdown complete
+[2025-09-11 17:52:42,777] INFO: Loaded 3 players from duckhunt.json
+[2025-09-11 17:52:42,778] INFO: DuckHunt Bot initializing...
+[2025-09-11 17:52:42,778] INFO: Starting DuckHunt Bot...
+[2025-09-11 17:52:42,778] INFO: Loaded 3 players from duckhunt.json
+[2025-09-11 17:52:42,800] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-11 17:52:42,914] INFO: Connected successfully!
+[2025-09-11 17:52:42,914] INFO: SASL authentication enabled
+[2025-09-11 17:52:42,926] INFO: SASL capability available
+[2025-09-11 17:52:42,932] INFO: SASL capability acknowledged
+[2025-09-11 17:52:42,932] INFO: Authenticating via SASL as duckhunt
+[2025-09-11 17:52:43,305] INFO: Server ready for SASL authentication
+[2025-09-11 17:52:43,305] ERROR: SASL authentication failed! (904 - Invalid credentials or account not found)
+[2025-09-11 17:52:43,305] INFO: Falling back to NickServ identification...
+[2025-09-11 17:52:43,306] ERROR: Attempted username: duckhunt
+[2025-09-11 17:52:43,306] INFO: Registering as DuckHunt
+[2025-09-11 17:52:43,357] ERROR: SASL authentication aborted! (906)
+[2025-09-11 17:52:43,357] INFO: Falling back to NickServ identification...
+[2025-09-11 17:52:43,358] INFO: Registering as DuckHunt
+[2025-09-11 17:52:43,358] INFO: Successfully registered!
+[2025-09-11 17:52:43,358] INFO: Attempting NickServ identification for duckhunt
+[2025-09-11 17:52:44,359] INFO: NickServ identification commands sent
+[2025-09-11 17:52:44,360] INFO: Joining #computertech
+[2025-09-11 17:52:44,366] INFO: Successfully joined #computertech
+[2025-09-11 17:52:44,917] INFO: Starting duck spawning...
+[2025-09-11 17:52:49,920] INFO: Admin spawned normal duck 2afda3aa in #computertech
+[2025-09-11 17:52:49,920] INFO: Waiting 47m 46s for next duck
+[2025-09-11 17:53:11,783] INFO: Admin spawned normal duck abbfac62 in #computertech
+[2025-09-11 17:54:10,655] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-11 17:54:11,044] INFO: Duck spawning stopped due to shutdown request
+[2025-09-11 17:54:11,045] INFO: Shutdown requested, stopping all tasks...
+[2025-09-11 17:54:11,045] INFO: Starting cleanup process...
+[2025-09-11 17:54:12,149] INFO: IRC connection closed
+[2025-09-11 17:54:12,154] INFO: Final database save completed - 6 players saved
+[2025-09-11 17:54:12,154] INFO: Cleanup completed successfully
+[2025-09-11 17:54:12,156] INFO: DuckHunt Bot shutdown complete
+[2025-09-11 17:54:28,757] INFO: Loaded 6 players from duckhunt.json
+[2025-09-11 17:54:28,757] INFO: DuckHunt Bot initializing...
+[2025-09-11 17:54:28,757] INFO: Starting DuckHunt Bot...
+[2025-09-11 17:54:28,757] INFO: Loaded 6 players from duckhunt.json
+[2025-09-11 17:54:28,780] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-11 17:54:28,894] INFO: Connected successfully!
+[2025-09-11 17:54:28,894] INFO: SASL authentication enabled
+[2025-09-11 17:54:28,906] INFO: SASL capability available
+[2025-09-11 17:54:28,913] INFO: SASL capability acknowledged
+[2025-09-11 17:54:28,913] INFO: Authenticating via SASL as duckhunt
+[2025-09-11 17:54:29,288] INFO: Server ready for SASL authentication
+[2025-09-11 17:54:29,289] ERROR: SASL authentication failed! (904 - Invalid credentials or account not found)
+[2025-09-11 17:54:29,289] INFO: Falling back to NickServ identification...
+[2025-09-11 17:54:29,289] ERROR: Attempted username: duckhunt
+[2025-09-11 17:54:29,289] INFO: Registering as DuckHunt
+[2025-09-11 17:54:29,302] ERROR: SASL authentication aborted! (906)
+[2025-09-11 17:54:29,303] INFO: Falling back to NickServ identification...
+[2025-09-11 17:54:29,303] INFO: Registering as DuckHunt
+[2025-09-11 17:54:29,303] INFO: Successfully registered!
+[2025-09-11 17:54:29,303] INFO: Attempting NickServ identification for duckhunt
+[2025-09-11 17:54:30,304] INFO: NickServ identification commands sent
+[2025-09-11 17:54:30,305] INFO: Joining #computertech
+[2025-09-11 17:54:30,311] INFO: Successfully joined #computertech
+[2025-09-11 17:54:30,898] INFO: Starting duck spawning...
+[2025-09-11 17:54:35,900] INFO: Admin spawned normal duck ff2612cf in #computertech
+[2025-09-11 17:54:35,901] INFO: Waiting 41m 7s for next duck
+[2025-09-11 17:55:55,911] INFO: Duck ff2612cf timed out in #computertech
+[2025-09-11 18:10:31,079] INFO: Admin spawned normal duck b7398aed in #computertech
+[2025-09-11 18:35:46,651] INFO: Admin spawned normal duck ae21e5f4 in #computertech
+[2025-09-11 18:35:46,651] INFO: Waiting 30m 29s for next duck
+[2025-09-11 19:06:18,504] INFO: Admin spawned normal duck 79032e28 in #computertech
+[2025-09-11 19:06:18,505] INFO: Waiting 37m 53s for next duck
+[2025-09-11 19:44:15,288] INFO: Admin spawned normal duck 02fe65b6 in #computertech
+[2025-09-11 19:44:15,288] INFO: Waiting 39m 22s for next duck
+[2025-09-11 20:23:41,185] INFO: Admin spawned normal duck 829273ae in #computertech
+[2025-09-11 20:23:41,186] INFO: Waiting 47m 31s for next duck
+[2025-09-11 20:24:57,093] INFO: Duck 829273ae timed out in #computertech
+[2025-09-11 21:11:16,779] INFO: Admin spawned normal duck 8298e88d in #computertech
+[2025-09-11 21:11:16,779] INFO: Waiting 75m 48s for next duck
+[2025-09-11 22:27:12,035] INFO: Admin spawned normal duck ef5755f3 in #computertech
+[2025-09-11 22:27:12,035] INFO: Waiting 55m 57s for next duck
+[2025-09-11 23:23:14,339] INFO: Admin spawned normal duck 9725ad5b in #computertech
+[2025-09-11 23:23:14,339] INFO: Waiting 57m 47s for next duck
+[2025-09-12 00:21:06,885] INFO: Admin spawned normal duck 62b88d87 in #computertech
+[2025-09-12 00:21:06,885] INFO: Waiting 73m 47s for next duck
+[2025-09-12 01:35:00,951] INFO: Admin spawned normal duck 3f7dc294 in #computertech
+[2025-09-12 01:35:00,951] INFO: Waiting 84m 10s for next duck
+[2025-09-12 01:36:09,586] INFO: Duck 3f7dc294 timed out in #computertech
+[2025-09-12 02:59:19,153] INFO: Admin spawned normal duck 45e3ab57 in #computertech
+[2025-09-12 02:59:19,154] INFO: Waiting 60m 35s for next duck
+[2025-09-12 02:59:25,289] WARNING: A main task completed unexpectedly
+[2025-09-12 02:59:25,289] INFO: Starting cleanup process...
+[2025-09-12 02:59:26,394] INFO: IRC connection closed
+[2025-09-12 02:59:26,400] INFO: Final database save completed - 16 players saved
+[2025-09-12 02:59:26,400] INFO: Cleanup completed successfully
+[2025-09-12 02:59:26,401] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 13:45:28,730] INFO: Loaded 16 players from duckhunt.json
+[2025-09-12 13:45:28,730] INFO: DuckHunt Bot initializing...
+[2025-09-12 13:45:28,730] INFO: Starting DuckHunt Bot...
+[2025-09-12 13:45:28,731] INFO: Loaded 16 players from duckhunt.json
+[2025-09-12 13:45:28,753] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 13:45:28,865] INFO: Connected successfully!
+[2025-09-12 13:45:28,865] INFO: SASL authentication enabled
+[2025-09-12 13:45:30,015] INFO: SASL capability available
+[2025-09-12 13:45:30,022] INFO: SASL capability acknowledged
+[2025-09-12 13:45:30,022] INFO: Authenticating via SASL as duckhunt
+[2025-09-12 13:45:30,389] INFO: Server ready for SASL authentication
+[2025-09-12 13:45:30,389] ERROR: SASL authentication failed! (904 - Invalid credentials or account not found)
+[2025-09-12 13:45:30,389] INFO: Falling back to NickServ identification...
+[2025-09-12 13:45:30,389] ERROR: Attempted username: duckhunt
+[2025-09-12 13:45:30,389] INFO: Registering as DuckHunt
+[2025-09-12 13:45:30,402] ERROR: SASL authentication aborted! (906)
+[2025-09-12 13:45:30,402] INFO: Falling back to NickServ identification...
+[2025-09-12 13:45:30,403] INFO: Registering as DuckHunt
+[2025-09-12 13:45:30,403] INFO: Successfully registered!
+[2025-09-12 13:45:30,403] INFO: Attempting NickServ identification for duckhunt
+[2025-09-12 13:45:31,406] INFO: NickServ identification commands sent
+[2025-09-12 13:45:31,406] INFO: Joining #computertech
+[2025-09-12 13:45:31,413] INFO: Successfully joined #computertech
+[2025-09-12 13:45:31,870] INFO: Starting duck spawning...
+[2025-09-12 13:45:36,872] INFO: Admin spawned normal duck 8e703ce0 in #computertech
+[2025-09-12 13:45:36,872] INFO: Waiting 64m 21s for next duck
+[2025-09-12 13:45:46,370] WARNING: A main task completed unexpectedly
+[2025-09-12 13:45:46,370] INFO: Starting cleanup process...
+[2025-09-12 13:45:47,474] INFO: IRC connection closed
+[2025-09-12 13:45:47,479] INFO: Final database save completed - 16 players saved
+[2025-09-12 13:45:47,479] INFO: Cleanup completed successfully
+[2025-09-12 13:45:47,480] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 15:02:57,578] INFO: Loaded 16 players from duckhunt.json
+[2025-09-12 15:02:57,578] INFO: DuckHunt Bot initializing...
+[2025-09-12 15:02:57,578] INFO: Starting DuckHunt Bot...
+[2025-09-12 15:02:57,578] INFO: Loaded 16 players from duckhunt.json
+[2025-09-12 15:02:57,601] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 15:02:57,725] INFO: Connected successfully!
+[2025-09-12 15:02:57,726] INFO: SASL authentication enabled
+[2025-09-12 15:02:57,738] INFO: SASL capability available
+[2025-09-12 15:02:57,745] INFO: SASL capability acknowledged
+[2025-09-12 15:02:57,745] INFO: Authenticating via SASL as duckhunt
+[2025-09-12 15:02:58,113] INFO: Server ready for SASL authentication
+[2025-09-12 15:02:58,113] ERROR: SASL authentication failed! (904 - Invalid credentials or account not found)
+[2025-09-12 15:02:58,113] INFO: Falling back to NickServ identification...
+[2025-09-12 15:02:58,113] ERROR: Attempted username: duckhunt
+[2025-09-12 15:02:58,114] INFO: Registering as DuckHunt
+[2025-09-12 15:02:58,172] ERROR: SASL authentication aborted! (906)
+[2025-09-12 15:02:58,173] INFO: Falling back to NickServ identification...
+[2025-09-12 15:02:58,173] INFO: Registering as DuckHunt
+[2025-09-12 15:02:58,173] INFO: Successfully registered!
+[2025-09-12 15:02:58,174] INFO: Attempting NickServ identification for duckhunt
+[2025-09-12 15:02:59,176] INFO: NickServ identification commands sent
+[2025-09-12 15:02:59,176] INFO: Joining #computertech
+[2025-09-12 15:02:59,183] INFO: Successfully joined #computertech
+[2025-09-12 15:02:59,728] INFO: Starting duck spawning...
+[2025-09-12 15:03:04,730] INFO: Admin spawned normal duck 3e922056 in #computertech
+[2025-09-12 15:03:04,731] INFO: Waiting 51m 22s for next duck
+[2025-09-12 15:03:12,954] WARNING: A main task completed unexpectedly
+[2025-09-12 15:03:12,954] INFO: Starting cleanup process...
+[2025-09-12 15:03:14,059] INFO: IRC connection closed
+[2025-09-12 15:03:14,062] INFO: Final database save completed - 16 players saved
+[2025-09-12 15:03:14,063] INFO: Cleanup completed successfully
+[2025-09-12 15:03:14,063] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 18:34:46,067] INFO: Loaded 16 players from duckhunt.json
+[2025-09-12 18:34:46,067] INFO: DuckHunt Bot initializing...
+[2025-09-12 18:34:46,067] INFO: Starting DuckHunt Bot...
+[2025-09-12 18:34:46,067] INFO: Loaded 16 players from duckhunt.json
+[2025-09-12 18:34:46,089] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 18:34:46,191] INFO: Connected successfully!
+[2025-09-12 18:34:46,191] INFO: SASL authentication enabled
+[2025-09-12 18:34:47,098] INFO: SASL capability available
+[2025-09-12 18:34:47,105] INFO: SASL capability acknowledged
+[2025-09-12 18:34:47,105] INFO: Authenticating via SASL as duckhunt
+[2025-09-12 18:34:47,472] INFO: Server ready for SASL authentication
+[2025-09-12 18:34:47,472] ERROR: SASL authentication failed! (904 - Invalid credentials or account not found)
+[2025-09-12 18:34:47,473] INFO: Falling back to NickServ identification...
+[2025-09-12 18:34:47,473] ERROR: Attempted username: duckhunt
+[2025-09-12 18:34:47,474] INFO: Registering as DuckHunt
+[2025-09-12 18:35:13,492] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 18:35:13,528] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 18:35:13,528] INFO: Starting cleanup process...
+[2025-09-12 18:35:14,531] INFO: IRC connection closed
+[2025-09-12 18:35:14,532] INFO: Final database save completed - 16 players saved
+[2025-09-12 18:35:14,532] INFO: Cleanup completed successfully
+[2025-09-12 18:35:14,532] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 18:35:15,124] INFO: Loaded 16 players from duckhunt.json
+[2025-09-12 18:35:15,124] INFO: DuckHunt Bot initializing...
+[2025-09-12 18:35:15,124] INFO: Starting DuckHunt Bot...
+[2025-09-12 18:35:15,125] INFO: Loaded 16 players from duckhunt.json
+[2025-09-12 18:35:15,147] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 18:35:15,277] INFO: Connected successfully!
+[2025-09-12 18:35:15,277] INFO: SASL authentication enabled
+[2025-09-12 18:35:15,289] INFO: SASL capability available
+[2025-09-12 18:35:15,295] INFO: SASL capability acknowledged
+[2025-09-12 18:35:15,295] INFO: Authenticating via SASL as duckhunt
+[2025-09-12 18:35:15,662] INFO: Server ready for SASL authentication
+[2025-09-12 18:35:15,663] ERROR: SASL authentication failed! (904 - Invalid credentials or account not found)
+[2025-09-12 18:35:15,663] INFO: Falling back to NickServ identification...
+[2025-09-12 18:35:15,663] ERROR: Attempted username: duckhunt
+[2025-09-12 18:35:15,663] INFO: Registering as DuckHunt
+[2025-09-12 18:35:15,676] ERROR: SASL authentication aborted! (906)
+[2025-09-12 18:35:15,677] INFO: Falling back to NickServ identification...
+[2025-09-12 18:35:15,677] INFO: Registering as DuckHunt
+[2025-09-12 18:35:15,677] INFO: Successfully registered!
+[2025-09-12 18:35:15,677] INFO: Attempting NickServ identification for duckhunt
+[2025-09-12 18:35:16,679] INFO: NickServ identification commands sent
+[2025-09-12 18:35:16,679] INFO: Joining #computertech
+[2025-09-12 18:35:16,686] INFO: Successfully joined #computertech
+[2025-09-12 18:35:17,281] INFO: Starting duck spawning...
+[2025-09-12 18:35:22,283] INFO: Admin spawned normal duck 76766050 in #computertech
+[2025-09-12 18:35:22,283] INFO: Waiting 41m 31s for next duck
+[2025-09-12 18:35:37,207] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 18:35:37,308] INFO: Duck spawning stopped due to shutdown request
+[2025-09-12 18:35:37,308] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 18:35:37,309] INFO: Starting cleanup process...
+[2025-09-12 18:35:38,414] INFO: IRC connection closed
+[2025-09-12 18:35:38,420] INFO: Final database save completed - 17 players saved
+[2025-09-12 18:35:38,420] INFO: Cleanup completed successfully
+[2025-09-12 18:35:38,420] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 18:37:36,458] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 18:37:36,458] INFO: DuckHunt Bot initializing...
+[2025-09-12 18:37:36,458] INFO: Starting DuckHunt Bot...
+[2025-09-12 18:37:36,458] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 18:37:36,481] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 18:37:36,589] INFO: Connected successfully!
+[2025-09-12 18:37:36,589] INFO: SASL authentication enabled
+[2025-09-12 18:37:36,601] INFO: SASL capability available
+[2025-09-12 18:37:36,608] INFO: SASL capability acknowledged
+[2025-09-12 18:37:36,608] INFO: Authenticating via SASL as duckhunt
+[2025-09-12 18:37:36,975] INFO: Server ready for SASL authentication
+[2025-09-12 18:37:36,976] ERROR: SASL authentication failed! (904 - Invalid credentials or account not found)
+[2025-09-12 18:37:36,976] INFO: Falling back to NickServ identification...
+[2025-09-12 18:37:36,976] ERROR: Attempted username: duckhunt
+[2025-09-12 18:37:36,976] INFO: Registering as DuckHunt
+[2025-09-12 18:37:36,990] ERROR: SASL authentication aborted! (906)
+[2025-09-12 18:37:36,990] INFO: Falling back to NickServ identification...
+[2025-09-12 18:37:36,990] INFO: Registering as DuckHunt
+[2025-09-12 18:37:36,991] INFO: Successfully registered!
+[2025-09-12 18:37:36,991] INFO: Attempting NickServ identification for duckhunt
+[2025-09-12 18:37:37,770] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 18:37:37,993] INFO: NickServ identification commands sent
+[2025-09-12 18:37:37,994] INFO: Joining #computertech
+[2025-09-12 18:37:37,994] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 18:37:37,994] INFO: Starting cleanup process...
+[2025-09-12 18:37:38,999] INFO: IRC connection closed
+[2025-09-12 18:37:39,004] INFO: Final database save completed - 17 players saved
+[2025-09-12 18:37:39,004] INFO: Cleanup completed successfully
+[2025-09-12 18:37:39,005] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 19:48:20,215] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 19:50:01,514] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 19:50:01,514] INFO: DuckHunt Bot initializing...
+[2025-09-12 19:50:01,515] INFO: Starting DuckHunt Bot...
+[2025-09-12 19:50:01,516] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 19:50:01,587] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 19:50:01,776] INFO: Connected successfully!
+[2025-09-12 19:50:02,946] INFO: Registering as DuckHunt
+[2025-09-12 19:50:03,077] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 19:50:03,078] INFO: Joining #colby
+[2025-09-12 19:50:03,146] INFO: Successfully joined #colby
+[2025-09-12 19:50:03,780] INFO: Starting duck spawning...
+[2025-09-12 19:50:08,782] INFO: Admin spawned normal duck 89470db7 in #colby
+[2025-09-12 19:50:08,783] INFO: Waiting 72m 24s for next duck
+[2025-09-12 19:50:35,497] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 19:50:35,810] INFO: Duck spawning stopped due to shutdown request
+[2025-09-12 19:50:35,810] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 19:50:35,811] INFO: Starting cleanup process...
+[2025-09-12 19:50:36,916] INFO: IRC connection closed
+[2025-09-12 19:50:36,922] INFO: Final database save completed - 17 players saved
+[2025-09-12 19:50:36,922] INFO: Cleanup completed successfully
+[2025-09-12 19:50:36,925] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 19:50:38,060] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 19:50:38,060] INFO: DuckHunt Bot initializing...
+[2025-09-12 19:50:38,061] INFO: Starting DuckHunt Bot...
+[2025-09-12 19:50:38,062] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 19:50:38,126] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 19:50:38,317] INFO: Connected successfully!
+[2025-09-12 19:50:39,335] INFO: Registering as DuckHunt
+[2025-09-12 19:50:39,456] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 19:50:39,456] INFO: Joining #colby
+[2025-09-12 19:50:39,519] INFO: Successfully joined #colby
+[2025-09-12 19:50:40,323] INFO: Starting duck spawning...
+[2025-09-12 19:50:45,326] INFO: Admin spawned normal duck 1399472e in #colby
+[2025-09-12 19:50:45,326] INFO: Waiting 89m 7s for next duck
+[2025-09-12 19:50:58,428] INFO: Admin spawned normal duck 7278ccc5 in #colby
+[2025-09-12 19:51:03,718] INFO: Admin spawned normal duck b79d4c60 in #colby
+[2025-09-12 19:51:04,973] INFO: Admin spawned normal duck f16535b2 in #colby
+[2025-09-12 19:51:06,296] INFO: Admin spawned normal duck 287c11e5 in #colby
+[2025-09-12 19:51:07,607] INFO: Admin spawned normal duck 87d9f58d in #colby
+[2025-09-12 19:55:27,299] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 19:55:27,760] INFO: Duck spawning stopped due to shutdown request
+[2025-09-12 19:55:27,764] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 19:55:27,766] INFO: Starting cleanup process...
+[2025-09-12 19:55:28,894] INFO: IRC connection closed
+[2025-09-12 19:55:28,907] INFO: Final database save completed - 17 players saved
+[2025-09-12 19:55:28,908] INFO: Cleanup completed successfully
+[2025-09-12 19:55:28,925] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:09:21,565] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:09:21,568] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:09:21,568] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:09:21,569] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:09:21,648] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:09:21,817] INFO: Connected successfully!
+[2025-09-12 20:09:22,784] INFO: Registering as DuckHunt
+[2025-09-12 20:09:22,880] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:09:22,881] INFO: Joining #computertech
+[2025-09-12 20:09:22,937] INFO: Successfully joined #computertech
+[2025-09-12 20:09:23,822] INFO: Starting duck spawning...
+[2025-09-12 20:09:28,824] INFO: Admin spawned normal duck 3d18761a in #computertech
+[2025-09-12 20:09:28,825] INFO: Waiting 43m 4s for next duck
+[2025-09-12 20:10:31,986] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:10:32,701] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 20:10:32,702] INFO: Starting cleanup process...
+[2025-09-12 20:10:33,810] INFO: IRC connection closed
+[2025-09-12 20:10:33,819] INFO: Final database save completed - 17 players saved
+[2025-09-12 20:10:33,819] INFO: Cleanup completed successfully
+[2025-09-12 20:10:33,823] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:10:34,241] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:10:34,242] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:10:34,243] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:10:34,244] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:10:34,365] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:10:34,541] INFO: Connected successfully!
+[2025-09-12 20:10:36,475] INFO: Registering as DuckHunt
+[2025-09-12 20:10:36,594] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:10:36,597] INFO: Joining #computertech
+[2025-09-12 20:10:36,665] INFO: Successfully joined #computertech
+[2025-09-12 20:10:37,545] INFO: Starting duck spawning...
+[2025-09-12 20:10:42,548] INFO: Admin spawned normal duck 11290de8 in #computertech
+[2025-09-12 20:10:42,549] INFO: Waiting 74m 3s for next duck
+[2025-09-12 20:10:53,126] WARNING: A main task completed unexpectedly
+[2025-09-12 20:10:53,127] INFO: Starting cleanup process...
+[2025-09-12 20:10:54,233] INFO: IRC connection closed
+[2025-09-12 20:10:54,244] INFO: Final database save completed - 17 players saved
+[2025-09-12 20:10:54,245] INFO: Cleanup completed successfully
+[2025-09-12 20:10:54,248] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:11:53,511] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:11:53,512] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:11:53,512] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:11:53,513] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:11:53,599] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:11:53,797] INFO: Connected successfully!
+[2025-09-12 20:11:54,764] INFO: Registering as DuckHunt
+[2025-09-12 20:11:54,865] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:11:54,865] INFO: Joining #computertech
+[2025-09-12 20:11:54,914] INFO: Successfully joined #computertech
+[2025-09-12 20:11:55,800] INFO: Starting duck spawning...
+[2025-09-12 20:12:00,802] INFO: Admin spawned normal duck cefbb956 in #computertech
+[2025-09-12 20:12:00,803] INFO: Waiting 32m 48s for next duck
+[2025-09-12 20:12:01,603] INFO: Admin spawned normal duck e19381c2 in #computertech
+[2025-09-12 20:12:08,171] INFO: Admin spawned normal duck 642daf60 in #computertech
+[2025-09-12 20:12:08,705] INFO: Admin spawned normal duck deb6cc88 in #computertech
+[2025-09-12 20:12:32,287] INFO: Admin spawned golden duck f5c388c1 in #computertech
+[2025-09-12 20:17:29,215] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:17:29,253] INFO: Duck spawning stopped due to shutdown request
+[2025-09-12 20:17:29,254] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 20:17:29,254] INFO: Starting cleanup process...
+[2025-09-12 20:17:30,361] INFO: IRC connection closed
+[2025-09-12 20:17:30,368] INFO: Final database save completed - 17 players saved
+[2025-09-12 20:17:30,369] INFO: Cleanup completed successfully
+[2025-09-12 20:17:30,372] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:17:31,507] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:17:31,508] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:17:31,509] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:17:31,511] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:17:31,600] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:17:31,788] INFO: Connected successfully!
+[2025-09-12 20:17:32,919] INFO: Registering as DuckHunt
+[2025-09-12 20:17:33,047] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:17:33,048] INFO: Joining #computertech
+[2025-09-12 20:17:33,116] INFO: Successfully joined #computertech
+[2025-09-12 20:17:33,792] INFO: Starting duck spawning...
+[2025-09-12 20:17:38,793] INFO: Admin spawned normal duck fdc26682 in #computertech
+[2025-09-12 20:17:38,794] INFO: Waiting 77m 31s for next duck
+[2025-09-12 20:18:12,540] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:18:12,858] INFO: Duck spawning stopped due to shutdown request
+[2025-09-12 20:18:12,859] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 20:18:12,859] INFO: Starting cleanup process...
+[2025-09-12 20:18:13,964] INFO: IRC connection closed
+[2025-09-12 20:18:13,970] INFO: Final database save completed - 17 players saved
+[2025-09-12 20:18:13,971] INFO: Cleanup completed successfully
+[2025-09-12 20:18:13,975] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:18:14,525] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:18:14,527] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:18:14,528] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:18:14,531] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:18:14,636] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:18:14,805] INFO: Connected successfully!
+[2025-09-12 20:18:15,768] INFO: Registering as DuckHunt
+[2025-09-12 20:18:15,871] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:18:15,873] INFO: Joining #computertech
+[2025-09-12 20:18:15,929] INFO: Successfully joined #computertech
+[2025-09-12 20:18:16,123] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:18:16,129] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:18:16,147] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 20:18:16,148] INFO: Starting cleanup process...
+[2025-09-12 20:18:17,115] INFO: Received SIGTERM, initiating graceful shutdown...
+[2025-09-12 20:18:17,268] INFO: IRC connection closed
+[2025-09-12 20:18:17,276] INFO: Final database save completed - 17 players saved
+[2025-09-12 20:18:17,276] INFO: Cleanup completed successfully
+[2025-09-12 20:18:17,290] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:18:23,251] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:18:23,252] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:18:23,253] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:18:23,255] INFO: Loaded 17 players from duckhunt.json
+[2025-09-12 20:18:23,349] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:18:23,549] INFO: Connected successfully!
+[2025-09-12 20:18:24,557] INFO: Registering as DuckHunt
+[2025-09-12 20:18:24,676] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:18:24,677] INFO: Joining #computertech
+[2025-09-12 20:18:24,736] INFO: Successfully joined #computertech
+[2025-09-12 20:18:25,554] INFO: Starting duck spawning...
+[2025-09-12 20:18:30,556] INFO: Admin spawned normal duck 083638bd in #computertech
+[2025-09-12 20:18:30,557] INFO: Waiting 38m 8s for next duck
+[2025-09-12 20:18:43,399] INFO: Admin spawned normal duck 777c5080 in #computertech
+[2025-09-12 20:18:43,910] INFO: Admin spawned normal duck 0e36368a in #computertech
+[2025-09-12 20:18:44,307] INFO: Admin spawned normal duck 0dbf0209 in #computertech
+[2025-09-12 20:18:44,693] INFO: Admin spawned normal duck 224f9870 in #computertech
+[2025-09-12 20:18:45,055] INFO: Admin spawned normal duck 96c7a18d in #computertech
+[2025-09-12 20:18:45,659] INFO: Admin spawned normal duck f881fa3a in #computertech
+[2025-09-12 20:29:51,955] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:29:52,036] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 20:29:52,036] INFO: Starting cleanup process...
+[2025-09-12 20:29:53,159] INFO: IRC connection closed
+[2025-09-12 20:29:53,169] INFO: Final database save completed - 18 players saved
+[2025-09-12 20:29:53,170] INFO: Cleanup completed successfully
+[2025-09-12 20:29:53,181] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:29:54,600] INFO: Loaded 18 players from duckhunt.json
+[2025-09-12 20:29:54,601] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:29:54,601] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:29:54,604] INFO: Loaded 18 players from duckhunt.json
+[2025-09-12 20:29:54,699] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:29:54,874] INFO: Connected successfully!
+[2025-09-12 20:29:55,842] INFO: Registering as DuckHunt
+[2025-09-12 20:29:55,941] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:29:55,941] INFO: Joining #computertech
+[2025-09-12 20:29:55,991] INFO: Successfully joined #computertech
+[2025-09-12 20:29:56,877] INFO: Starting duck spawning...
+[2025-09-12 20:30:01,878] INFO: Admin spawned golden duck f7373d01 in #computertech
+[2025-09-12 20:30:01,878] INFO: Waiting 49m 50s for next duck
+[2025-09-12 20:31:39,076] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:31:39,717] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 20:31:39,718] INFO: Starting cleanup process...
+[2025-09-12 20:31:40,827] INFO: IRC connection closed
+[2025-09-12 20:31:40,834] INFO: Final database save completed - 19 players saved
+[2025-09-12 20:31:40,835] INFO: Cleanup completed successfully
+[2025-09-12 20:31:40,838] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:31:42,386] INFO: Loaded 19 players from duckhunt.json
+[2025-09-12 20:31:42,387] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:31:42,388] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:31:42,389] INFO: Loaded 19 players from duckhunt.json
+[2025-09-12 20:31:42,504] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:31:42,737] INFO: Connected successfully!
+[2025-09-12 20:31:43,914] INFO: Registering as DuckHunt
+[2025-09-12 20:31:44,034] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:31:44,034] INFO: Joining #computertech
+[2025-09-12 20:31:44,097] INFO: Successfully joined #computertech
+[2025-09-12 20:31:44,744] INFO: Starting duck spawning...
+[2025-09-12 20:31:49,747] INFO: Admin spawned normal duck 30bc917d in #computertech
+[2025-09-12 20:31:49,748] INFO: Waiting 44m 50s for next duck
+[2025-09-12 20:45:42,441] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:45:42,988] INFO: Duck spawning stopped due to shutdown request
+[2025-09-12 20:45:42,993] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 20:45:43,000] INFO: Starting cleanup process...
+[2025-09-12 20:45:44,197] INFO: IRC connection closed
+[2025-09-12 20:45:44,234] INFO: Final database save completed - 19 players saved
+[2025-09-12 20:45:44,235] INFO: Cleanup completed successfully
+[2025-09-12 20:45:44,316] INFO: DuckHunt Bot shutdown complete
+[2025-09-12 20:57:05,952] INFO: Loaded 19 players from duckhunt.json
+[2025-09-12 20:57:05,954] INFO: DuckHunt Bot initializing...
+[2025-09-12 20:57:05,955] INFO: Starting DuckHunt Bot...
+[2025-09-12 20:57:05,955] INFO: Loaded 19 players from duckhunt.json
+[2025-09-12 20:57:06,019] INFO: Connecting to irc.rizon.net:6697 (SSL: True)
+[2025-09-12 20:57:06,197] INFO: Connected successfully!
+[2025-09-12 20:57:07,157] INFO: Registering as DuckHunt
+[2025-09-12 20:57:07,256] INFO: Successfully registered! (SASL authenticated)
+[2025-09-12 20:57:07,256] INFO: Joining #computertech
+[2025-09-12 20:57:07,307] INFO: Successfully joined #computertech
+[2025-09-12 20:57:08,199] INFO: Starting duck spawning...
+[2025-09-12 20:57:13,200] INFO: Admin spawned normal duck 77291a83 in #computertech
+[2025-09-12 20:57:13,200] INFO: Waiting 49m 42s for next duck
+[2025-09-12 20:57:25,869] INFO: Admin spawned normal duck 4a2ff363 in #computertech
+[2025-09-12 20:57:26,569] INFO: Admin spawned normal duck f2ae2d52 in #computertech
+[2025-09-12 20:57:39,277] INFO: Admin spawned golden duck 3ef1281f in #computertech
+[2025-09-12 20:59:05,695] INFO: Received SIGINT, initiating graceful shutdown...
+[2025-09-12 20:59:06,333] INFO: Duck spawning stopped due to shutdown request
+[2025-09-12 20:59:06,334] INFO: Shutdown requested, stopping all tasks...
+[2025-09-12 20:59:06,334] INFO: Starting cleanup process...
+[2025-09-12 20:59:07,437] INFO: IRC connection closed
+[2025-09-12 20:59:07,442] INFO: Final database save completed - 19 players saved
+[2025-09-12 20:59:07,443] INFO: Cleanup completed successfully
+[2025-09-12 20:59:07,445] INFO: DuckHunt Bot shutdown complete

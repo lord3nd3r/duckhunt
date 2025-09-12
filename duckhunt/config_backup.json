@@ -1,0 +1,216 @@
+{
+    "server": "irc.rizon.net",
+    "port": 6697,
+    "nick": "DuckHunt",
+    "channels": ["#computertech"],
+    "ssl": true,
+    "sasl": {
+        "enabled": true,
+        "username": "duckhunt",
+        "password": "duckhunt//789//"
+    },
+    "password": "",
+    "admins": ["peorth", "computertech"],
+    
+    "_comment_duck_spawning": "Duck spawning configuration",
+    "duck_spawn_min": 1800,
+    "duck_spawn_max": 5400,
+    "duck_timeout_min": 45,
+    "duck_timeout_max": 75,
+    "duck_types": {
+        "normal": {
+            "enabled": true,
+            "spawn_rate": 70,
+            "xp_reward": 10,
+            "coin_reward": 1,
+            "health": 1
+        },
+        "golden": {
+            "enabled": true,
+            "spawn_rate": 8,
+            "xp_reward": 50,
+            "coin_reward": 10,
+            "health": 1
+        },
+        "armored": {
+            "enabled": true,
+            "spawn_rate": 2,
+            "xp_reward": 75,
+            "coin_reward": 15,
+            "health": 3
+        },
+        "rare": {
+            "enabled": true,
+            "spawn_rate": 20,
+            "xp_reward": 25,
+            "coin_reward": 3,
+            "health": 1
+        }
+    },
+    "sleep_hours": [],
+    "max_ducks_per_channel": 3,
+    
+    "_comment_befriending": "Duck befriending configuration",
+    "befriending": {
+        "enabled": true,
+        "base_success_rate": 65,
+        "max_success_rate": 90,
+        "level_bonus_per_level": 2,
+        "level_bonus_cap": 20,
+        "luck_bonus_per_point": 3,
+        "xp_reward": 8,
+        "coin_reward_min": 1,
+        "coin_reward_max": 2,
+        "failure_xp_penalty": 1,
+        "scared_away_chance": 10,
+        "lucky_item_chance": 5
+    },
+    
+    "_comment_shooting": "Shooting mechanics configuration",
+    "shooting": {
+        "enabled": true,
+        "base_accuracy": 85,
+        "base_reliability": 90,
+        "jam_chance_base": 10,
+        "friendly_fire_enabled": true,
+        "friendly_fire_chance": 5,
+        "reflex_shot_bonus": 5,
+        "miss_xp_penalty": 5,
+        "wild_shot_xp_penalty": 10,
+        "teamkill_xp_penalty": 20
+    },
+    
+    "_comment_weapons": "Weapon system configuration",
+    "weapons": {
+        "enabled": true,
+        "starting_weapon": "pistol",
+        "starting_ammo": 6,
+        "max_ammo_base": 6,
+        "starting_chargers": 2,
+        "max_chargers_base": 2,
+        "durability_enabled": true,
+        "confiscation_enabled": true
+    },
+    
+    "_comment_economy": "Economy and shop configuration",
+    "economy": {
+        "enabled": true,
+        "starting_coins": 100,
+        "shop_enabled": true,
+        "trading_enabled": true,
+        "theft_enabled": true,
+        "theft_success_rate": 30,
+        "theft_penalty": 50,
+        "banking_enabled": true,
+        "interest_rate": 5,
+        "loan_enabled": true
+    },
+    
+    "_comment_progression": "Player progression configuration",
+    "progression": {
+        "enabled": true,
+        "max_level": 40,
+        "xp_multiplier": 1.0,
+        "level_benefits_enabled": true,
+        "titles_enabled": true,
+        "prestige_enabled": false
+    },
+    
+    "_comment_karma": "Karma system configuration",
+    "karma": {
+        "enabled": true,
+        "hit_bonus": 2,
+        "golden_hit_bonus": 5,
+        "teamkill_penalty": 10,
+        "wild_shot_penalty": 3,
+        "miss_penalty": 1,
+        "befriend_success_bonus": 2,
+        "befriend_fail_penalty": 1
+    },
+    
+    "_comment_items": "Items and powerups configuration",
+    "items": {
+        "enabled": true,
+        "lucky_items_enabled": true,
+        "lucky_item_base_chance": 5,
+        "detector_enabled": true,
+        "silencer_enabled": true,
+        "sunglasses_enabled": true,
+        "explosive_ammo_enabled": true,
+        "sabotage_enabled": true,
+        "insurance_enabled": true,
+        "decoy_enabled": true
+    },
+    
+    "_comment_social": "Social features configuration", 
+    "social": {
+        "leaderboards_enabled": true,
+        "duck_alerts_enabled": true,
+        "private_messages_enabled": true,
+        "statistics_sharing_enabled": true,
+        "achievements_enabled": false
+    },
+    
+    "_comment_moderation": "Moderation and admin features",
+    "moderation": {
+        "ignore_system_enabled": true,
+        "rate_limiting_enabled": true,
+        "rate_limit_cooldown": 2.0,
+        "admin_commands_enabled": true,
+        "ban_system_enabled": true,
+        "database_reset_enabled": true
+    },
+    
+    "_comment_advanced": "Advanced game mechanics",
+    "advanced": {
+        "gun_jamming_enabled": true,
+        "weather_effects_enabled": false,
+        "seasonal_events_enabled": false,
+        "daily_challenges_enabled": false,
+        "guild_system_enabled": false,
+        "pvp_enabled": false
+    },
+    
+    "_comment_messages": "Message customization",
+    "messages": {
+        "custom_duck_messages_enabled": true,
+        "color_enabled": true,
+        "emoji_enabled": true,
+        "verbose_messages": true,
+        "success_sound_effects": true
+    },
+    
+    "_comment_database": "Database and persistence",
+    "database": {
+        "auto_save_enabled": true,
+        "auto_save_interval": 300,
+        "backup_enabled": true,
+        "backup_interval": 3600,
+        "compression_enabled": false
+    },
+    
+    "_comment_debug": "Debug and logging options",
+    "debug": {
+        "debug_mode": false,
+        "verbose_logging": false,
+        "command_logging": false,
+        "performance_monitoring": false
+    }
+}c.rizon.net",
+    "port": 6697,
+    "nick": "DuckHunt",
+    "channels": ["#computertech"],
+    "ssl": true,
+    "sasl": {
+        "enabled": true,
+        "username": "duckhunt",
+        "password": "duckhunt//789//"
+    },
+    "password": "",
+    "admins": ["colby", "computertech"],
+    "duck_spawn_min": 1800,
+    "duck_spawn_max": 5400,
+    "duck_timeout_min": 45,
+    "duck_timeout_max": 75,
+    "_comment": "Run with: python3 simple_duckhunt.py | Admins config-only | Private admin: /msg DuckHuntBot restart|quit|launch | Duck timeout: random between min-max seconds"
+}
