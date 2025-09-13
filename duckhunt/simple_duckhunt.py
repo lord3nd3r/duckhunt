@@ -148,7 +148,6 @@ class SimpleIRCBot:
         self.db_file = "duckhunt.json"
         self.admins = [admin.lower() for admin in self.config.get('admins', ['colby'])]  # Load from config only, case insensitive
         self.ignored_nicks = set()  # Nicks to ignore commands from
-        self.command_cooldowns = {}  # Rate limiting for commands
         self.duck_timeout_min = self.config.get('duck_timeout_min', 45)  # Minimum duck timeout
         self.duck_timeout_max = self.config.get('duck_timeout_max', 75)  # Maximum duck timeout
         self.duck_spawn_min = self.config.get('duck_spawn_min', 1800)  # Minimum duck spawn time (30 min)
@@ -391,7 +390,7 @@ class SimpleIRCBot:
                 player[item_key] = player.get(item_key, 0) + 1
                 
             self.send_message(channel, f"{nick} > {self.colors['cyan']}You found {found_item} in the bushes!{self.colors['reset']}")
-            self.save_player(f"{nick}!user@host")  # Save player data
+            # Player data will be saved by the calling function
             
     def load_database(self):
         """Load player data from JSON file"""
@@ -515,8 +514,8 @@ class SimpleIRCBot:
             self.save_database()
             # Send notification to channel
             rearmed_list = ', '.join(rearmed_players)
-        self.send_message(channel, f"🔫 {self.colors['green']}Auto-rearm:{self.colors['reset']} {rearmed_list} got their guns back! (Thanks to {shooter_nick}'s duck shot)")
-        self.logger.info(f"Auto-rearmed {len(rearmed_players)} players after {shooter_nick} shot duck in {channel}")
+            self.send_message(channel, f"🔫 {self.colors['green']}Auto-rearm:{self.colors['reset']} {rearmed_list} got their guns back! (Thanks to {shooter_nick}'s duck shot)")
+            self.logger.info(f"Auto-rearmed {len(rearmed_players)} players after {shooter_nick} shot duck in {channel}")
     
     async def update_channel_records(self, channel, hunter, shot_time, duck_type):
         """Update channel records and duck difficulty after a successful shot"""
@@ -623,34 +622,6 @@ class SimpleIRCBot:
         self.send_raw(f'PRIVMSG {target} :{msg}')
         # Remove drain() for faster responses - let TCP handle buffering
     
-    def check_rate_limit(self, nick: str, channel: str) -> bool:
-        """Check if user is within rate limits"""
-        try:
-            current_time = time.time()
-            key = f"{nick}:{channel}"
-            
-            # Rate limit: 5 commands per 30 seconds per user per channel
-            if key not in self.command_cooldowns:
-                self.command_cooldowns[key] = []
-            
-            # Remove old entries
-            self.command_cooldowns[key] = [
-                timestamp for timestamp in self.command_cooldowns[key] 
-                if current_time - timestamp < 30
-            ]
-            
-            # Check if under limit
-            if len(self.command_cooldowns[key]) >= 5:
-                return False
-            
-            # Add current command
-            self.command_cooldowns[key].append(current_time)
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Rate limit check failed: {e}")
-            return True  # Allow command if rate limiting fails
-        
     def get_player(self, user):
         """Get player data by nickname only (case insensitive)"""
         if '!' not in user:
@@ -768,18 +739,6 @@ class SimpleIRCBot:
         if hasattr(signal, 'SIGHUP'):
             signal.signal(signal.SIGHUP, lambda s, f: signal_handler(s))
 
-    def is_rate_limited(self, user, command, cooldown=2.0):
-        """Check if user is rate limited for a command"""
-        now = time.time()
-        key = f"{user}:{command}"
-        
-        if key in self.command_cooldowns:
-            if now - self.command_cooldowns[key] < cooldown:
-                return True
-        
-        self.command_cooldowns[key] = now
-        return False
-
     async def handle_command(self, user, channel, message):
         """Enhanced command handler with logging, validation, and graceful degradation"""
         if not user:
@@ -810,11 +769,6 @@ class SimpleIRCBot:
             # Check if user is ignored
             if nick_lower in self.ignored_nicks:
                 self.logger.debug(f"Ignoring command from ignored user: {nick}")
-                return
-            
-            # Rate limiting check
-            if not self.check_rate_limit(nick_lower, channel):
-                self.logger.info(f"Rate limit exceeded for {nick} in {channel}")
                 return
         
             # Determine if this is a private message to the bot
@@ -877,10 +831,6 @@ class SimpleIRCBot:
             # Regular game commands (channel only)
             # Inline common commands for speed
             if cmd == '!bang':
-                # Rate limit shooting to prevent spam
-                if self.is_rate_limited(user, 'bang', 1.0):
-                    return
-                    
                 player = self.get_player(user)
                 if not player:
                     return
@@ -999,9 +949,9 @@ class SimpleIRCBot:
                         
                         if is_golden:
                             golden_count = player.get('golden_ducks', 0)
-                            hit_msg = f"{nick} > {self.colors['yellow']}{shot_sound} ★GOLDEN★{self.colors['reset']} {shot_time:.3f}s | Ducks:{player['caught']} ({self.colors['yellow']}{golden_count}g{self.colors['reset']}) | L{level} | +{xp_earned}xp{explosive_text}{lucky_text}"
+                            hit_msg = f"{nick} > {self.colors['yellow']}{shot_sound} ★ GOLDEN DUCK ★{self.colors['reset']} shot in {shot_time:.3f}s! | Ducks: {player['caught']} ({self.colors['yellow']}{golden_count} golden{self.colors['reset']}) | Level {level} | +{xp_earned} xp{explosive_text}{lucky_text}"
                         else:
-                            hit_msg = f"{nick} > {self.colors['green']}{shot_sound}{self.colors['reset']} {shot_time:.3f}s | Ducks:{player['caught']} | L{level} | +{xp_earned}xp{explosive_text}{lucky_text}"
+                            hit_msg = f"{nick} > {self.colors['green']}{shot_sound}{self.colors['reset']} Duck shot in {shot_time:.3f}s! | Ducks: {player['caught']} | Level {level} | +{xp_earned} xp{explosive_text}{lucky_text}"
                         
                         self.send_message(channel, hit_msg)
                         
@@ -1045,7 +995,7 @@ class SimpleIRCBot:
                         await self.scare_duck_on_miss(channel, target_duck)
                         
                         miss_sound = "•click•" if player.get('silencer', 0) > 0 else "*CLICK*"
-                        await self.send_user_message(nick, channel, f"{nick} > {miss_sound} MISS | {miss_penalty}xp{ricochet_msg}")
+                        await self.send_user_message(nick, channel, f"{nick} > {miss_sound} You missed the duck! | {miss_penalty} xp{ricochet_msg}")
                         
                 else:
                     # No duck present - wild fire!
@@ -1084,7 +1034,7 @@ class SimpleIRCBot:
                     if player.get('silencer', 0) > 0:
                         wild_sound = "•" + wild_sound[1:-1] + "•"
                         
-                    await self.send_user_message(nick, channel, f"{nick} > {wild_sound} WILD SHOT! | {miss_penalty+wild_penalty}xp | GUN CONFISCATED{friendly_fire_msg}")
+                    await self.send_user_message(nick, channel, f"{nick} > {wild_sound} You shot at nothing! What were you aiming at? | {miss_penalty+wild_penalty} xp | GUN CONFISCATED{friendly_fire_msg}")
                 
                 # Save after each shot
                 self.save_player(user)
@@ -1147,7 +1097,7 @@ class SimpleIRCBot:
                         remaining_ducks = len([d for d in channel_ducks if d.get('alive')])
                         duck_count_text = f" | {remaining_ducks} ducks remain" if remaining_ducks > 0 else ""
                         
-                        self.send_message(channel, f"{nick} > \\_o< BEFRIENDED {bef_time:.3f}s | Friends:{player['befriended']} | +{xp_earned}xp{lucky_text}{duck_count_text}")
+                        self.send_message(channel, f"{nick} > \\_o< You befriended the duck in {bef_time:.3f}s! | Friends: {player['befriended']} ducks | +{xp_earned} xp{lucky_text}{duck_count_text}")
                         
                         # Update karma for successful befriend
                         if self.get_config('karma.enabled', True):
@@ -1204,7 +1154,7 @@ class SimpleIRCBot:
                 if player.get('jammed', False):
                     player['jammed'] = False
                     unjam_sound = "•click click•" if player.get('silencer', 0) > 0 else "*click click*"
-                    self.send_message(channel, f"{nick} > {unjam_sound} UNJAMMED | {player['ammo']}/{player['max_ammo']} | {player['chargers']}/{player['max_chargers']}")
+                    self.send_message(channel, f"{nick} > {unjam_sound} You unjammed your gun! | Ammo: {player['ammo']}/{player['max_ammo']} | Chargers: {player['chargers']}/{player['max_chargers']}")
                     self.save_player(user)
                     return
                     
@@ -1223,13 +1173,13 @@ class SimpleIRCBot:
                     player['chargers'] -= 1
                     player['ammo'] = player['max_ammo']
                     reload_sound = "•click•" if player.get('silencer', 0) > 0 else "*click*"
-                    self.send_message(channel, f"{nick} > {reload_sound} RELOADED | {player['ammo']}/{player['max_ammo']} | {player['chargers']}/{player['max_chargers']}")
+                    self.send_message(channel, f"{nick} > {reload_sound} You reloaded your gun! | Ammo: {player['ammo']}/{player['max_ammo']} | Chargers: {player['chargers']}/{player['max_chargers']}")
                 else:
                     # Gun jams during reload
                     player['jammed'] = True
                     player['jammed_count'] = player.get('jammed_count', 0) + 1
                     jam_sound = "•CLACK• •click click•" if player.get('silencer', 0) > 0 else "*CLACK* *click click*"
-                    self.send_message(channel, f"{nick} > {jam_sound} RELOAD JAMMED! Use !reload to unjam.")
+                    self.send_message(channel, f"{nick} > {jam_sound} Your gun jammed while reloading! Use !reload again to unjam it.")
                     
                 # Save to database after reload
                 self.save_player(user)
@@ -1508,7 +1458,7 @@ class SimpleIRCBot:
         if player.get('explosive_ammo', False):
             compact_gun_status += "[EXP]"
         
-        stats_line2 = f"{nick} > {weapon_name.title()}{compact_gun_status} | {player['ammo']}/{player['max_ammo']}a | {player['chargers']}/{player['max_chargers']}c | Acc:{player['accuracy']}%({effective_accuracy:.0f}%) | Rel:{self.calculate_gun_reliability(player)}%"
+        stats_line2 = f"{nick} > {weapon_name.title()}{compact_gun_status} | Ammo: {player['ammo']}/{player['max_ammo']} | Chargers: {player['chargers']}/{player['max_chargers']} | Accuracy: {player['accuracy']}% (effective: {effective_accuracy:.0f}%) | Reliability: {self.calculate_gun_reliability(player)}%"
         
         # Optional advanced stats line (if requested)
         best_time = player.get('best_time', 999.9)
@@ -1793,8 +1743,7 @@ class SimpleIRCBot:
             'weapons': [
                 {'id': '11', 'name': 'Shotgun', 'cost': 100},
                 {'id': '12', 'name': 'Assault rifle', 'cost': 200},
-                {'id': '13', 'name': 'Sniper rifle', 'cost': 350},
-                {'id': '14', 'name': 'Auto shotgun', 'cost': 500}
+                {'id': '13', 'name': 'Sniper rifle', 'cost': 350}
             ],
             'upgrades': [
                 {'id': '6', 'name': 'Grease', 'cost': 8},
@@ -1810,7 +1759,6 @@ class SimpleIRCBot:
                 {'id': '17', 'name': 'Sabotage', 'cost': 14},
                 {'id': '20', 'name': 'Decoy', 'cost': 80},
                 {'id': '21', 'name': 'Bread', 'cost': 50},
-                {'id': '22', 'name': 'Duck detector', 'cost': 50},
                 {'id': '23', 'name': 'Mechanical duck', 'cost': 50}
             ],
             'insurance': [
@@ -2602,7 +2550,6 @@ class SimpleIRCBot:
             # Clear in-memory data
             self.players.clear()
             self.ducks.clear()
-            self.command_cooldowns.clear()
             
             self.logger.info("Cleanup completed successfully")
             
