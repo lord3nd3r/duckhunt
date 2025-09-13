@@ -816,7 +816,7 @@ class SimpleIRCBot:
                         return
                 else:
                     # Non-admin private message
-                    self.send_message(response_target, f"{nick} > Private commands are admin-only. Use !help in a channel for game commands.")
+                    self.send_message(response_target, f"{nick} > Private commands are admin-only. Use !duckhelp in a channel for game commands.")
                     return
         
             # Handle channel messages (must start with !)
@@ -1196,7 +1196,7 @@ class SimpleIRCBot:
                     
             elif cmd == '!stats':
                 await self.handle_stats(nick, channel, user)
-            elif cmd == '!help':
+            elif cmd == '!duckhelp':
                 await self.handle_help(nick, channel)
             elif full_cmd.startswith('!shop'):
                 # Handle !shop or !shop <item_id>
@@ -1275,7 +1275,7 @@ class SimpleIRCBot:
                 else:
                     self.send_message(channel, f"{nick} > No ducks currently active.")
                     
-            elif cmd == '!top' or cmd == '!leaderboard':
+            elif cmd == '!top' or cmd == '!leaderboard' or cmd == '!topduck':
                 # Show top players by XP
                 if not self.players:
                     self.send_message(channel, f"{nick} > No players found!")
@@ -1399,9 +1399,12 @@ class SimpleIRCBot:
                 parts = full_cmd[8:].split()
                 if len(parts) >= 2:
                     target_nick, amount = parts[0], parts[1]
-                await self.handle_admin_givexp(nick, channel, target_nick, amount)
+                    await self.handle_admin_givexp(nick, channel, target_nick, amount)
+                else:
+                    self.send_message(channel, f"{nick} > Usage: !givexp <nick> <amount>")
             else:
-                self.send_message(channel, f"{nick} > Usage: !givexp <nick> <amount>")
+                # Unknown command - show help
+                self.send_message(channel, f"{nick} > Unknown command! Use !duckhelp to see available commands.")
                     
         except Exception as e:
             # Graceful degradation - log error but don't crash
@@ -1604,8 +1607,10 @@ class SimpleIRCBot:
         
     async def handle_help(self, nick, channel):
         help_lines = [
-            f"{nick} > {self.colors['cyan']}🦆 DUCKHUNT 🦆{self.colors['reset']} !bang !bef !reload !stats !top !shop !buy <id>",
-            f"{nick} > {self.colors['yellow']}Golden ducks: 50 XP{self.colors['reset']} | {self.colors['red']}Gun jamming & ricochets ON{self.colors['reset']} | Timeout: {self.duck_timeout_min}-{self.duck_timeout_max}s"
+            f"{nick} > {self.colors['cyan']}🦆 DUCKHUNT COMMANDS 🦆{self.colors['reset']}",
+            f"{nick} > {self.colors['green']}Game:{self.colors['reset']} !bang !bef !reload !stats !topduck !shop !buy <id> !inventory !nextduck",
+            f"{nick} > {self.colors['blue']}Settings:{self.colors['reset']} !output <PUBLIC|NOTICE|PRIVMSG> !ignore <nick> !unignore <nick>",
+            f"{nick} > {self.colors['yellow']}Info:{self.colors['reset']} Golden ducks: 50 XP | Gun jamming & ricochets ON | Timeout: {self.duck_timeout_min}-{self.duck_timeout_max}s"
         ]
         if self.is_admin(f"{nick}!*@*"):  # Check if admin
             help_lines.append(f"{nick} > {self.colors['red']}Admin:{self.colors['reset']} !duck !golden !ban !reset !resetdb !rearm !giveitem !givexp | /msg {self.config['nick']} restart|quit")
