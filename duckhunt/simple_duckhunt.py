@@ -1614,7 +1614,7 @@ class SimpleIRCBot:
     async def handle_help(self, nick, channel):
         help_lines = [
             f"{nick} > {self.colors['cyan']}🦆 DUCKHUNT COMMANDS 🦆{self.colors['reset']}",
-            f"{nick} > {self.colors['green']}Game:{self.colors['reset']} !bang !bef !reload !duckstats !topduck !shop !buy <id> !use <id> !give <nick> <id> !nextduck",
+            f"{nick} > {self.colors['green']}Game:{self.colors['reset']} !bang !bef !reload !duckstats !topduck !shop !buy <id> !use <id> !give <nick> <id>",
             f"{nick} > {self.colors['blue']}Settings:{self.colors['reset']} !output <PUBLIC|NOTICE|PRIVMSG>"
         ]
         if self.is_admin(f"{nick}!*@*"):  # Check if admin
