@@ -806,13 +806,13 @@ class SimpleIRCBot:
                         target_nick = cmd[7:].strip().lower()
                         await self.handle_ignore(nick, response_target, target_nick)
                         return
-                    elif cmd.startswith('delignore '):
-                        target_nick = cmd[10:].strip().lower()
+                    elif cmd.startswith('unignore '):
+                        target_nick = cmd[9:].strip().lower()
                         await self.handle_delignore(nick, response_target, target_nick)
                         return
                     else:
                         # Unknown private command
-                        self.send_message(response_target, f"{nick} > Admin commands: restart, quit, launch, golden, ignore <nick>, delignore <nick>")
+                        self.send_message(response_target, f"{nick} > Admin commands: restart, quit, launch, golden, ignore <nick>, unignore <nick>")
                         return
                 else:
                     # Non-admin private message
@@ -1385,8 +1385,8 @@ class SimpleIRCBot:
             elif full_cmd.startswith('!ignore ') and self.is_admin(user):  # Admin only
                 target_nick = full_cmd[8:].strip().lower()
                 await self.handle_ignore(nick, channel, target_nick)
-            elif full_cmd.startswith('!delignore ') and self.is_admin(user):  # Admin only
-                target_nick = full_cmd[11:].strip().lower()
+            elif full_cmd.startswith('!unignore ') and self.is_admin(user):  # Admin only
+                target_nick = full_cmd[10:].strip().lower()
                 await self.handle_delignore(nick, channel, target_nick)
             elif full_cmd.startswith('!giveitem ') and self.is_admin(user):  # Admin only
                 parts = full_cmd[10:].split()
