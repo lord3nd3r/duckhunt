@@ -23,6 +23,7 @@
             "duck_befriend": true,
             "duck_miss": true,
             "wild_shot": true,
+            "player_stats": true,
             "leaderboard": true,
             "admin_commands": true
         },

@@ -1478,8 +1478,8 @@ class SimpleIRCBot:
         stats_line3 = f"{nick} > Best:{best_display} | Avg:{average_time:.3f}s | Jams:{player.get('jammed_count', 0)} | Accidents:{player.get('accidents', 0)} | Lucky:{player.get('lucky_shots', 0)}"
         
         # Send compact stats (just 2-3 lines instead of 4+)
-        await self.send_user_message(nick, channel, stats_line1)
-        await self.send_user_message(nick, channel, stats_line2)
+        await self.send_user_message(nick, channel, stats_line1, 'player_stats')
+        await self.send_user_message(nick, channel, stats_line2, 'player_stats')
         
         # Display inventory compactly if player has items
         if player.get('inventory'):
@@ -1502,10 +1502,10 @@ class SimpleIRCBot:
                 inventory_display = f"{nick} > {self.colors['magenta']}Inventory ({total_items}/{max_slots}):{self.colors['reset']} {' | '.join(inventory_items[:8])}"
                 if len(inventory_items) > 8:
                     inventory_display += f" ... +{len(inventory_items) - 8} more"
-                await self.send_user_message(nick, channel, inventory_display)
+                await self.send_user_message(nick, channel, inventory_display, 'player_stats')
         # Only show advanced stats if player has significant activity
         if player.get('reflex_shots', 0) > 5:
-            await self.send_user_message(nick, channel, stats_line3)
+            await self.send_user_message(nick, channel, stats_line3, 'player_stats')
         
         # Inventory display
         if player.get('inventory'):
@@ -1527,7 +1527,7 @@ class SimpleIRCBot:
                 inventory_display = f"{nick} > {self.colors['magenta']}Items({total_items}/{max_slots}):{self.colors['reset']} {' '.join(inventory_items[:15])}"
                 if len(inventory_items) > 15:
                     inventory_display += f" +{len(inventory_items) - 15}"
-                await self.send_user_message(nick, channel, inventory_display)
+                await self.send_user_message(nick, channel, inventory_display, 'player_stats')
         
     async def handle_rearm(self, nick, channel, user, target_nick):
         """Rearm a player whose gun was confiscated"""
@@ -1607,11 +1607,11 @@ class SimpleIRCBot:
         help_lines = [
             f"{nick} > {self.colors['cyan']}🦆 DUCKHUNT COMMANDS 🦆{self.colors['reset']}",
             f"{nick} > {self.colors['green']}Game:{self.colors['reset']} !bang !bef !reload !stats !topduck !shop !buy <id> !inventory !nextduck",
-            f"{nick} > {self.colors['blue']}Settings:{self.colors['reset']} !output <PUBLIC|NOTICE|PRIVMSG> !ignore <nick> !unignore <nick>",
+            f"{nick} > {self.colors['blue']}Settings:{self.colors['reset']} !output <PUBLIC|NOTICE|PRIVMSG>",
             f"{nick} > {self.colors['yellow']}Info:{self.colors['reset']} Golden ducks: 50 XP | Gun jamming & ricochets ON | Timeout: {self.duck_timeout_min}-{self.duck_timeout_max}s"
         ]
         if self.is_admin(f"{nick}!*@*"):  # Check if admin
-            help_lines.append(f"{nick} > {self.colors['red']}Admin:{self.colors['reset']} !duck !golden !ban !reset !resetdb !rearm !giveitem !givexp | /msg {self.config['nick']} restart|quit")
+            help_lines.append(f"{nick} > {self.colors['red']}Admin:{self.colors['reset']} !duck !golden !ban !reset !resetdb !rearm !giveitem !givexp !ignore !unignore | /msg {self.config['nick']} restart|quit")
         for line in help_lines:
             self.send_message(channel, line)
             
