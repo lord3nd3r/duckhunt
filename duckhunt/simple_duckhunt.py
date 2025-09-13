@@ -172,6 +172,7 @@ class SimpleIRCBot:
             'yellow': '\x0308',
             'orange': '\x0307',
             'purple': '\x0306',
+            'magenta': '\x0313',
             'cyan': '\x0311',
             'white': '\x0300',
             'black': '\x0301',
@@ -1837,7 +1838,7 @@ class SimpleIRCBot:
         
         # Compact footer
         self.send_message(channel, f"Use !shop <id> to buy")
-            
+
     async def handle_buy(self, nick, channel, item, user):
         """Buy items and add to inventory"""
         player = self.get_player(user)
