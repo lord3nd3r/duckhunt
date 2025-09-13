@@ -541,3 +541,13 @@
 [2025-09-12 20:59:07,442] INFO: Final database save completed - 19 players saved
 [2025-09-12 20:59:07,443] INFO: Cleanup completed successfully
 [2025-09-12 20:59:07,445] INFO: DuckHunt Bot shutdown complete
+2025-09-13 13:06:23,192 [INFO    ] DuckHuntBot - setup_logger:78: Enhanced logging system initialized with file rotation
+2025-09-13 13:06:23,212 [INFO    ] DuckHuntBot - load_database:401: Loaded 19 players from duckhunt.json
+2025-09-13 13:07:06,713 [INFO    ] DuckHuntBot - setup_logger:79: Enhanced logging system initialized with file rotation
+2025-09-13 13:07:06,715 [INFO    ] DuckHuntBot - load_database:402: Loaded 19 players from duckhunt.json
+2025-09-13 13:07:20,053 [INFO    ] DuckHuntBot - setup_logger:79: Enhanced logging system initialized with file rotation
+2025-09-13 13:07:20,054 [INFO    ] DuckHuntBot - load_database:402: Loaded 19 players from duckhunt.json
+2025-09-13 13:17:14,822 [INFO    ] DuckHuntBot - setup_logger:79: Enhanced logging system initialized with file rotation
+2025-09-13 13:17:14,824 [INFO    ] DuckHuntBot - load_database:402: Loaded 19 players from duckhunt.json
+2025-09-13 13:22:07,954 [INFO    ] DuckHuntBot - setup_logger:79: Enhanced logging system initialized with file rotation
+2025-09-13 13:22:07,956 [INFO    ] DuckHuntBot - load_database:402: Loaded 19 players from duckhunt.json

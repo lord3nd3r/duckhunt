@@ -32,7 +32,6 @@ class DetailedColorFormatter(logging.Formatter):
         'WARNING': '\033[93m',  # Yellow
         'ERROR': '\033[91m',    # Red
         'CRITICAL': '\033[95m', # Magenta
-        'ENDC': '\033[0m'       # End color
     }
     
     def format(self, record):
@@ -886,558 +885,559 @@ class SimpleIRCBot:
                 
                 # Check if gun is confiscated
                 if player.get('gun_confiscated', False):
-                    self.send_message(channel, f"{nick} > {self.colors['red']}Gun confiscated! Buy item #5{self.colors['reset']}")
+                    self.send_message(channel, f"{nick} > {self.colors['red']}Your gun has been confiscated! Buy a new gun from the shop (item #5).{self.colors['reset']}")
                     return
                     
                 # Check if gun is jammed
                 if player.get('jammed', False):
-                    self.send_message(channel, f"{nick} > {self.colors['red']}Gun jammed! Use !reload{self.colors['reset']}")
+                    self.send_message(channel, f"{nick} > {self.colors['red']}Your gun is jammed! Use !reload to unjam it.{self.colors['reset']}")
                     return
                     
                 # Check ammo
                 if player['ammo'] <= 0:
-                    self.send_message(channel, f"{nick} > Empty! | {player['ammo']}/{player['max_ammo']} | {player['chargers']}/{player['max_chargers']}")
+                    self.send_message(channel, f"{nick} > Your gun is empty! | Ammo: 0/{player['max_ammo']} | Chargers: {player['chargers']}/{player['max_chargers']}")
                     return
-                    
-                # Check for gun jamming before shooting
-                if self.gun_jams(player):
-                    player['jammed'] = True
-                    player['jammed_count'] = player.get('jammed_count', 0) + 1
-                    jam_sound = "•click• •click•" if player.get('silencer', 0) > 0 else "*CLICK* *CLICK*"
-                    self.send_message(channel, f"{nick} > {jam_sound} Your gun jammed! Use !reload to unjam it.")
-                    self.save_player(user)
-                    return
-                    
-                # Get ducks in this channel
-                channel_ducks = self.ducks.get(channel, [])
-                alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
                 
-                # Consume ammo
-                player['ammo'] -= 1
-                player['total_ammo_used'] = player.get('total_ammo_used', 0) + 1
+            # Check for gun jamming before shooting
+            if self.gun_jams(player):
+                player['jammed'] = True
+                player['jammed_count'] = player.get('jammed_count', 0) + 1
+                jam_sound = "•click• •click•" if player.get('silencer', 0) > 0 else "*CLICK* *CLICK*"
+                self.send_message(channel, f"{nick} > {jam_sound} Your gun jammed! Use !reload to unjam it.")
+                self.save_player(user)
+                return
                 
-                if alive_ducks:
-                    # Target the oldest duck (first in, first out)
-                    target_duck = alive_ducks[0]
-                    shot_time = time.time() - target_duck['spawn_time']
-                    is_golden = target_duck.get('type') == 'golden'
+            # Get ducks in this channel
+            channel_ducks = self.ducks.get(channel, [])
+            alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
+            
+            # Consume ammo
+            player['ammo'] -= 1
+            player['total_ammo_used'] = player.get('total_ammo_used', 0) + 1
+            
+            if alive_ducks:
+                # Target the oldest duck (first in, first out)
+                target_duck = alive_ducks[0]
+                shot_time = time.time() - target_duck['spawn_time']
+                is_golden = target_duck.get('type') == 'golden'
+                
+                # Calculate hit chance (golden ducks are harder to hit)
+                base_accuracy = player['accuracy']
+                if is_golden:
+                    base_accuracy = max(base_accuracy - 30, 10)  # Golden ducks much harder
+                
+                # Apply bonuses
+                if player.get('sunglasses', 0) > 0:
+                    base_accuracy += 5  # Sunglasses help
+                if player.get('mirror', 0) > 0:
+                    base_accuracy += 3  # Mirror helps
                     
-                    # Calculate hit chance (golden ducks are harder to hit)
-                    base_accuracy = player['accuracy']
+                # Apply duck smartness penalty
+                duck_difficulty = self.duck_difficulty.get(channel, 1.0)
+                if duck_difficulty > 1.0:
+                    # Smarter ducks are harder to hit
+                    difficulty_penalty = (duck_difficulty - 1.0) * 20  # Up to 20% penalty at max difficulty
+                    base_accuracy = max(base_accuracy - difficulty_penalty, 10)  # Never go below 10%
+                    
+                hit_chance = min(base_accuracy, 95)  # Cap at 95%
+                
+                # Record shot attempt
+                player['shot_at'] = player.get('shot_at', 0) + 1
+                target_duck['hit_attempts'] = target_duck.get('hit_attempts', 0) + 1
+                
+                # Track total shots for channel statistics
+                if channel not in self.channel_records:
+                    self.channel_records[channel] = {'total_shots': 0, 'total_ducks': 0}
+                self.channel_records[channel]['total_shots'] += 1
+                
+                # Check for hit
+                if random.randint(1, 100) <= hit_chance:
+                    # HIT!
+                    player['caught'] += 1
+                    target_duck['alive'] = False
+                    
+                    # Update reflex time stats
+                    player['reflex_shots'] = player.get('reflex_shots', 0) + 1
+                    player['total_reflex_time'] = player.get('total_reflex_time', 0) + shot_time
+                    if shot_time < player.get('best_time', 999.9):
+                        player['best_time'] = shot_time
+                    
+                    # Calculate XP and rewards
                     if is_golden:
-                        base_accuracy = max(base_accuracy - 30, 10)  # Golden ducks much harder
-                    
-                    # Apply bonuses
-                    if player.get('sunglasses', 0) > 0:
-                        base_accuracy += 5  # Sunglasses help
-                    if player.get('mirror', 0) > 0:
-                        base_accuracy += 3  # Mirror helps
-                        
-                    # Apply duck smartness penalty
-                    duck_difficulty = self.duck_difficulty.get(channel, 1.0)
-                    if duck_difficulty > 1.0:
-                        # Smarter ducks are harder to hit
-                        difficulty_penalty = (duck_difficulty - 1.0) * 20  # Up to 20% penalty at max difficulty
-                        base_accuracy = max(base_accuracy - difficulty_penalty, 10)  # Never go below 10%
-                        
-                    hit_chance = min(base_accuracy, 95)  # Cap at 95%
-                    
-                    # Record shot attempt
-                    player['shot_at'] = player.get('shot_at', 0) + 1
-                    target_duck['hit_attempts'] = target_duck.get('hit_attempts', 0) + 1
-                    
-                    # Track total shots for channel statistics
-                    if channel not in self.channel_records:
-                        self.channel_records[channel] = {'total_shots': 0, 'total_ducks': 0}
-                    self.channel_records[channel]['total_shots'] += 1
-                    
-                    # Check for hit
-                    if random.randint(1, 100) <= hit_chance:
-                        # HIT!
-                        player['caught'] += 1
-                        target_duck['alive'] = False
-                        
-                        # Update reflex time stats
-                        player['reflex_shots'] = player.get('reflex_shots', 0) + 1
-                        player['total_reflex_time'] = player.get('total_reflex_time', 0) + shot_time
-                        if shot_time < player.get('best_time', 999.9):
-                            player['best_time'] = shot_time
-                        
-                        # Calculate XP and rewards
-                        if is_golden:
-                            player['golden_ducks'] = player.get('golden_ducks', 0) + 1
-                            base_xp = 50  # Golden ducks give much more XP
-                            self.update_karma(player, 'golden_hit')
-                        else:
-                            base_xp = 15  # Normal XP
-                            self.update_karma(player, 'hit')
-                        
-                        # Lucky shot bonus
-                        luck_multiplier = 1 + (player.get('luck', 0) * 0.1)  # 10% per luck point
-                        is_lucky = random.randint(1, 100) <= (5 + player.get('luck', 0))
-                        if is_lucky:
-                            player['lucky_shots'] = player.get('lucky_shots', 0) + 1
-                            luck_multiplier *= 1.5  # 50% bonus for lucky shot
-                            
-                        xp_earned = int(base_xp * luck_multiplier)
-                        player['xp'] += xp_earned
-                        
-                        # Sound effects based on ammo type
-                        if player.get('explosive_ammo', False):
-                            shot_sound = "•BOUM•" if player.get('silencer', 0) > 0 else "*BOUM*"
-                            explosive_text = f" {self.colors['orange']}[explosive ammo]{self.colors['reset']}"
-                        else:
-                            shot_sound = "•bang•" if player.get('silencer', 0) > 0 else "*BANG*"
-                            explosive_text = ""
-                        
-                        # Lucky shot text
-                        lucky_text = f" {self.colors['yellow']}[lucky shot!]{self.colors['reset']}" if is_lucky else ""
-                        
-                        # Build hit message
-                        level, title = self.get_player_level(player['xp'])
-                        
-                        if is_golden:
-                            golden_count = player.get('golden_ducks', 0)
-                            hit_msg = f"{nick} > {self.colors['yellow']}{shot_sound} ★GOLDEN★{self.colors['reset']} {shot_time:.3f}s | Ducks:{player['caught']} ({self.colors['yellow']}{golden_count}g{self.colors['reset']}) | L{level} | +{xp_earned}xp{explosive_text}{lucky_text}"
-                        else:
-                            hit_msg = f"{nick} > {self.colors['green']}{shot_sound}{self.colors['reset']} {shot_time:.3f}s | Ducks:{player['caught']} | L{level} | +{xp_earned}xp{explosive_text}{lucky_text}"
-                        
-                        self.send_message(channel, hit_msg)
-                        
-                        # Scare other ducks if enabled (successful shots can scare ducks)
-                        await self.scare_other_ducks(channel, target_duck['id'])
-                        
-                        # Find items in bushes (rare chance)
-                        await self.find_bushes_items(nick, channel, player)
-                        
-                        # Auto-rearm confiscated guns if enabled
-                        await self.auto_rearm_confiscated_guns(channel, nick)
-                        
-                        # Track records and increase duck difficulty
-                        await self.update_channel_records(channel, nick, shot_time, target_duck['type'])
-                        
+                        player['golden_ducks'] = player.get('golden_ducks', 0) + 1
+                        base_xp = 50  # Golden ducks give much more XP
+                        self.update_karma(player, 'golden_hit')
                     else:
-                        # MISS!
-                        player['missed'] += 1
-                        self.update_karma(player, 'miss')
+                        base_xp = 15  # Normal XP
+                        self.update_karma(player, 'hit')
+                    
+                    # Lucky shot bonus
+                    luck_multiplier = 1 + (player.get('luck', 0) * 0.1)  # 10% per luck point
+                    is_lucky = random.randint(1, 100) <= (5 + player.get('luck', 0))
+                    if is_lucky:
+                        player['lucky_shots'] = player.get('lucky_shots', 0) + 1
+                        luck_multiplier *= 1.5  # 50% bonus for lucky shot
                         
-                        # Calculate miss penalty based on level
-                        miss_penalty = int(self.calculate_penalty_by_level(-2, player['xp']))
-                        player['xp'] += miss_penalty
-                        
-                        # Bullet ricochet chance (can hit other players)
-                        ricochet_chance = 8  # 8% base chance
-                        if player.get('explosive_ammo', False):
-                            ricochet_chance = 15  # Higher with explosive
-                            
-                        ricochet_msg = ""
-                        if random.randint(1, 100) <= ricochet_chance:
-                            ricochet_target = self.get_random_player_for_friendly_fire(nick)
-                            if ricochet_target:
-                                target_player = self.players[ricochet_target]
-                                ricochet_dmg = -3
-                                target_player['xp'] += ricochet_dmg
-                                target_player['shot_at'] = target_player.get('shot_at', 0) + 1
-                                ricochet_msg = f" [HIT:{ricochet_target}:{ricochet_dmg}xp]"
-                        
-                        # Scare duck on miss
-                        await self.scare_duck_on_miss(channel, target_duck)
-                        
-                        miss_sound = "•click•" if player.get('silencer', 0) > 0 else "*CLICK*"
-                        await self.send_user_message(nick, channel, f"{nick} > {miss_sound} MISS | {miss_penalty}xp{ricochet_msg}")
-                        
+                    xp_earned = int(base_xp * luck_multiplier)
+                    player['xp'] += xp_earned
+                    
+                    # Sound effects based on ammo type
+                    if player.get('explosive_ammo', False):
+                        shot_sound = "•BOUM•" if player.get('silencer', 0) > 0 else "*BOUM*"
+                        explosive_text = f" {self.colors['orange']}[explosive ammo]{self.colors['reset']}"
+                    else:
+                        shot_sound = "•bang•" if player.get('silencer', 0) > 0 else "*BANG*"
+                        explosive_text = ""
+                    
+                    # Lucky shot text
+                    lucky_text = f" {self.colors['yellow']}[lucky shot!]{self.colors['reset']}" if is_lucky else ""
+                    
+                    # Build hit message
+                    level, title = self.get_player_level(player['xp'])
+                    
+                    if is_golden:
+                        golden_count = player.get('golden_ducks', 0)
+                        hit_msg = f"{nick} > {self.colors['yellow']}{shot_sound}{self.colors['reset']} You shot down the {self.colors['yellow']}★ GOLDEN DUCK ★{self.colors['reset']} in {shot_time:.3f}s! Total: {player['caught']} ducks ({self.colors['yellow']}{golden_count} golden{self.colors['reset']}) | Level {level}: {title} | [{self.colors['yellow']}{xp_earned} xp{self.colors['reset']}]{explosive_text}{lucky_text}"
+                    else:
+                        hit_msg = f"{nick} > {self.colors['green']}{shot_sound}{self.colors['reset']} You shot down the duck in {shot_time:.3f}s! Total: {player['caught']} ducks | Level {level}: {title} | [{self.colors['green']}{xp_earned} xp{self.colors['reset']}]{explosive_text}{lucky_text}"
+                    
+                    self.send_message(channel, hit_msg)
+                    
+                    # Scare other ducks if enabled (successful shots can scare ducks)
+                    await self.scare_other_ducks(channel, target_duck['id'])
+                    
+                    # Find items in bushes (rare chance)
+                    await self.find_bushes_items(nick, channel, player)
+                    
+                    # Auto-rearm confiscated guns if enabled
+                    await self.auto_rearm_confiscated_guns(channel, nick)
+                    
+                    # Track records and increase duck difficulty
+                    await self.update_channel_records(channel, nick, shot_time, target_duck['type'])
+                    
                 else:
-                    # No duck present - wild fire!
-                    player['wild_shots'] = player.get('wild_shots', 0) + 1
-                    self.update_karma(player, 'wild_shot')
+                    # MISS!
+                    player['missed'] += 1
+                    self.update_karma(player, 'miss')
                     
-                    # Track wild shots in channel statistics
-                    if channel not in self.channel_records:
-                        self.channel_records[channel] = {'total_shots': 0, 'total_ducks': 0}
-                    self.channel_records[channel]['total_shots'] += 1
-                    
-                    # Calculate penalties based on level
+                    # Calculate miss penalty based on level
                     miss_penalty = int(self.calculate_penalty_by_level(-2, player['xp']))
-                    wild_penalty = int(self.calculate_penalty_by_level(-3, player['xp']))
-                    player['xp'] += miss_penalty + wild_penalty
+                    player['xp'] += miss_penalty
                     
-                    # Confiscate gun
-                    player['gun_confiscated'] = True
-                    
-                    # Higher chance of hitting other players when no duck
-                    friendly_fire_chance = 25  # 25% when no duck
-                    friendly_fire_msg = ""
-                    
-                    if random.randint(1, 100) <= friendly_fire_chance:
-                        ff_target = self.get_random_player_for_friendly_fire(nick)
-                        if ff_target:
-                            target_player = self.players[ff_target]
-                            ff_dmg = int(self.calculate_penalty_by_level(-4, target_player['xp']))
-                            target_player['xp'] += ff_dmg
+                    # Bullet ricochet chance (can hit other players)
+                    ricochet_chance = 8  # 8% base chance
+                    if player.get('explosive_ammo', False):
+                        ricochet_chance = 15  # Higher with explosive
+                        
+                    ricochet_msg = ""
+                    if random.randint(1, 100) <= ricochet_chance:
+                        ricochet_target = self.get_random_player_for_friendly_fire(nick)
+                        if ricochet_target:
+                            target_player = self.players[ricochet_target]
+                            ricochet_dmg = -3
+                            target_player['xp'] += ricochet_dmg
                             target_player['shot_at'] = target_player.get('shot_at', 0) + 1
-                            player['accidents'] = player.get('accidents', 0) + 1
-                            self.update_karma(player, 'teamkill')
-                            friendly_fire_msg = f" [HIT:{ff_target}:{ff_dmg}xp]"
+                            ricochet_msg = f" {self.colors['red']}[RICOCHET: {ricochet_target} hit for {ricochet_dmg} xp]{self.colors['reset']}"
                     
-                    wild_sound = "•BOUM•" if player.get('explosive_ammo', False) else "*BANG*"
-                    if player.get('silencer', 0) > 0:
-                        wild_sound = "•" + wild_sound[1:-1] + "•"
-                        
-                    await self.send_user_message(nick, channel, f"{nick} > {wild_sound} WILD SHOT! | {miss_penalty+wild_penalty}xp | GUN CONFISCATED{friendly_fire_msg}")
+                    # Scare duck on miss
+                    await self.scare_duck_on_miss(channel, target_duck)
+                    
+                    miss_sound = "•click•" if player.get('silencer', 0) > 0 else "*CLICK*"
+                    await self.send_user_message(nick, channel, f"{nick} > {miss_sound} You missed the duck! [miss: {miss_penalty} xp]{ricochet_msg}")
+                    
+            else:
+                # No duck present - wild fire!
+                player['wild_shots'] = player.get('wild_shots', 0) + 1
+                self.update_karma(player, 'wild_shot')
                 
-                # Save after each shot
-                self.save_player(user)
-                    
-            elif cmd == '!bef':
-                # Check if befriending is enabled
-                if not self.get_config('befriending.enabled', True):
-                    self.send_message(channel, f"{nick} > Duck befriending is currently disabled!")
-                    return
-                    
-                player = self.get_player(user)
-                if not player:
-                    return
-                    
-                # Get ducks in this channel
-                channel_ducks = self.ducks.get(channel, [])
-                alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
+                # Track wild shots in channel statistics
+                if channel not in self.channel_records:
+                    self.channel_records[channel] = {'total_shots': 0, 'total_ducks': 0}
+                self.channel_records[channel]['total_shots'] += 1
                 
-                if alive_ducks:
-                    # Target the oldest duck (first in, first out)
-                    target_duck = alive_ducks[0]
-                    bef_time = time.time() - target_duck['spawn_time']
+                # Calculate penalties based on level
+                miss_penalty = int(self.calculate_penalty_by_level(-2, player['xp']))
+                wild_penalty = int(self.calculate_penalty_by_level(-3, player['xp']))
+                player['xp'] += miss_penalty + wild_penalty
+                
+                # Confiscate gun
+                player['gun_confiscated'] = True
+                
+                # Higher chance of hitting other players when no duck
+                friendly_fire_chance = 25  # 25% when no duck
+                friendly_fire_msg = ""
+                
+                if random.randint(1, 100) <= friendly_fire_chance:
+                    ff_target = self.get_random_player_for_friendly_fire(nick)
+                    if ff_target:
+                        target_player = self.players[ff_target]
+                        ff_dmg = int(self.calculate_penalty_by_level(-4, target_player['xp']))
+                        target_player['xp'] += ff_dmg
+                        target_player['shot_at'] = target_player.get('shot_at', 0) + 1
+                        player['accidents'] = player.get('accidents', 0) + 1
+                        self.update_karma(player, 'teamkill')
+                        friendly_fire_msg = f" {self.colors['red']}[ACCIDENT: {ff_target} injured for {ff_dmg} xp]{self.colors['reset']}"
+                
+                wild_sound = "•BOUM•" if player.get('explosive_ammo', False) else "*BANG*"
+                if player.get('silencer', 0) > 0:
+                    wild_sound = "•" + wild_sound[1:-1] + "•"
                     
-                    # Calculate befriend success chance using config values
-                    level, _ = self.get_player_level(player['xp'])
-                    base_success = self.get_config('befriending.base_success_rate', 65) or 65
-                    max_success = self.get_config('befriending.max_success_rate', 90) or 90
-                    level_bonus_per_level = self.get_config('befriending.level_bonus_per_level', 2) or 2
-                    level_bonus_cap = self.get_config('befriending.level_bonus_cap', 20) or 20
-                    luck_bonus_per_point = self.get_config('befriending.luck_bonus_per_point', 3) or 3
+                confiscated_msg = f" {self.colors['red']}[GUN CONFISCATED]{self.colors['reset']}"
+                await self.send_user_message(nick, channel, f"{nick} > {wild_sound} You shot at nothing! What were you aiming at? [miss: {miss_penalty} xp] [wild fire: {wild_penalty} xp]{confiscated_msg}{friendly_fire_msg}")
+            
+            # Save after each shot
+            self.save_player(user)
+                
+        elif cmd == '!bef':
+            # Check if befriending is enabled
+            if not self.get_config('befriending.enabled', True):
+                self.send_message(channel, f"{nick} > Duck befriending is currently disabled!")
+                return
+                
+            player = self.get_player(user)
+            if not player:
+                return
+                
+            # Get ducks in this channel
+            channel_ducks = self.ducks.get(channel, [])
+            alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
+            
+            if alive_ducks:
+                # Target the oldest duck (first in, first out)
+                target_duck = alive_ducks[0]
+                bef_time = time.time() - target_duck['spawn_time']
+                
+                # Calculate befriend success chance using config values
+                level, _ = self.get_player_level(player['xp'])
+                base_success = self.get_config('befriending.base_success_rate', 65) or 65
+                max_success = self.get_config('befriending.max_success_rate', 90) or 90
+                level_bonus_per_level = self.get_config('befriending.level_bonus_per_level', 2) or 2
+                level_bonus_cap = self.get_config('befriending.level_bonus_cap', 20) or 20
+                luck_bonus_per_point = self.get_config('befriending.luck_bonus_per_point', 3) or 3
+                
+                level_bonus = min(level * level_bonus_per_level, level_bonus_cap)
+                luck_bonus = player.get('luck', 0) * luck_bonus_per_point
+                success_chance = min(base_success + level_bonus + luck_bonus, max_success)
+                
+                # Check if befriend attempt succeeds
+                if random.randint(1, 100) <= success_chance:
+                    # Successful befriend
+                    player['befriended'] = player.get('befriended', 0) + 1
                     
-                    level_bonus = min(level * level_bonus_per_level, level_bonus_cap)
-                    luck_bonus = player.get('luck', 0) * luck_bonus_per_point
-                    success_chance = min(base_success + level_bonus + luck_bonus, max_success)
+                    # XP rewards from config
+                    xp_min = self.get_config('befriending.xp_reward_min', 1) or 1
+                    xp_max = self.get_config('befriending.xp_reward_max', 3) or 3
                     
-                    # Check if befriend attempt succeeds
-                    if random.randint(1, 100) <= success_chance:
-                        # Successful befriend
-                        player['befriended'] = player.get('befriended', 0) + 1
-                        
-                        # XP rewards from config
-                        xp_min = self.get_config('befriending.xp_reward_min', 1) or 1
-                        xp_max = self.get_config('befriending.xp_reward_max', 3) or 3
-                        
-                        xp_earned = random.randint(xp_min, xp_max)
-                        player['xp'] += xp_earned
-                        
-                        # Mark duck as befriended (dead)
-                        target_duck['alive'] = False
-                        
-                        # Lucky items with configurable chance
-                        if self.get_config('items.lucky_items_enabled', True):
-                            lucky_items = ["four-leaf clover", "rabbit's foot", "horseshoe", "lucky penny", "magic feather"]
-                            base_luck_chance = self.get_config('befriending.lucky_item_chance', 5) + player.get('luck', 0)
-                            lucky_item = random.choice(lucky_items) if random.randint(1, 100) <= base_luck_chance else None
-                            lucky_text = f" [{lucky_item}]" if lucky_item else ""
-                        else:
-                            lucky_text = ""
-                        
-                        remaining_ducks = len([d for d in channel_ducks if d.get('alive')])
-                        duck_count_text = f" | {remaining_ducks} ducks remain" if remaining_ducks > 0 else ""
-                        
-                        self.send_message(channel, f"{nick} > \\_o< BEFRIENDED {bef_time:.3f}s | Friends:{player['befriended']} | +{xp_earned}xp{lucky_text}{duck_count_text}")
-                        
-                        # Update karma for successful befriend
-                        if self.get_config('karma.enabled', True):
-                            karma_bonus = self.get_config('karma.befriend_success_bonus', 2)
-                            player['karma'] = player.get('karma', 0) + karma_bonus
-                        
-                        # Save to database after befriending
-                        self.save_player(user)
+                    xp_earned = random.randint(xp_min, xp_max)
+                    player['xp'] += xp_earned
+                    
+                    # Mark duck as befriended (dead)
+                    target_duck['alive'] = False
+                    
+                    # Lucky items with configurable chance
+                    if self.get_config('items.lucky_items_enabled', True):
+                        lucky_items = ["four-leaf clover", "rabbit's foot", "horseshoe", "lucky penny", "magic feather"]
+                        base_luck_chance = self.get_config('befriending.lucky_item_chance', 5) + player.get('luck', 0)
+                        lucky_item = random.choice(lucky_items) if random.randint(1, 100) <= base_luck_chance else None
+                        lucky_text = f" [{lucky_item}]" if lucky_item else ""
                     else:
-                        # Duck refuses to be befriended
-                        refusal_messages = [
-                            f"{nick} > The duck looks at you suspiciously and waddles away! \\_o< *suspicious quack*",
-                            f"{nick} > The duck refuses to be friends and flaps away angrily! \\_O< *angry quack*", 
-                            f"{nick} > The duck ignores your friendship attempts and goes back to swimming! \\_o< *indifferent quack*",
-                            f"{nick} > The duck seems shy and hides behind some reeds! \\_o< *shy quack*",
-                            f"{nick} > The duck is too busy looking for food to be your friend! \\_o< *hungry quack*",
-                            f"{nick} > The duck gives you a cold stare and swims to the other side! \\_O< *cold quack*",
-                            f"{nick} > The duck prefers to stay wild and free! \\_o< *wild quack*",
-                            f"{nick} > The duck thinks you're trying too hard and keeps its distance! \\_o< *skeptical quack*"
-                        ]
-                        
-                        # Small chance the duck gets scared and flies away (configurable)
-                        scared_chance = self.get_config('befriending.scared_away_chance', 10) or 10
-                        if random.randint(1, 100) <= scared_chance:
-                            target_duck['alive'] = False
-                            scared_messages = [
-                                f"{nick} > Your friendship attempt scared the duck away! It flies off into the sunset! \\_o< *departing quack*",
-                                f"{nick} > The duck panics at your approach and escapes! \\_O< *panicked quack* *flap flap*"
-                            ]
-                            self.send_message(channel, random.choice(scared_messages))
-                        else:
-                            self.send_message(channel, random.choice(refusal_messages))
-                        
-                        # XP penalty for failed befriend attempt (configurable)
-                        xp_penalty = self.get_config('befriending.failure_xp_penalty', 1)
-                        player['xp'] = max(0, player['xp'] - xp_penalty)
-                        
-                        # Update karma for failed befriend
-                        if self.get_config('karma.enabled', True):
-                            karma_penalty = self.get_config('karma.befriend_fail_penalty', 1)
-                            player['karma'] = player.get('karma', 0) - karma_penalty
-                        
-                        # Save player data
-                        self.save_player(user)
-                else:
-                    self.send_message(channel, f"{nick} > There is no duck to befriend!")
+                        lucky_text = ""
                     
-            elif cmd == '!reload':
-                player = self.get_player(user)
-                if not player:
-                    return
+                    remaining_ducks = len([d for d in channel_ducks if d.get('alive')])
+                    duck_count_text = f" | {remaining_ducks} ducks remain" if remaining_ducks > 0 else ""
                     
-                # Check if gun is jammed (reload unjams it)
-                if player.get('jammed', False):
-                    player['jammed'] = False
-                    unjam_sound = "•click click•" if player.get('silencer', 0) > 0 else "*click click*"
-                    self.send_message(channel, f"{nick} > {unjam_sound} UNJAMMED | {player['ammo']}/{player['max_ammo']} | {player['chargers']}/{player['max_chargers']}")
+                    self.send_message(channel, f"{nick} > You befriended a duck in {bef_time:.3f}s! Total friends: {player['befriended']} ducks on {channel}. \\_o< *quack* [+{xp_earned} xp]{lucky_text}{duck_count_text}")
+                    
+                    # Update karma for successful befriend
+                    if self.get_config('karma.enabled', True):
+                        karma_bonus = self.get_config('karma.befriend_success_bonus', 2)
+                        player['karma'] = player.get('karma', 0) + karma_bonus
+                    
+                    # Save to database after befriending
                     self.save_player(user)
-                    return
-                    
-                if player['ammo'] == player['max_ammo']:
-                    self.send_message(channel, f"{nick} > Already loaded | {player['ammo']}/{player['max_ammo']} | {player['chargers']}/{player['max_chargers']}")
-                    return
-                    
-                if player['chargers'] <= 0:
-                    self.send_message(channel, f"{nick} > No chargers! | {player['ammo']}/{player['max_ammo']} | 0/{player['max_chargers']}")
-                    return
-                    
-                # Calculate reload reliability
-                reload_reliability = self.calculate_gun_reliability(player)
-                
-                if random.randint(1, 100) <= reload_reliability:
-                    player['chargers'] -= 1
-                    player['ammo'] = player['max_ammo']
-                    reload_sound = "•click•" if player.get('silencer', 0) > 0 else "*click*"
-                    self.send_message(channel, f"{nick} > {reload_sound} RELOADED | {player['ammo']}/{player['max_ammo']} | {player['chargers']}/{player['max_chargers']}")
                 else:
-                    # Gun jams during reload
-                    player['jammed'] = True
-                    player['jammed_count'] = player.get('jammed_count', 0) + 1
-                    jam_sound = "•CLACK• •click click•" if player.get('silencer', 0) > 0 else "*CLACK* *click click*"
-                    self.send_message(channel, f"{nick} > {jam_sound} RELOAD JAMMED! Use !reload to unjam.")
+                    # Duck refuses to be befriended
+                    refusal_messages = [
+                        f"{nick} > The duck looks at you suspiciously and waddles away! \\_o< *suspicious quack*",
+                        f"{nick} > The duck refuses to be friends and flaps away angrily! \\_O< *angry quack*", 
+                        f"{nick} > The duck ignores your friendship attempts and goes back to swimming! \\_o< *indifferent quack*",
+                        f"{nick} > The duck seems shy and hides behind some reeds! \\_o< *shy quack*",
+                        f"{nick} > The duck is too busy looking for food to be your friend! \\_o< *hungry quack*",
+                        f"{nick} > The duck gives you a cold stare and swims to the other side! \\_O< *cold quack*",
+                        f"{nick} > The duck prefers to stay wild and free! \\_o< *wild quack*",
+                        f"{nick} > The duck thinks you're trying too hard and keeps its distance! \\_o< *skeptical quack*"
+                    ]
                     
-                # Save to database after reload
+                    # Small chance the duck gets scared and flies away (configurable)
+                    scared_chance = self.get_config('befriending.scared_away_chance', 10) or 10
+                    if random.randint(1, 100) <= scared_chance:
+                        target_duck['alive'] = False
+                        scared_messages = [
+                            f"{nick} > Your friendship attempt scared the duck away! It flies off into the sunset! \\_o< *departing quack*",
+                            f"{nick} > The duck panics at your approach and escapes! \\_O< *panicked quack* *flap flap*"
+                        ]
+                        self.send_message(channel, random.choice(scared_messages))
+                    else:
+                        self.send_message(channel, random.choice(refusal_messages))
+                    
+                    # XP penalty for failed befriend attempt (configurable)
+                    xp_penalty = self.get_config('befriending.failure_xp_penalty', 1)
+                    player['xp'] = max(0, player['xp'] - xp_penalty)
+                    
+                    # Update karma for failed befriend
+                    if self.get_config('karma.enabled', True):
+                        karma_penalty = self.get_config('karma.befriend_fail_penalty', 1)
+                        player['karma'] = player.get('karma', 0) - karma_penalty
+                    
+                    # Save player data
+                    self.save_player(user)
+            else:
+                self.send_message(channel, f"{nick} > There is no duck to befriend!")
+                
+        elif cmd == '!reload':
+            player = self.get_player(user)
+            if not player:
+                return
+                
+            # Check if gun is jammed (reload unjams it)
+            if player.get('jammed', False):
+                player['jammed'] = False
+                unjam_sound = "•click click•" if player.get('silencer', 0) > 0 else "*click click*"
+                self.send_message(channel, f"{nick} > {unjam_sound} You unjammed your gun! | Ammo: {player['ammo']}/{player['max_ammo']} | Chargers: {player['chargers']}/{player['max_chargers']}")
                 self.save_player(user)
-                    
-            elif cmd == '!stats':
-                await self.handle_stats(nick, channel, user)
-            elif cmd == '!help':
-                await self.handle_help(nick, channel)
-            elif full_cmd.startswith('!shop'):
-                # Handle !shop or !shop <item_id>
-                parts = full_cmd.split()
-                if len(parts) == 1:
-                    # Just !shop - show shop listing
-                    await self.handle_shop(nick, channel, user)
-                elif len(parts) >= 2:
-                    # !shop <item_id> - purchase item
-                    item_id = parts[1]
-                    await self.handle_buy(nick, channel, item_id, user)
-            elif full_cmd.startswith('!use '):
-                parts = full_cmd[5:].split()
-                if len(parts) >= 1:
-                    item_id = parts[0]
-                    target_nick = parts[1] if len(parts) >= 2 else None
-                    await self.handle_use(nick, channel, item_id, user, target_nick)
-                else:
-                    self.send_message(channel, f"{nick} > Usage: !use <item_id> [target_nick]")
-            elif full_cmd.startswith('!sell '):
-                item_id = full_cmd[6:].strip()
-                await self.handle_sell(nick, channel, item_id, user)
-            elif full_cmd.startswith('!trade '):
-                parts = full_cmd[7:].split()
-                if len(parts) >= 3:
-                    target_nick, item, amount = parts[0], parts[1], parts[2]
-                    await self.handle_trade(nick, channel, user, target_nick, item, amount)
-                else:
-                    self.send_message(channel, f"{nick} > Usage: !trade <nick> <coins|ammo|chargers> <amount>")
-            elif full_cmd.startswith('!rearm ') and self.is_admin(user):  # Admin only
-                # Allow rearming other players or self
-                target_nick = full_cmd[7:].strip()
-                await self.handle_rearm(nick, channel, user, target_nick)
-            elif cmd == '!rearm' and self.is_admin(user):  # Admin only
-                # Rearm self
-                await self.handle_rearm(nick, channel, user, nick)
-            elif cmd == '!duck' and self.is_admin(user):  # Admin only
-                await self.spawn_duck_now(channel)
-            elif cmd == '!golden' and self.is_admin(user):  # Admin only
-                await self.spawn_duck_now(channel, force_golden=True)
-            elif cmd == '!listplayers' and self.is_admin(user):  # Admin only
-                await self.handle_listplayers(nick, channel)
-            elif full_cmd.startswith('!ban ') and self.is_admin(user):  # Admin only
-                target_nick = full_cmd[5:].strip()
-                await self.handle_ban(nick, channel, target_nick)
-            elif full_cmd.startswith('!reset ') and self.is_admin(user):  # Admin only
-                target_nick = full_cmd[7:].strip()
-                await self.handle_reset(nick, channel, target_nick)
-            elif cmd == '!resetdb' and self.is_admin(user):  # Admin only
-                await self.handle_reset_database(nick, channel, user)
-            elif full_cmd.startswith('!resetdb confirm ') and self.is_admin(user):  # Admin only
-                confirmation = full_cmd[17:].strip()
-                await self.handle_reset_database_confirm(nick, channel, user, confirmation)
-            elif cmd == '!restart' and self.is_admin(user):  # Admin only
-                await self.handle_restart(nick, channel)
-            elif cmd == '!quit' and self.is_admin(user):  # Admin only
-                await self.handle_quit(nick, channel)
-            elif cmd == '!ducklaunch' and self.is_admin(user):  # Admin only
-                await self.spawn_duck_now(channel)
-            elif cmd == '!ducks':
-                # Show duck count for all users
-                channel_ducks = self.ducks.get(channel, [])
-                alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
-                dead_ducks = [duck for duck in channel_ducks if not duck.get('alive')]
+                return
                 
-                if alive_ducks:
-                    duck_list = []
-                    for duck in alive_ducks:
-                        duck_type = duck.get('type', 'normal')
-                        spawn_time = time.time() - duck['spawn_time']
-                        if duck_type == 'golden':
-                            duck_list.append(f"{self.colors['yellow']}Golden Duck{self.colors['reset']} ({spawn_time:.1f}s)")
-                        else:
-                            duck_list.append(f"Duck ({spawn_time:.1f}s)")
-                    self.send_message(channel, f"{nick} > Active ducks: {', '.join(duck_list)}")
-                else:
-                    self.send_message(channel, f"{nick} > No ducks currently active.")
-                    
-            elif cmd == '!top' or cmd == '!leaderboard':
-                # Show top players by XP
-                if not self.players:
-                    self.send_message(channel, f"{nick} > No players found!")
-                    return
-                    
-                # Sort players by XP
-                sorted_players = sorted(self.players.items(), key=lambda x: x[1]['xp'], reverse=True)
-                top_5 = sorted_players[:5]
+            if player['ammo'] == player['max_ammo']:
+                self.send_message(channel, f"{nick} > Your gun doesn't need to be reloaded. | Ammo: {player['ammo']}/{player['max_ammo']} | Chargers: {player['chargers']}/{player['max_chargers']}")
+                return
                 
-                self.send_message(channel, f"{self.colors['cyan']}🏆 TOP HUNTERS LEADERBOARD 🏆{self.colors['reset']}")
-                for i, (player_nick, player_data) in enumerate(top_5, 1):
-                    level, title = self.get_player_level(player_data['xp'])
-                    total_ducks = player_data.get('caught', 0) + player_data.get('befriended', 0)
-                    golden = player_data.get('golden_ducks', 0)
-                    golden_text = f" ({self.colors['yellow']}{golden} golden{self.colors['reset']})" if golden > 0 else ""
-                    
-                    if i == 1:
-                        rank_color = self.colors['yellow']  # Gold
-                    elif i == 2:
-                        rank_color = self.colors['gray']    # Silver
-                    elif i == 3:
-                        rank_color = self.colors['orange']  # Bronze
+            if player['chargers'] <= 0:
+                self.send_message(channel, f"{nick} > You don't have any chargers left! | Ammo: {player['ammo']}/{player['max_ammo']} | Chargers: 0/{player['max_chargers']}")
+                return
+                
+            # Calculate reload reliability
+            reload_reliability = self.calculate_gun_reliability(player)
+            
+            if random.randint(1, 100) <= reload_reliability:
+                player['chargers'] -= 1
+                player['ammo'] = player['max_ammo']
+                reload_sound = "•click•" if player.get('silencer', 0) > 0 else "*click*"
+                self.send_message(channel, f"{nick} > {reload_sound} You reloaded your gun! | Ammo: {player['ammo']}/{player['max_ammo']} | Chargers: {player['chargers']}/{player['max_chargers']}")
+            else:
+                # Gun jams during reload
+                player['jammed'] = True
+                player['jammed_count'] = player.get('jammed_count', 0) + 1
+                jam_sound = "•CLACK• •click click•" if player.get('silencer', 0) > 0 else "*CLACK* *click click*"
+                self.send_message(channel, f"{nick} > {jam_sound} Your gun jammed while reloading! Use !reload again to unjam it.")
+                
+            # Save to database after reload
+            self.save_player(user)
+                
+        elif cmd == '!stats':
+            await self.handle_stats(nick, channel, user)
+        elif cmd == '!help':
+            await self.handle_help(nick, channel)
+        elif full_cmd.startswith('!shop'):
+            # Handle !shop or !shop <item_id>
+            parts = full_cmd.split()
+            if len(parts) == 1:
+                # Just !shop - show shop listing
+                await self.handle_shop(nick, channel, user)
+            elif len(parts) >= 2:
+                # !shop <item_id> - purchase item
+                item_id = parts[1]
+                await self.handle_buy(nick, channel, item_id, user)
+        elif full_cmd.startswith('!use '):
+            parts = full_cmd[5:].split()
+            if len(parts) >= 1:
+                item_id = parts[0]
+                target_nick = parts[1] if len(parts) >= 2 else None
+                await self.handle_use(nick, channel, item_id, user, target_nick)
+            else:
+                self.send_message(channel, f"{nick} > Usage: !use <item_id> [target_nick]")
+        elif full_cmd.startswith('!sell '):
+            item_id = full_cmd[6:].strip()
+            await self.handle_sell(nick, channel, item_id, user)
+        elif full_cmd.startswith('!trade '):
+            parts = full_cmd[7:].split()
+            if len(parts) >= 3:
+                target_nick, item, amount = parts[0], parts[1], parts[2]
+                await self.handle_trade(nick, channel, user, target_nick, item, amount)
+            else:
+                self.send_message(channel, f"{nick} > Usage: !trade <nick> <coins|ammo|chargers> <amount>")
+        elif full_cmd.startswith('!rearm ') and self.is_admin(user):  # Admin only
+            # Allow rearming other players or self
+            target_nick = full_cmd[7:].strip()
+            await self.handle_rearm(nick, channel, user, target_nick)
+        elif cmd == '!rearm' and self.is_admin(user):  # Admin only
+            # Rearm self
+            await self.handle_rearm(nick, channel, user, nick)
+        elif cmd == '!duck' and self.is_admin(user):  # Admin only
+            await self.spawn_duck_now(channel)
+        elif cmd == '!golden' and self.is_admin(user):  # Admin only
+            await self.spawn_duck_now(channel, force_golden=True)
+        elif cmd == '!listplayers' and self.is_admin(user):  # Admin only
+            await self.handle_listplayers(nick, channel)
+        elif full_cmd.startswith('!ban ') and self.is_admin(user):  # Admin only
+            target_nick = full_cmd[5:].strip()
+            await self.handle_ban(nick, channel, target_nick)
+        elif full_cmd.startswith('!reset ') and self.is_admin(user):  # Admin only
+            target_nick = full_cmd[7:].strip()
+            await self.handle_reset(nick, channel, target_nick)
+        elif cmd == '!resetdb' and self.is_admin(user):  # Admin only
+            await self.handle_reset_database(nick, channel, user)
+        elif full_cmd.startswith('!resetdb confirm ') and self.is_admin(user):  # Admin only
+            confirmation = full_cmd[17:].strip()
+            await self.handle_reset_database_confirm(nick, channel, user, confirmation)
+        elif cmd == '!restart' and self.is_admin(user):  # Admin only
+            await self.handle_restart(nick, channel)
+        elif cmd == '!quit' and self.is_admin(user):  # Admin only
+            await self.handle_quit(nick, channel)
+        elif cmd == '!ducklaunch' and self.is_admin(user):  # Admin only
+            await self.spawn_duck_now(channel)
+        elif cmd == '!ducks':
+            # Show duck count for all users
+            channel_ducks = self.ducks.get(channel, [])
+            alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
+            dead_ducks = [duck for duck in channel_ducks if not duck.get('alive')]
+            
+            if alive_ducks:
+                duck_list = []
+                for duck in alive_ducks:
+                    duck_type = duck.get('type', 'normal')
+                    spawn_time = time.time() - duck['spawn_time']
+                    if duck_type == 'golden':
+                        duck_list.append(f"{self.colors['yellow']}Golden Duck{self.colors['reset']} ({spawn_time:.1f}s)")
                     else:
-                        rank_color = self.colors['white']
-                        
-                    self.send_message(channel, f"{rank_color}#{i}{self.colors['reset']} {player_nick} - Level {level}: {title} | XP: {player_data['xp']} | Ducks: {total_ducks}{golden_text}")
-                    
-            elif cmd == '!levels':
-                # Show level progression table
-                self.send_message(channel, f"{self.colors['cyan']}🎯 LEVEL PROGRESSION SYSTEM 🎯{self.colors['reset']}")
+                        duck_list.append(f"Duck ({spawn_time:.1f}s)")
+                self.send_message(channel, f"{nick} > Active ducks: {', '.join(duck_list)}")
+            else:
+                self.send_message(channel, f"{nick} > No ducks currently active.")
                 
-                # Show first 10 levels as example
-                for i in range(min(10, len(self.levels))):
-                    level_data = self.levels[i]
-                    next_xp = self.levels[i + 1]['xp'] if i + 1 < len(self.levels) else "MAX"
-                    self.send_message(channel, f"Level {i + 1}: {level_data['title']} (XP: {level_data['xp']} - {next_xp})")
-                    
-                if len(self.levels) > 10:
-                    self.send_message(channel, f"... and {len(self.levels) - 10} more levels up to Level {len(self.levels)}: {self.levels[-1]['title']}")
-                    
-            elif full_cmd.startswith('!level '):
-                # Show specific player's level info
-                target_nick = full_cmd[7:].strip().lower()
-                if target_nick in self.players:
-                    target_player = self.players[target_nick]
-                    level, title = self.get_player_level(target_player['xp'])
-                    xp_for_next = self.get_xp_for_next_level(target_player['xp'])
-                    
-                    if xp_for_next > 0:
-                        next_info = f"Next level in {xp_for_next} XP"
-                    else:
-                        next_info = "MAX LEVEL REACHED!"
-                        
-                    self.send_message(channel, f"{nick} > {target_nick}: Level {level} - {self.colors['cyan']}{title}{self.colors['reset']} | {next_info}")
+        elif cmd == '!top' or cmd == '!leaderboard':
+            # Show top players by XP
+            if not self.players:
+                self.send_message(channel, f"{nick} > No players found!")
+                return
+                
+            # Sort players by XP
+            sorted_players = sorted(self.players.items(), key=lambda x: x[1]['xp'], reverse=True)
+            top_5 = sorted_players[:5]
+            
+            self.send_message(channel, f"{self.colors['cyan']}🏆 TOP HUNTERS LEADERBOARD 🏆{self.colors['reset']}")
+            for i, (player_nick, player_data) in enumerate(top_5, 1):
+                level, title = self.get_player_level(player_data['xp'])
+                total_ducks = player_data.get('caught', 0) + player_data.get('befriended', 0)
+                golden = player_data.get('golden_ducks', 0)
+                golden_text = f" ({self.colors['yellow']}{golden} golden{self.colors['reset']})" if golden > 0 else ""
+                
+                if i == 1:
+                    rank_color = self.colors['yellow']  # Gold
+                elif i == 2:
+                    rank_color = self.colors['gray']    # Silver
+                elif i == 3:
+                    rank_color = self.colors['orange']  # Bronze
                 else:
-                    self.send_message(channel, f"{nick} > Player {target_nick} not found!")
+                    rank_color = self.colors['white']
                     
-            elif cmd == '!karma':
-                # Show karma leaderboard
-                if not self.players:
-                    self.send_message(channel, f"{nick} > No players found!")
-                    return
-                    
-                # Sort by karma
-                karma_players = [(nick, data) for nick, data in self.players.items() if data.get('karma', 0) != 0]
-                karma_players.sort(key=lambda x: x[1].get('karma', 0), reverse=True)
+                self.send_message(channel, f"{rank_color}#{i}{self.colors['reset']} {player_nick} - Level {level}: {title} | XP: {player_data['xp']} | Ducks: {total_ducks}{golden_text}")
                 
-                if not karma_players:
-                    self.send_message(channel, f"{nick} > No karma data available!")
-                    return
-                    
-                self.send_message(channel, f"{self.colors['purple']}☯ KARMA LEADERBOARD ☯{self.colors['reset']}")
-                for i, (player_nick, player_data) in enumerate(karma_players[:5], 1):
-                    karma = player_data.get('karma', 0)
-                    karma_color = self.colors['green'] if karma >= 0 else self.colors['red']
-                    karma_text = "Saint" if karma >= 50 else "Good" if karma >= 10 else "Evil" if karma <= -10 else "Chaotic" if karma <= -50 else "Neutral"
-                    
-                    self.send_message(channel, f"#{i} {player_nick} - {karma_color}Karma: {karma}{self.colors['reset']} ({karma_text})")
-                    
-            elif cmd == '!ducks':
-                # Show duck count for all users
-                channel_ducks = self.ducks.get(channel, [])
-                alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
-                dead_ducks = [duck for duck in channel_ducks if not duck.get('alive')]
+        elif cmd == '!levels':
+            # Show level progression table
+            self.send_message(channel, f"{self.colors['cyan']}🎯 LEVEL PROGRESSION SYSTEM 🎯{self.colors['reset']}")
+            
+            # Show first 10 levels as example
+            for i in range(min(10, len(self.levels))):
+                level_data = self.levels[i]
+                next_xp = self.levels[i + 1]['xp'] if i + 1 < len(self.levels) else "MAX"
+                self.send_message(channel, f"Level {i + 1}: {level_data['title']} (XP: {level_data['xp']} - {next_xp})")
                 
-                if alive_ducks:
-                    oldest_time = min(time.time() - duck['spawn_time'] for duck in alive_ducks)
-                    self.send_message(channel, f"{nick} > {len(alive_ducks)} ducks in {channel} | Oldest: {oldest_time:.1f}s | Dead: {len(dead_ducks)} | Timeout: {self.duck_timeout_min}-{self.duck_timeout_max}s")
+            if len(self.levels) > 10:
+                self.send_message(channel, f"... and {len(self.levels) - 10} more levels up to Level {len(self.levels)}: {self.levels[-1]['title']}")
+                
+        elif full_cmd.startswith('!level '):
+            # Show specific player's level info
+            target_nick = full_cmd[7:].strip().lower()
+            if target_nick in self.players:
+                target_player = self.players[target_nick]
+                level, title = self.get_player_level(target_player['xp'])
+                xp_for_next = self.get_xp_for_next_level(target_player['xp'])
+                
+                if xp_for_next > 0:
+                    next_info = f"Next level in {xp_for_next} XP"
                 else:
-                    self.send_message(channel, f"{nick} > No ducks in {channel} | Dead: {len(dead_ducks)}")
-            elif cmd == '!output' or full_cmd.startswith('!output '):
-                parts = cmd.split(maxsplit=1)
-                output_type = parts[1] if len(parts) > 1 else ''
-                await self.handle_output(nick, channel, user, output_type)
+                    next_info = "MAX LEVEL REACHED!"
+                    
+                self.send_message(channel, f"{nick} > {target_nick}: Level {level} - {self.colors['cyan']}{title}{self.colors['reset']} | {next_info}")
+            else:
+                self.send_message(channel, f"{nick} > Player {target_nick} not found!")
                 
-            elif cmd == '!ducktime':
-                # Show time until next duck spawn
-                await self.handle_ducktime(nick, channel)
+        elif cmd == '!karma':
+            # Show karma leaderboard
+            if not self.players:
+                self.send_message(channel, f"{nick} > No players found!")
+                return
                 
-            elif cmd == '!lastduck':
-                # Show information about the last duck shot
-                await self.handle_lastduck(nick, channel)
+            # Sort by karma
+            karma_players = [(nick, data) for nick, data in self.players.items() if data.get('karma', 0) != 0]
+            karma_players.sort(key=lambda x: x[1].get('karma', 0), reverse=True)
+            
+            if not karma_players:
+                self.send_message(channel, f"{nick} > No karma data available!")
+                return
                 
-            elif cmd == '!records':
-                # Show channel records
-                await self.handle_records(nick, channel)
-            elif full_cmd.startswith('!ignore ') and self.is_admin(user):  # Admin only
-                target_nick = full_cmd[8:].strip().lower()
-                await self.handle_ignore(nick, channel, target_nick)
-            elif full_cmd.startswith('!delignore ') and self.is_admin(user):  # Admin only
-                target_nick = full_cmd[11:].strip().lower()
-                await self.handle_delignore(nick, channel, target_nick)
-            elif full_cmd.startswith('!giveitem ') and self.is_admin(user):  # Admin only
-                parts = full_cmd[10:].split()
-                if len(parts) >= 2:
-                    target_nick, item = parts[0], parts[1]
-                    await self.handle_admin_giveitem(nick, channel, target_nick, item)
-                else:
-                    self.send_message(channel, f"{nick} > Usage: !giveitem <nick> <item_id>")
-            elif full_cmd.startswith('!givexp ') and self.is_admin(user):  # Admin only
-                parts = full_cmd[8:].split()
-                if len(parts) >= 2:
-                    target_nick, amount = parts[0], parts[1]
+            self.send_message(channel, f"{self.colors['purple']}☯ KARMA LEADERBOARD ☯{self.colors['reset']}")
+            for i, (player_nick, player_data) in enumerate(karma_players[:5], 1):
+                karma = player_data.get('karma', 0)
+                karma_color = self.colors['green'] if karma >= 0 else self.colors['red']
+                karma_text = "Saint" if karma >= 50 else "Good" if karma >= 10 else "Evil" if karma <= -10 else "Chaotic" if karma <= -50 else "Neutral"
+                
+                self.send_message(channel, f"#{i} {player_nick} - {karma_color}Karma: {karma}{self.colors['reset']} ({karma_text})")
+                
+        elif cmd == '!ducks':
+            # Show duck count for all users
+            channel_ducks = self.ducks.get(channel, [])
+            alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
+            dead_ducks = [duck for duck in channel_ducks if not duck.get('alive')]
+            
+            if alive_ducks:
+                oldest_time = min(time.time() - duck['spawn_time'] for duck in alive_ducks)
+                self.send_message(channel, f"{nick} > {len(alive_ducks)} ducks in {channel} | Oldest: {oldest_time:.1f}s | Dead: {len(dead_ducks)} | Timeout: {self.duck_timeout_min}-{self.duck_timeout_max}s")
+            else:
+                self.send_message(channel, f"{nick} > No ducks in {channel} | Dead: {len(dead_ducks)}")
+        elif cmd == '!output' or full_cmd.startswith('!output '):
+            parts = cmd.split(maxsplit=1)
+            output_type = parts[1] if len(parts) > 1 else ''
+            await self.handle_output(nick, channel, user, output_type)
+            
+        elif cmd == '!ducktime':
+            # Show time until next duck spawn
+            await self.handle_ducktime(nick, channel)
+            
+        elif cmd == '!lastduck':
+            # Show information about the last duck shot
+            await self.handle_lastduck(nick, channel)
+            
+        elif cmd == '!records':
+            # Show channel records
+            await self.handle_records(nick, channel)
+        elif full_cmd.startswith('!ignore ') and self.is_admin(user):  # Admin only
+            target_nick = full_cmd[8:].strip().lower()
+            await self.handle_ignore(nick, channel, target_nick)
+        elif full_cmd.startswith('!delignore ') and self.is_admin(user):  # Admin only
+            target_nick = full_cmd[11:].strip().lower()
+            await self.handle_delignore(nick, channel, target_nick)
+        elif full_cmd.startswith('!giveitem ') and self.is_admin(user):  # Admin only
+            parts = full_cmd[10:].split()
+            if len(parts) >= 2:
+                target_nick, item = parts[0], parts[1]
+                await self.handle_admin_giveitem(nick, channel, target_nick, item)
+            else:
+                self.send_message(channel, f"{nick} > Usage: !giveitem <nick> <item_id>")
+        elif full_cmd.startswith('!givexp ') and self.is_admin(user):  # Admin only
+            parts = full_cmd[8:].split()
+            if len(parts) >= 2:
+                target_nick, amount = parts[0], parts[1]
                 await self.handle_admin_givexp(nick, channel, target_nick, amount)
             else:
                 self.send_message(channel, f"{nick} > Usage: !givexp <nick> <amount>")
@@ -1483,67 +1483,43 @@ class SimpleIRCBot:
         if player.get('explosive_ammo', False):
             gun_status += f" {self.colors['orange']}[EXPLOSIVE]{self.colors['reset']}"
         
-        # Compact stats display - combine into fewer lines
-        duck_display = f"D:{player.get('caught', 0)}"
+        # Duck stats with colors
+        duck_stats = []
+        if player.get('caught', 0) > 0:
+            duck_stats.append(f"Shot:{player['caught']}")
         if player.get('befriended', 0) > 0:
-            duck_display += f"/B:{player['befriended']}"
+            duck_stats.append(f"Befriended:{player['befriended']}")
         if player.get('golden_ducks', 0) > 0:
-            duck_display += f"/{self.colors['yellow']}G:{player['golden_ducks']}{self.colors['reset']}"
+            duck_stats.append(f"{self.colors['yellow']}Golden:{player['golden_ducks']}{self.colors['reset']}")
+        
+        duck_display = f"Ducks:({', '.join(duck_stats)})" if duck_stats else "Ducks:0"
         
         # Main stats line
-        karma_color = self.colors['green'] if player.get('karma', 0) >= 0 else self.colors['red']
-        stats_line1 = f"{nick} > {duck_display} | L{level} | XP:{player['xp']}"
+        stats_line1 = f"{nick} > {duck_display} | Level {level}: {self.colors['cyan']}{title}{self.colors['reset']} | XP: {player['xp']}"
         if xp_for_next > 0:
-            stats_line1 += f"(+{xp_for_next})"
-        stats_line1 += f" | {karma_color}K:{player.get('karma', 0)}{self.colors['reset']}"
+            stats_line1 += f" (next: {xp_for_next})"
         
-        # Equipment line with compact gun status
-        weapon_name = player.get('weapon', 'pistol')[:6]  # Shorten weapon names
-        compact_gun_status = ""
-        if player.get('gun_confiscated', False):
-            compact_gun_status += "[CONF]"
-        if player.get('jammed', False):
-            compact_gun_status += "[JAM]"
-        if player.get('explosive_ammo', False):
-            compact_gun_status += "[EXP]"
+        # Combat stats line
+        karma_color = self.colors['green'] if player.get('karma', 0) >= 0 else self.colors['red']
+        karma_display = f"{karma_color}Karma:{player.get('karma', 0)}{self.colors['reset']}"
         
-        stats_line2 = f"{nick} > {weapon_name.title()}{compact_gun_status} | {player['ammo']}/{player['max_ammo']}a | {player['chargers']}/{player['max_chargers']}c | Acc:{player['accuracy']}%({effective_accuracy:.0f}%) | Rel:{self.calculate_gun_reliability(player)}%"
+        stats_line2 = f"{nick} > {karma_display} | Accuracy: {player['accuracy']}% (effective: {effective_accuracy:.1f}%) | Reliability: {self.calculate_gun_reliability(player)}%"
         
-        # Optional advanced stats line (if requested)
+        # Equipment line
+        weapon_name = player.get('weapon', 'pistol').replace('_', ' ').title()
+        stats_line3 = f"{nick} > Weapon: {weapon_name}{gun_status} | Ammo: {player['ammo']}/{player['max_ammo']} | Chargers: {player['chargers']}/{player['max_chargers']}"
+        
+        # Advanced stats line
         best_time = player.get('best_time', 999.9)
         best_display = f"{best_time:.3f}s" if best_time < 999 else "none"
         
-        stats_line3 = f"{nick} > Best:{best_display} | Avg:{average_time:.3f}s | Jams:{player.get('jammed_count', 0)} | Accidents:{player.get('accidents', 0)} | Lucky:{player.get('lucky_shots', 0)}"
+        stats_line4 = f"{nick} > Best time: {best_display} | Avg time: {average_time:.3f}s | Jams: {player.get('jammed_count', 0)} | Accidents: {player.get('accidents', 0)} | Lucky shots: {player.get('lucky_shots', 0)}"
         
-        # Send compact stats (just 2-3 lines instead of 4+)
+        # Send all stats
         await self.send_user_message(nick, channel, stats_line1)
         await self.send_user_message(nick, channel, stats_line2)
-        
-        # Display inventory compactly if player has items
-        if player.get('inventory'):
-            inventory_items = []
-            shop_items = {
-                '1': 'Bullet', '2': 'Clip', '3': 'AP', '4': 'Explosive',
-                '5': 'Gun', '6': 'Grease', '7': 'Sight', '8': 'Detector', '9': 'Silencer',
-                '10': 'Clover', '11': 'Shotgun', '12': 'Rifle', '13': 'Sniper', '14': 'Auto',
-                '15': 'Sand', '16': 'Water', '17': 'Sabotage', '18': 'Life Ins',
-                '19': 'Liability', '20': 'Decoy', '21': 'Bread', '22': 'Detector', '23': 'Mech Duck'
-            }
-            
-            for item_id, count in player['inventory'].items():
-                item_name = shop_items.get(item_id, f"#{item_id}")
-                inventory_items.append(f"{item_id}:{item_name}({count})")
-                
-            if inventory_items:
-                max_slots = self.get_config('economy.max_inventory_slots', 20)
-                total_items = sum(player['inventory'].values())
-                inventory_display = f"{nick} > {self.colors['magenta']}Inventory ({total_items}/{max_slots}):{self.colors['reset']} {' | '.join(inventory_items[:8])}"
-                if len(inventory_items) > 8:
-                    inventory_display += f" ... +{len(inventory_items) - 8} more"
-                await self.send_user_message(nick, channel, inventory_display)
-        # Only show advanced stats if player has significant activity
-        if player.get('reflex_shots', 0) > 5:
-            await self.send_user_message(nick, channel, stats_line3)
+        await self.send_user_message(nick, channel, stats_line3)
+        await self.send_user_message(nick, channel, stats_line4)
         
         # Inventory display
         if player.get('inventory'):
@@ -1557,14 +1533,15 @@ class SimpleIRCBot:
             }
             
             for item_id, count in player['inventory'].items():
-                inventory_items.append(f"{item_id}({count})")
+                item_name = shop_items.get(item_id, f"Item #{item_id}")
+                inventory_items.append(f"{item_id}:{item_name}({count})")
                 
             if inventory_items:
                 max_slots = self.get_config('economy.max_inventory_slots', 20)
                 total_items = sum(player['inventory'].values())
-                inventory_display = f"{nick} > {self.colors['magenta']}Items({total_items}/{max_slots}):{self.colors['reset']} {' '.join(inventory_items[:15])}"
-                if len(inventory_items) > 15:
-                    inventory_display += f" +{len(inventory_items) - 15}"
+                inventory_display = f"{nick} > {self.colors['magenta']}Inventory ({total_items}/{max_slots}):{self.colors['reset']} {' | '.join(inventory_items[:10])}"
+                if len(inventory_items) > 10:
+                    inventory_display += f" ... and {len(inventory_items) - 10} more"
                 await self.send_user_message(nick, channel, inventory_display)
         
     async def handle_rearm(self, nick, channel, user, target_nick):
@@ -1822,21 +1799,21 @@ class SimpleIRCBot:
         def format_items(items, color):
             formatted = []
             for item in items:
-                formatted.append(f"{item['id']}.{item['name']}({item['cost']})")
+                formatted.append(f"{color}{item['id']}{self.colors['reset']}.{item['name']}({color}{item['cost']}xp{self.colors['reset']})")
             return ' '.join(formatted)
         
-        # Send compact shop header
-        self.send_message(channel, f"{nick} > {self.colors['yellow']}SHOP{self.colors['reset']} XP:{self.colors['green']}{player['xp']}{self.colors['reset']}")
+        # Send shop header
+        self.send_message(channel, f"{nick} > {self.colors['yellow']}═══ DUCK HUNT SHOP ═══{self.colors['reset']} Your XP: {self.colors['green']}{player['xp']}{self.colors['reset']}")
         
-        # Send categorized items in compact format
+        # Send categorized items
         self.send_message(channel, f"{self.colors['cyan']}Ammo:{self.colors['reset']} {format_items(shop_items['ammo'], self.colors['cyan'])}")
         self.send_message(channel, f"{self.colors['red']}Weapons:{self.colors['reset']} {format_items(shop_items['weapons'], self.colors['red'])}")
         self.send_message(channel, f"{self.colors['green']}Upgrades:{self.colors['reset']} {format_items(shop_items['upgrades'], self.colors['green'])}")
         self.send_message(channel, f"{self.colors['yellow']}Special:{self.colors['reset']} {format_items(shop_items['special'], self.colors['yellow'])}")
         self.send_message(channel, f"{self.colors['magenta']}Insurance:{self.colors['reset']} {format_items(shop_items['insurance'], self.colors['magenta'])}")
         
-        # Compact footer
-        self.send_message(channel, f"Use !shop <id> to buy")
+        # Footer
+        self.send_message(channel, f"{self.colors['white']}Use {self.colors['cyan']}!shop <id>{self.colors['white']} to purchase {self.colors['reset']}")
             
     async def handle_buy(self, nick, channel, item, user):
         """Buy items and add to inventory"""
