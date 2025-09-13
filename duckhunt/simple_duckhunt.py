@@ -159,6 +159,7 @@ class SimpleIRCBot:
         self.channel_records = {}  # Channel-specific records {channel: {'fastest_shot': {}, 'last_duck': {}, 'total_ducks': 0}}
         self.duck_difficulty = {}  # Per-channel duck difficulty {channel: multiplier}
         self.next_duck_spawn = {}  # Track next spawn time per channel
+        self.channel_bread = {}  # Track deployed bread per channel {channel: [{'time': timestamp, 'owner': nick}]}
         
         # Initialize SASL handler
         self.sasl_handler = SASLHandler(self, config)
@@ -1771,7 +1772,7 @@ class SimpleIRCBot:
                 {'id': '16', 'name': 'Water bucket', 'cost': 10},
                 {'id': '17', 'name': 'Sabotage', 'cost': 14},
                 {'id': '20', 'name': 'Decoy', 'cost': 80},
-                {'id': '21', 'name': 'Bread', 'cost': 50},
+                {'id': '21', 'name': 'Bread', 'cost': 10},
                 {'id': '23', 'name': 'Mechanical duck', 'cost': 50}
             ],
             'insurance': [
@@ -1838,7 +1839,7 @@ class SimpleIRCBot:
             '18': {'name': 'Life insurance', 'cost': 10},
             '19': {'name': 'Liability insurance', 'cost': 5},
             '20': {'name': 'Decoy', 'cost': 80},
-            '21': {'name': 'Piece of bread', 'cost': 50},
+            '21': {'name': 'Piece of bread', 'cost': 10},
             '22': {'name': 'Ducks detector', 'cost': 50},
             '23': {'name': 'Mechanical duck', 'cost': 50}
         }
@@ -1848,6 +1849,17 @@ class SimpleIRCBot:
             return
             
         shop_item = shop_items[item]
+        
+        # Check for bread channel limit
+        if item == '21':  # Bread
+            # Count existing bread in channel
+            channel_bread_count = 0
+            if hasattr(self, 'channel_bread') and channel in self.channel_bread:
+                channel_bread_count = len(self.channel_bread[channel])
+            
+            if channel_bread_count >= 3:
+                self.send_message(channel, f"{nick} > Maximum 3 bread items allowed in channel! Current: {channel_bread_count}")
+                return
         cost = shop_item['cost']
         
         if player['xp'] < cost:
@@ -1918,7 +1930,7 @@ class SimpleIRCBot:
             '18': {'name': 'Life insurance', 'cost': 10},
             '19': {'name': 'Liability insurance', 'cost': 5},
             '20': {'name': 'Decoy', 'cost': 80},
-            '21': {'name': 'Piece of bread', 'cost': 50},
+            '21': {'name': 'Piece of bread', 'cost': 10},
             '22': {'name': 'Ducks detector', 'cost': 50},
             '23': {'name': 'Mechanical duck', 'cost': 50}
         }
