@@ -899,7 +899,12 @@ class SimpleIRCBot:
                     
                     # Track total shots for channel statistics
                     if channel not in self.channel_records:
-                        self.channel_records[channel] = {'total_shots': 0, 'total_ducks': 0}
+                        self.channel_records[channel] = {
+                            'fastest_shot': None,
+                            'last_duck': None,
+                            'total_ducks': 0,
+                            'total_shots': 0
+                        }
                     self.channel_records[channel]['total_shots'] += 1
                     
                     # Check for hit
@@ -1004,7 +1009,12 @@ class SimpleIRCBot:
                     
                     # Track wild shots in channel statistics
                     if channel not in self.channel_records:
-                        self.channel_records[channel] = {'total_shots': 0, 'total_ducks': 0}
+                        self.channel_records[channel] = {
+                            'fastest_shot': None,
+                            'last_duck': None,
+                            'total_ducks': 0,
+                            'total_shots': 0
+                        }
                     self.channel_records[channel]['total_shots'] += 1
                     
                     # Calculate penalties based on level
