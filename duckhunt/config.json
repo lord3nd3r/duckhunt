@@ -21,6 +21,8 @@
             "duck_spawn": true,
             "duck_shot": true,
             "duck_befriend": true,
+            "duck_miss": true,
+            "wild_shot": true,
             "leaderboard": true,
             "admin_commands": true
         },

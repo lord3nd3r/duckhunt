@@ -656,7 +656,7 @@ class SimpleIRCBot:
             'explosive_ammo': False,
             'settings': {
                 'output_mode': self.get_config('message_output.default_user_mode', 'PUBLIC'),
-                'notices': True,  # Legacy setting for backwards compatibility
+                'notices': False,  # Legacy setting for backwards compatibility - False means public
                 'private_messages': False
             },
             # Inventory system
@@ -1000,7 +1000,7 @@ class SimpleIRCBot:
                         await self.scare_duck_on_miss(channel, target_duck)
                         
                         miss_sound = "•click•" if player.get('silencer', 0) > 0 else "*CLICK*"
-                        await self.send_user_message(nick, channel, f"{nick} > {miss_sound} You missed the duck! | {miss_penalty} xp{ricochet_msg}")
+                        await self.send_user_message(nick, channel, f"{nick} > {miss_sound} You missed the duck! | {miss_penalty} xp{ricochet_msg}", 'duck_miss')
                         
                 else:
                     # No duck present - wild fire!
@@ -1044,7 +1044,7 @@ class SimpleIRCBot:
                     if player.get('silencer', 0) > 0:
                         wild_sound = "•" + wild_sound[1:-1] + "•"
                         
-                    await self.send_user_message(nick, channel, f"{nick} > {wild_sound} You shot at nothing! What were you aiming at? | {miss_penalty+wild_penalty} xp | GUN CONFISCATED{friendly_fire_msg}")
+                    await self.send_user_message(nick, channel, f"{nick} > {wild_sound} You shot at nothing! What were you aiming at? | {miss_penalty+wild_penalty} xp | GUN CONFISCATED{friendly_fire_msg}", 'wild_shot')
                 
                 # Save after each shot
                 self.save_player(user)
