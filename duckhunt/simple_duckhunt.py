@@ -1217,6 +1217,13 @@ class SimpleIRCBot:
                     await self.handle_use(nick, channel, item_id, user, target_nick)
                 else:
                     self.send_message(channel, f"{nick} > Usage: !use <item_id> [target_nick]")
+            elif full_cmd.startswith('!give '):
+                parts = full_cmd[6:].split()
+                if len(parts) >= 2:
+                    target_nick, item_id = parts[0], parts[1]
+                    await self.handle_give(nick, channel, user, target_nick, item_id)
+                else:
+                    self.send_message(channel, f"{nick} > Usage: !give <nick> <item_id>")
             elif full_cmd.startswith('!sell '):
                 item_id = full_cmd[6:].strip()
                 await self.handle_sell(nick, channel, item_id, user)
@@ -1607,9 +1614,8 @@ class SimpleIRCBot:
     async def handle_help(self, nick, channel):
         help_lines = [
             f"{nick} > {self.colors['cyan']}🦆 DUCKHUNT COMMANDS 🦆{self.colors['reset']}",
-            f"{nick} > {self.colors['green']}Game:{self.colors['reset']} !bang !bef !reload !duckstats !topduck !shop !buy <id> !inventory !nextduck",
-            f"{nick} > {self.colors['blue']}Settings:{self.colors['reset']} !output <PUBLIC|NOTICE|PRIVMSG>",
-            f"{nick} > {self.colors['yellow']}Info:{self.colors['reset']} Golden ducks: 50 XP | Gun jamming & ricochets ON | Timeout: {self.duck_timeout_min}-{self.duck_timeout_max}s"
+            f"{nick} > {self.colors['green']}Game:{self.colors['reset']} !bang !bef !reload !duckstats !topduck !shop !buy <id> !use <id> !give <nick> <id> !nextduck",
+            f"{nick} > {self.colors['blue']}Settings:{self.colors['reset']} !output <PUBLIC|NOTICE|PRIVMSG>"
         ]
         if self.is_admin(f"{nick}!*@*"):  # Check if admin
             help_lines.append(f"{nick} > {self.colors['red']}Admin:{self.colors['reset']} !duck !golden !ban !reset !resetdb !rearm !giveitem !givexp !ignore !unignore | /msg {self.config['nick']} restart|quit")
@@ -1852,11 +1858,17 @@ class SimpleIRCBot:
         
         # Check for bread channel limit
         if item == '21':  # Bread
-            # Count existing bread in channel
-            channel_bread_count = 0
-            if hasattr(self, 'channel_bread') and channel in self.channel_bread:
-                channel_bread_count = len(self.channel_bread[channel])
+            # Initialize and clean up old bread
+            if channel not in self.channel_bread:
+                self.channel_bread[channel] = []
             
+            # Clean up expired bread (30 minutes)
+            import time
+            current_time = time.time()
+            self.channel_bread[channel] = [b for b in self.channel_bread[channel] if current_time - b['time'] < 1800]
+            
+            # Check limit after cleanup
+            channel_bread_count = len(self.channel_bread[channel])
             if channel_bread_count >= 3:
                 self.send_message(channel, f"{nick} > Maximum 3 bread items allowed in channel! Current: {channel_bread_count}")
                 return
@@ -2047,6 +2059,30 @@ class SimpleIRCBot:
                 self.send_message(channel, f"{nick} > *POCKET SAND!* You threw sand in {target_nick}'s eyes! Their accuracy reduced by 20%!")
             else:
                 self.send_message(channel, f"{nick} > You threw sand in your own eyes... brilliant strategy!")
+        elif effect == 'bread':
+            # Bread - deploy in channel to attract ducks faster
+            if using_on_other:
+                self.send_message(channel, f"{nick} > You can't use bread on other players! Deploy it in the channel.")
+                return
+            
+            # Initialize channel bread if needed
+            if channel not in self.channel_bread:
+                self.channel_bread[channel] = []
+            
+            # Check limit (should have been checked in buy, but double-check)
+            if len(self.channel_bread[channel]) >= 3:
+                self.send_message(channel, f"{nick} > Maximum 3 bread items already deployed in this channel!")
+                return
+            
+            # Deploy bread
+            import time
+            bread_info = {
+                'time': time.time(),
+                'owner': nick
+            }
+            self.channel_bread[channel].append(bread_info)
+            
+            self.send_message(channel, f"{nick} > *CRUMBLE CRUMBLE* You scattered bread crumbs around the channel! Ducks will be attracted faster. ({len(self.channel_bread[channel])}/3 bread deployed)")
         # Add more effects as needed...
         else:
             # Default effects for other items
@@ -2058,6 +2094,84 @@ class SimpleIRCBot:
             # Save target player too if different
             target_user = f"{target_nick.lower()}!user@host"  # Simplified - would need real user data
             self.save_database()
+            
+    async def handle_give(self, nick, channel, user, target_nick, item_id):
+        """Give an item from inventory to another player"""
+        # Get giver's player data
+        player = self.get_player(user)
+        if not player:
+            self.send_message(channel, f"{nick} > Player data not found!")
+            return
+            
+        # Check if giver has the item
+        if item_id not in player['inventory'] or player['inventory'][item_id] <= 0:
+            self.send_message(channel, f"{nick} > You don't have that item! Check !duckstats to see your inventory.")
+            return
+            
+        # Find target player
+        target_nick_lower = target_nick.lower()
+        if target_nick_lower not in self.players:
+            self.send_message(channel, f"{nick} > Player {target_nick} not found!")
+            return
+            
+        # Can't give to yourself
+        if target_nick_lower == nick.lower():
+            self.send_message(channel, f"{nick} > You can't give items to yourself!")
+            return
+            
+        target_player = self.players[target_nick_lower]
+        
+        # Get shop item data for reference
+        shop_items = {
+            '1': {'name': 'Extra bullet', 'effect': 'ammo'},
+            '2': {'name': 'Extra clip', 'effect': 'max_ammo'},
+            '3': {'name': 'AP ammo', 'effect': 'accuracy'},
+            '4': {'name': 'Explosive ammo', 'effect': 'explosive'},
+            '5': {'name': 'Repurchase confiscated gun', 'effect': 'gun'},
+            '6': {'name': 'Grease', 'effect': 'reliability'},
+            '7': {'name': 'Sight', 'effect': 'accuracy'},
+            '8': {'name': 'Infrared detector', 'effect': 'detector'},
+            '9': {'name': 'Silencer', 'effect': 'silencer'},
+            '10': {'name': 'Four-leaf clover', 'effect': 'luck'},
+            '11': {'name': 'Shotgun', 'effect': 'shotgun'},
+            '12': {'name': 'Assault rifle', 'effect': 'rifle'},
+            '13': {'name': 'Sniper rifle', 'effect': 'sniper'},
+            '14': {'name': 'Automatic shotgun', 'effect': 'auto_shotgun'},
+            '15': {'name': 'Handful of sand', 'effect': 'sand'},
+            '16': {'name': 'Water bucket', 'effect': 'water'},
+            '17': {'name': 'Sabotage', 'effect': 'sabotage'},
+            '18': {'name': 'Life insurance', 'effect': 'life_insurance'},
+            '19': {'name': 'Liability insurance', 'effect': 'liability'},
+            '20': {'name': 'Decoy', 'effect': 'decoy'},
+            '21': {'name': 'Piece of bread', 'effect': 'bread'},
+            '22': {'name': 'Ducks detector', 'effect': 'duck_detector'},
+            '23': {'name': 'Mechanical duck', 'effect': 'mechanical'}
+        }
+        
+        if item_id not in shop_items:
+            self.send_message(channel, f"{nick} > Invalid item ID! Use shop numbers 1-23.")
+            return
+            
+        shop_item = shop_items[item_id]
+        
+        # Remove item from giver
+        player['inventory'][item_id] -= 1
+        if player['inventory'][item_id] <= 0:
+            del player['inventory'][item_id]
+            
+        # Add item to target player
+        if 'inventory' not in target_player:
+            target_player['inventory'] = {}
+        if item_id not in target_player['inventory']:
+            target_player['inventory'][item_id] = 0
+        target_player['inventory'][item_id] += 1
+        
+        # Announce the gift
+        self.send_message(channel, f"{nick} > Gave {shop_item['name']} to {target_nick}!")
+        
+        # Save both players
+        self.save_player(user)
+        self.save_database()
             
     async def handle_trade(self, nick, channel, user, target_nick, item, amount):
         """Trade items with other players"""
@@ -2396,6 +2510,11 @@ class SimpleIRCBot:
         # Add duck to channel
         self.ducks[channel].append(duck)
         
+        # Consume bread when duck spawns (bread gets eaten!)
+        if channel in self.channel_bread and self.channel_bread[channel]:
+            consumed_bread = self.channel_bread[channel].pop(0)  # Remove oldest bread
+            self.logger.info(f"Duck consumed bread from {consumed_bread['owner']} in {channel}")
+        
         # Send spawn message
         self.send_message(channel, duck_info['msg'])
         self.logger.info(f"Admin spawned {duck_info['type']} duck {duck_id} in {channel}")
@@ -2413,6 +2532,22 @@ class SimpleIRCBot:
         
         while not self.shutdown_requested:
             wait_time = random.randint(self.duck_spawn_min, self.duck_spawn_max)
+            
+            # Apply bread effects - reduce spawn time
+            for channel in self.channels_joined:
+                if channel in self.channel_bread and self.channel_bread[channel]:
+                    # Clean up old bread (expires after 30 minutes)
+                    current_time = time.time()
+                    self.channel_bread[channel] = [b for b in self.channel_bread[channel] if current_time - b['time'] < 1800]
+                    
+                    if self.channel_bread[channel]:  # If any bread remains after cleanup
+                        # Each bread reduces spawn time by 20%, max 60% reduction
+                        bread_count = len(self.channel_bread[channel])
+                        reduction = min(0.6, bread_count * 0.2)  # Max 60% reduction
+                        wait_time = int(wait_time * (1 - reduction))
+                        self.logger.info(f"Bread effect: {bread_count} bread in {channel}, {reduction*100:.0f}% spawn time reduction")
+                        break  # Apply effect based on first channel with bread
+            
             self.logger.info(f"Waiting {wait_time//60}m {wait_time%60}s for next duck")
             
             # Set next spawn time for all channels
@@ -2427,7 +2562,7 @@ class SimpleIRCBot:
                     return
                 await asyncio.sleep(1)
             
-            # Spawn only one duck per channel if no alive ducks exist
+            # Check each channel for possible duck spawning
             for channel in self.channels_joined:
                 if self.shutdown_requested:
                     return
@@ -2436,10 +2571,28 @@ class SimpleIRCBot:
                 channel_ducks = self.ducks.get(channel, [])
                 alive_ducks = [duck for duck in channel_ducks if duck.get('alive')]
                 
-                # Only spawn if no ducks are alive (one duck at a time naturally)
+                # Only consider spawning if no ducks are alive
                 if not alive_ducks:
-                    await self.spawn_duck_now(channel)
-                    break  # Only spawn in the first available channel
+                    # Calculate spawn chance based on bread
+                    base_chance = 0.3  # 30% base chance per spawn cycle
+                    bread_count = 0
+                    
+                    # Count and clean up bread
+                    if channel in self.channel_bread and self.channel_bread[channel]:
+                        current_time = time.time()
+                        self.channel_bread[channel] = [b for b in self.channel_bread[channel] if current_time - b['time'] < 1800]
+                        bread_count = len(self.channel_bread[channel])
+                    
+                    # Each bread adds 25% spawn chance
+                    spawn_chance = base_chance + (bread_count * 0.25)
+                    spawn_chance = min(0.95, spawn_chance)  # Cap at 95%
+                    
+                    # Roll for spawn
+                    if random.random() < spawn_chance:
+                        await self.spawn_duck_now(channel)
+                        bread_msg = f" (bread boosted: {bread_count} bread = {spawn_chance*100:.0f}% chance)" if bread_count > 0 else ""
+                        self.logger.info(f"Duck spawned in {channel}{bread_msg}")
+                        break  # Only spawn in one channel per cycle
                     
     async def duck_timeout_checker(self):
         """Remove ducks that have been around too long"""
