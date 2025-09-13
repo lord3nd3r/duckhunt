@@ -1402,9 +1402,7 @@ class SimpleIRCBot:
                     await self.handle_admin_givexp(nick, channel, target_nick, amount)
                 else:
                     self.send_message(channel, f"{nick} > Usage: !givexp <nick> <amount>")
-            else:
-                # Unknown command - show help
-                self.send_message(channel, f"{nick} > Unknown command! Use !duckhelp to see available commands.")
+            # No else clause - ignore unknown commands to avoid interfering with other bots
                     
         except Exception as e:
             # Graceful degradation - log error but don't crash
