@@ -1194,7 +1194,7 @@ class SimpleIRCBot:
                 # Save to database after reload
                 self.save_player(user)
                     
-            elif cmd == '!stats':
+            elif cmd == '!duckstats':
                 await self.handle_stats(nick, channel, user)
             elif cmd == '!duckhelp':
                 await self.handle_help(nick, channel)
@@ -1606,7 +1606,7 @@ class SimpleIRCBot:
     async def handle_help(self, nick, channel):
         help_lines = [
             f"{nick} > {self.colors['cyan']}🦆 DUCKHUNT COMMANDS 🦆{self.colors['reset']}",
-            f"{nick} > {self.colors['green']}Game:{self.colors['reset']} !bang !bef !reload !stats !topduck !shop !buy <id> !inventory !nextduck",
+            f"{nick} > {self.colors['green']}Game:{self.colors['reset']} !bang !bef !reload !duckstats !topduck !shop !buy <id> !inventory !nextduck",
             f"{nick} > {self.colors['blue']}Settings:{self.colors['reset']} !output <PUBLIC|NOTICE|PRIVMSG>",
             f"{nick} > {self.colors['yellow']}Info:{self.colors['reset']} Golden ducks: 50 XP | Gun jamming & ricochets ON | Timeout: {self.duck_timeout_min}-{self.duck_timeout_max}s"
         ]
