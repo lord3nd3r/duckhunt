@@ -1,0 +1,198 @@
+2025-09-19 21:04:25,978 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:04:25,978 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:04:25,978 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:04:25,980 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 21 players from duckhunt.json
+2025-09-19 21:04:32,607 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:04:33,747 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:05:02,022 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:05:02,086 [ERROR   ] DuckHuntBot - run:898: Bot error: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:06:16,216 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:06:16,217 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:06:16,221 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 21 players from duckhunt.json
+2025-09-19 21:06:17,222 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:06:17,223 [INFO    ] DuckHuntBot - run:908: Shutting down bot...
+2025-09-19 21:08:34,809 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:08:34,810 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:08:34,817 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 21 players from duckhunt.json
+2025-09-19 21:08:34,977 [INFO    ] DuckHuntBot - connect:92: Connected to irc.libera.chat:6667
+2025-09-19 21:08:35,507 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:08:35,815 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:08:35,816 [INFO    ] DuckHuntBot - message_loop:960: Message loop cancelled
+2025-09-19 21:08:35,817 [INFO    ] DuckHuntBot - message_loop:966: Message loop ended
+2025-09-19 21:08:35,818 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:295: Duck timeout checker cancelled
+2025-09-19 21:08:35,819 [INFO    ] DuckHuntBot - run:899: Main loop cancelled
+2025-09-19 21:08:35,821 [INFO    ] DuckHuntBot - run:909: Shutting down bot...
+2025-09-19 21:08:35,822 [INFO    ] DuckHuntBot.Game - spawn_ducks:250: Duck spawning loop cancelled
+2025-09-19 21:08:35,830 [INFO    ] DuckHuntBot - run:925: Database saved
+2025-09-19 21:08:35,831 [INFO    ] DuckHuntBot - run:935: IRC connection closed
+2025-09-19 21:08:35,831 [INFO    ] DuckHuntBot - run:939: Bot shutdown complete
+2025-09-19 21:08:44,430 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:08:44,431 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:08:44,431 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:08:44,432 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 21 players from duckhunt.json
+2025-09-19 21:08:44,740 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:08:49,547 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:08:49,558 [INFO    ] DuckHuntBot - run:899: Main loop cancelled
+2025-09-19 21:08:49,559 [INFO    ] DuckHuntBot - run:909: Shutting down bot...
+2025-09-19 21:08:49,559 [INFO    ] DuckHuntBot - message_loop:960: Message loop cancelled
+2025-09-19 21:08:49,560 [INFO    ] DuckHuntBot - message_loop:966: Message loop ended
+2025-09-19 21:08:49,560 [INFO    ] DuckHuntBot.Game - spawn_ducks:250: Duck spawning loop cancelled
+2025-09-19 21:08:49,560 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:295: Duck timeout checker cancelled
+2025-09-19 21:08:49,563 [INFO    ] DuckHuntBot - run:925: Database saved
+2025-09-19 21:08:49,655 [ERROR   ] DuckHuntBot - run:937: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:08:49,655 [INFO    ] DuckHuntBot - run:939: Bot shutdown complete
+2025-09-19 21:09:05,620 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:09:05,621 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:09:05,621 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:09:05,622 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 21 players from duckhunt.json
+2025-09-19 21:09:05,871 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:09:06,058 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:09:09,738 [ERROR   ] DuckHuntBot - handle_command:287: Error in command handler: 'shots'
+2025-09-19 21:09:17,085 [INFO    ] DuckHuntBot.Game - spawn_duck_now:203: Spawned normal duck in #ct
+2025-09-19 21:09:17,085 [DEBUG   ] DuckHuntBot.Game - send_duck_alerts:217: Duck alerts for normal duck in #ct
+2025-09-19 21:09:22,905 [INFO    ] DuckHuntBot.Game - spawn_duck_now:203: Spawned rare duck in #ct
+2025-09-19 21:09:22,906 [DEBUG   ] DuckHuntBot.Game - send_duck_alerts:217: Duck alerts for rare duck in #ct
+2025-09-19 21:09:24,398 [INFO    ] DuckHuntBot.Game - spawn_duck_now:203: Spawned rare duck in #ct
+2025-09-19 21:09:24,398 [DEBUG   ] DuckHuntBot.Game - send_duck_alerts:217: Duck alerts for rare duck in #ct
+2025-09-19 21:09:25,076 [DEBUG   ] DuckHuntBot.Game - spawn_duck_now:161: Max ducks already in #ct
+2025-09-19 21:10:05,877 [DEBUG   ] DuckHuntBot.Game - duck_timeout_checker:290: Duck timed out in #ct
+2025-09-19 21:10:35,879 [DEBUG   ] DuckHuntBot.Game - duck_timeout_checker:290: Duck timed out in #ct
+2025-09-19 21:10:35,880 [DEBUG   ] DuckHuntBot.Game - duck_timeout_checker:290: Duck timed out in #ct
+2025-09-19 21:10:53,732 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:10:53,764 [INFO    ] DuckHuntBot - run:899: Main loop cancelled
+2025-09-19 21:10:53,768 [INFO    ] DuckHuntBot - run:909: Shutting down bot...
+2025-09-19 21:10:53,768 [INFO    ] DuckHuntBot - message_loop:960: Message loop cancelled
+2025-09-19 21:10:53,770 [INFO    ] DuckHuntBot - message_loop:966: Message loop ended
+2025-09-19 21:10:53,771 [INFO    ] DuckHuntBot.Game - spawn_ducks:250: Duck spawning loop cancelled
+2025-09-19 21:10:53,775 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:295: Duck timeout checker cancelled
+2025-09-19 21:10:53,789 [INFO    ] DuckHuntBot - run:925: Database saved
+2025-09-19 21:10:53,853 [ERROR   ] DuckHuntBot - run:937: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:10:53,854 [INFO    ] DuckHuntBot - run:939: Bot shutdown complete
+2025-09-19 21:12:51,877 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:12:51,879 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:12:51,881 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:12:51,887 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 22 players from duckhunt.json
+2025-09-19 21:12:52,184 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:12:52,366 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:13:21,643 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 15, shutting down...
+2025-09-19 21:13:21,681 [INFO    ] DuckHuntBot - run:899: Main loop cancelled
+2025-09-19 21:13:21,682 [INFO    ] DuckHuntBot - run:909: Shutting down bot...
+2025-09-19 21:13:21,684 [INFO    ] DuckHuntBot - message_loop:960: Message loop cancelled
+2025-09-19 21:13:21,685 [INFO    ] DuckHuntBot - message_loop:966: Message loop ended
+2025-09-19 21:13:21,686 [INFO    ] DuckHuntBot.Game - spawn_ducks:250: Duck spawning loop cancelled
+2025-09-19 21:13:21,686 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:295: Duck timeout checker cancelled
+2025-09-19 21:13:21,690 [INFO    ] DuckHuntBot - run:925: Database saved
+2025-09-19 21:13:21,752 [ERROR   ] DuckHuntBot - run:937: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:13:21,753 [INFO    ] DuckHuntBot - run:939: Bot shutdown complete
+2025-09-19 21:13:27,996 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:13:27,997 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:13:27,997 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:13:27,999 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 22 players from duckhunt.json
+2025-09-19 21:13:28,246 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:13:28,721 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:18:41,831 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:18:41,878 [INFO    ] DuckHuntBot - run:899: Main loop cancelled
+2025-09-19 21:18:41,879 [INFO    ] DuckHuntBot - run:909: Shutting down bot...
+2025-09-19 21:18:41,879 [INFO    ] DuckHuntBot - message_loop:960: Message loop cancelled
+2025-09-19 21:18:41,880 [INFO    ] DuckHuntBot - message_loop:966: Message loop ended
+2025-09-19 21:18:41,881 [INFO    ] DuckHuntBot.Game - spawn_ducks:250: Duck spawning loop cancelled
+2025-09-19 21:18:41,881 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:295: Duck timeout checker cancelled
+2025-09-19 21:18:41,902 [INFO    ] DuckHuntBot - run:925: Database saved
+2025-09-19 21:18:41,987 [ERROR   ] DuckHuntBot - run:937: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:18:41,988 [INFO    ] DuckHuntBot - run:939: Bot shutdown complete
+2025-09-19 21:19:02,499 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:19:02,500 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:19:02,501 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:19:02,504 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 22 players from duckhunt.json
+2025-09-19 21:19:02,778 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:19:03,277 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:19:12,233 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 15, shutting down...
+2025-09-19 21:19:12,323 [INFO    ] DuckHuntBot - run:1012: Main loop cancelled
+2025-09-19 21:19:12,324 [INFO    ] DuckHuntBot - run:1022: Shutting down bot...
+2025-09-19 21:19:12,324 [INFO    ] DuckHuntBot - message_loop:1073: Message loop cancelled
+2025-09-19 21:19:12,324 [INFO    ] DuckHuntBot - message_loop:1079: Message loop ended
+2025-09-19 21:19:12,324 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:306: Duck timeout checker cancelled
+2025-09-19 21:19:12,324 [INFO    ] DuckHuntBot.Game - spawn_ducks:261: Duck spawning loop cancelled
+2025-09-19 21:19:12,327 [INFO    ] DuckHuntBot - run:1038: Database saved
+2025-09-19 21:19:12,383 [ERROR   ] DuckHuntBot - run:1050: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:19:12,383 [INFO    ] DuckHuntBot - run:1052: Bot shutdown complete
+2025-09-19 21:19:43,902 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:19:43,903 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:19:43,903 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:19:43,904 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 22 players from duckhunt.json
+2025-09-19 21:19:44,156 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:19:44,322 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:19:56,638 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:19:56,731 [INFO    ] DuckHuntBot - run:1012: Main loop cancelled
+2025-09-19 21:19:56,731 [INFO    ] DuckHuntBot - run:1022: Shutting down bot...
+2025-09-19 21:19:56,732 [INFO    ] DuckHuntBot - message_loop:1073: Message loop cancelled
+2025-09-19 21:19:56,732 [INFO    ] DuckHuntBot - message_loop:1079: Message loop ended
+2025-09-19 21:19:56,733 [INFO    ] DuckHuntBot.Game - spawn_ducks:261: Duck spawning loop cancelled
+2025-09-19 21:19:56,733 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:306: Duck timeout checker cancelled
+2025-09-19 21:19:56,738 [INFO    ] DuckHuntBot - run:1038: Database saved
+2025-09-19 21:19:56,794 [ERROR   ] DuckHuntBot - run:1050: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:19:56,795 [INFO    ] DuckHuntBot - run:1052: Bot shutdown complete
+2025-09-19 21:21:50,220 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:21:50,221 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:21:50,221 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:21:50,224 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 22 players from duckhunt.json
+2025-09-19 21:21:50,526 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:21:52,130 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:26:33,004 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:26:33,069 [INFO    ] DuckHuntBot - run:1012: Main loop cancelled
+2025-09-19 21:26:33,070 [INFO    ] DuckHuntBot - run:1022: Shutting down bot...
+2025-09-19 21:26:33,070 [INFO    ] DuckHuntBot - message_loop:1073: Message loop cancelled
+2025-09-19 21:26:33,071 [INFO    ] DuckHuntBot - message_loop:1079: Message loop ended
+2025-09-19 21:26:33,074 [INFO    ] DuckHuntBot.Game - spawn_ducks:261: Duck spawning loop cancelled
+2025-09-19 21:26:33,075 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:306: Duck timeout checker cancelled
+2025-09-19 21:26:33,097 [INFO    ] DuckHuntBot - run:1038: Database saved
+2025-09-19 21:26:33,184 [ERROR   ] DuckHuntBot - run:1050: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:26:33,185 [INFO    ] DuckHuntBot - run:1052: Bot shutdown complete
+2025-09-19 21:27:12,029 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:27:12,030 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:27:12,030 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:27:12,033 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 22 players from duckhunt.json
+2025-09-19 21:27:12,302 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:27:12,685 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:27:21,684 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 15, shutting down...
+2025-09-19 21:27:21,734 [INFO    ] DuckHuntBot - run:1000: Main loop cancelled
+2025-09-19 21:27:21,734 [INFO    ] DuckHuntBot - run:1010: Shutting down bot...
+2025-09-19 21:27:21,735 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:307: Duck timeout checker cancelled
+2025-09-19 21:27:21,735 [INFO    ] DuckHuntBot - message_loop:1061: Message loop cancelled
+2025-09-19 21:27:21,735 [INFO    ] DuckHuntBot - message_loop:1067: Message loop ended
+2025-09-19 21:27:21,735 [INFO    ] DuckHuntBot.Game - spawn_ducks:261: Duck spawning loop cancelled
+2025-09-19 21:27:21,743 [INFO    ] DuckHuntBot - run:1026: Database saved
+2025-09-19 21:27:21,799 [ERROR   ] DuckHuntBot - run:1038: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:27:21,800 [INFO    ] DuckHuntBot - run:1040: Bot shutdown complete
+2025-09-19 21:27:36,083 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:27:36,084 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:27:36,084 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:27:36,086 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 22 players from duckhunt.json
+2025-09-19 21:27:36,338 [INFO    ] DuckHuntBot - connect:92: Connected to irc.rizon.net:6697
+2025-09-19 21:27:36,504 [INFO    ] DuckHuntBot - handle_message:205: Successfully registered with IRC server
+2025-09-19 21:30:40,213 [INFO    ] DuckHuntBot - signal_handler:188: Received signal 2, shutting down...
+2025-09-19 21:30:40,256 [INFO    ] DuckHuntBot - run:1000: Main loop cancelled
+2025-09-19 21:30:40,257 [INFO    ] DuckHuntBot - run:1010: Shutting down bot...
+2025-09-19 21:30:40,257 [INFO    ] DuckHuntBot - message_loop:1061: Message loop cancelled
+2025-09-19 21:30:40,257 [INFO    ] DuckHuntBot - message_loop:1067: Message loop ended
+2025-09-19 21:30:40,257 [INFO    ] DuckHuntBot.Game - spawn_ducks:261: Duck spawning loop cancelled
+2025-09-19 21:30:40,257 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:307: Duck timeout checker cancelled
+2025-09-19 21:30:40,262 [INFO    ] DuckHuntBot - run:1026: Database saved
+2025-09-19 21:30:40,318 [ERROR   ] DuckHuntBot - run:1038: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:30:40,319 [INFO    ] DuckHuntBot - run:1040: Bot shutdown complete
+2025-09-19 21:42:07,003 [INFO    ] DuckHuntBot - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:42:07,005 [INFO    ] SASL - setup_logger:65: Enhanced logging system initialized with file rotation
+2025-09-19 21:42:07,005 [INFO    ] DuckHuntBot - main:26: 🦆 Starting DuckHunt Bot...
+2025-09-19 21:42:07,009 [INFO    ] DuckHuntBot.DB - load_database:40: Loaded 22 players from duckhunt.json
+2025-09-19 21:42:07,297 [INFO    ] DuckHuntBot - connect:95: Connected to irc.rizon.net:6697
+2025-09-19 21:42:07,739 [INFO    ] DuckHuntBot - handle_message:208: Successfully registered with IRC server
+2025-09-19 21:42:58,096 [INFO    ] DuckHuntBot - signal_handler:191: Received signal 2, shutting down...
+2025-09-19 21:42:58,194 [INFO    ] DuckHuntBot.Game - spawn_ducks:261: Duck spawning loop cancelled
+2025-09-19 21:42:58,194 [INFO    ] DuckHuntBot - run:1128: Main loop cancelled
+2025-09-19 21:42:58,194 [INFO    ] DuckHuntBot - run:1138: Shutting down bot...
+2025-09-19 21:42:58,195 [INFO    ] DuckHuntBot.Game - duck_timeout_checker:307: Duck timeout checker cancelled
+2025-09-19 21:42:58,195 [INFO    ] DuckHuntBot - message_loop:1189: Message loop cancelled
+2025-09-19 21:42:58,195 [INFO    ] DuckHuntBot - message_loop:1195: Message loop ended
+2025-09-19 21:42:58,198 [INFO    ] DuckHuntBot - run:1154: Database saved
+2025-09-19 21:42:58,261 [ERROR   ] DuckHuntBot - run:1166: Error closing connection: [SSL: APPLICATION_DATA_AFTER_CLOSE_NOTIFY] application data after close notify (_ssl.c:2685)
+2025-09-19 21:42:58,262 [INFO    ] DuckHuntBot - run:1168: Bot shutdown complete

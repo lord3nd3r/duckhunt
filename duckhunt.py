@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main entry point for DuckHunt Bot
+DuckHunt IRC Bot - Main Entry Point
 """
 
 import asyncio
@@ -11,14 +11,18 @@ import os
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from src.duckhuntbot import IRCBot
+from src.duckhuntbot import DuckHuntBot
+
 
 def main():
+    """Main entry point for DuckHunt Bot"""
     try:
+        # Load configuration
         with open('config.json') as f:
             config = json.load(f)
         
-        bot = IRCBot(config)
+        # Create and run bot
+        bot = DuckHuntBot(config)
         bot.logger.info("🦆 Starting DuckHunt Bot...")
         
         # Run the bot
@@ -32,6 +36,7 @@ def main():
     except Exception as e:
         print(f"❌ Error: {e}")
         sys.exit(1)
+
 
 if __name__ == '__main__':
     main()

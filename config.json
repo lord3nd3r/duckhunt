@@ -1,22 +1,52 @@
 {
     "server": "irc.rizon.net",
     "port": 6697,
-    "nick": "DuckHunt",
-    "channels": ["#computertech"],
+    "nick": "DickHunt",
+    "channels": ["#ct"],
     "ssl": true,
     "sasl": {
-        "enabled": true,
+        "enabled": false,
         "username": "duckhunt",
         "password": "duckhunt//789//"
     },
-    "password": "",
+    "password": "your_iline_password_here",
+    "_comment_password": "Server password for I-line exemption (PASS command)",
     "admins": ["peorth", "computertech", "colby"],
+    
+    "_comment_message_output": "Default output modes for different message types",
+    "message_output": {
+        "default_user_mode": "PUBLIC",
+        "_comment_default_user_mode": "Default output mode for new users: PUBLIC, NOTICE, or PRIVMSG",
+        "force_public": {
+            "duck_spawn": true,
+            "duck_shot": true,
+            "duck_befriend": true,
+            "duck_miss": true,
+            "wild_shot": true,
+            "player_stats": true,
+            "leaderboard": true,
+            "admin_commands": true
+        },
+        "_comment_force_public": "Message types that always go to channel regardless of user preference"
+    },
     
     "_comment_duck_spawning": "Duck spawning configuration",
     "duck_spawn_min": 1800,
     "duck_spawn_max": 5400,
     "duck_timeout_min": 45,
     "duck_timeout_max": 75,
+    "duck_smartness": {
+        "enabled": true,
+        "learning_rate": 0.1,
+        "max_difficulty_multiplier": 2.0,
+        "_comment": "Ducks become harder to hit as more are shot in channel"
+    },
+    "records_tracking": {
+        "enabled": true,
+        "track_fastest_shots": true,
+        "track_channel_records": true,
+        "max_records_stored": 10
+    },
         "duck_types": {
         "normal": {
             "spawn_chance": 0.6,
@@ -91,7 +121,27 @@
         "starting_chargers": 2,
         "max_chargers_base": 2,
         "durability_enabled": true,
-        "confiscation_enabled": true
+        "confiscation_enabled": true,
+        "auto_rearm_on_duck_shot": true,
+        "_comment_auto_rearm": "Automatically restore confiscated guns when anyone shoots a duck"
+    },
+    
+    "_comment_new_players": "Starting stats for new hunters",
+    "new_players": {
+        "starting_xp": 0,
+        "starting_accuracy": 65,
+        "starting_reliability": 70,
+        "starting_karma": 0,
+        "starting_deflection": 0,
+        "starting_defense": 0,
+        "luck_chance": 5,
+        "_comment_luck_chance": "Base percentage chance for lucky events",
+        "random_stats": {
+            "enabled": false,
+            "accuracy_range": [60, 80],
+            "reliability_range": [65, 85],
+            "_comment_ranges": "If enabled, new players get random stats within these ranges"
+        }
     },
     
     "_comment_economy": "Economy and shop configuration",
