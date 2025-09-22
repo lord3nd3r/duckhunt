@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Utility functions for DuckHunt Bot
 """
@@ -15,7 +14,6 @@ class InputValidator:
         """Validate IRC nickname format"""
         if not nick or len(nick) > 30:
             return False
-        # RFC 2812 nickname pattern
         pattern = r'^[a-zA-Z\[\]\\`_^{|}][a-zA-Z0-9\[\]\\`_^{|}\-]*$'
         return bool(re.match(pattern, nick))
     
@@ -44,9 +42,8 @@ class InputValidator:
         """Sanitize user input message"""
         if not message:
             return ""
-        # Remove control characters and limit length
         sanitized = ''.join(char for char in message if ord(char) >= 32 or char in '\t\n')
-        return sanitized[:500]  # Limit message length
+        return sanitized[:500]
 
 
 def parse_message(line):

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Game mechanics for DuckHunt Bot
 """
@@ -17,10 +16,9 @@ class DuckGame:
     def __init__(self, bot, db):
         self.bot = bot
         self.db = db
-        self.ducks = {}  # Format: {channel: [{'alive': True, 'spawn_time': time, 'id': uuid}, ...]}
+        self.ducks = {}
         self.logger = logging.getLogger('DuckHuntBot.Game')
         
-        # Colors for IRC messages
         self.colors = {
             'red': '\x0304',
             'green': '\x0303',
@@ -84,29 +82,25 @@ class DuckGame:
         
         if start_hour <= end_hour:
             return start_hour <= current_hour <= end_hour
-        else:  # Crosses midnight
+        else:
             return current_hour >= start_hour or current_hour <= end_hour
     
     def calculate_gun_reliability(self, player):
         """Calculate gun reliability with modifiers"""
         base_reliability = player.get('reliability', 70)
-        # Add weapon modifiers, items, etc.
         return min(100, max(0, base_reliability))
     
     def gun_jams(self, player):
         """Check if gun jams (eggdrop style)"""
-        # Base jamming probability is inverse of reliability
         reliability = player.get('reliability', 70)
-        jam_chance = max(1, 101 - reliability)  # Higher reliability = lower jam chance
+        jam_chance = max(1, 101 - reliability)
         
-        # Additional factors that increase jam chance
         if player.get('total_ammo_used', 0) > 100:
-            jam_chance += 2  # Gun gets more prone to jamming with use
+            jam_chance += 2
             
         if player.get('jammed_count', 0) > 5:
-            jam_chance += 1  # Previously jammed guns are more prone to jamming
+            jam_chance += 1
             
-        # Roll for jam (1-100, jam if roll <= jam_chance)
         return random.randint(1, 100) <= jam_chance
                 
     async def scare_other_ducks(self, channel, shot_duck_id):
@@ -114,16 +108,15 @@ class DuckGame:
         if channel not in self.ducks:
             return
             
-        for duck in self.ducks[channel][:]:  # Copy list to avoid modification during iteration
+        for duck in self.ducks[channel][:]:
             if duck['id'] != shot_duck_id and duck['alive']:
-                # 30% chance to scare away other ducks
                 if random.random() < 0.3:
                     duck['alive'] = False
                     self.ducks[channel].remove(duck)
                     
     async def scare_duck_on_miss(self, channel, target_duck):
         """Scare duck when someone misses"""
-        if target_duck and random.random() < 0.15:  # 15% chance
+        if target_duck and random.random() < 0.15:
             target_duck['alive'] = False
             if channel in self.ducks and target_duck in self.ducks[channel]:
                 self.ducks[channel].remove(target_duck)
@@ -133,7 +126,7 @@ class DuckGame:
         if not self.get_config('items.enabled', True):
             return
             
-        if random.random() < 0.1:  # 10% chance
+        if random.random() < 0.1:
             items = [
                 ("a mirror", "mirror", "You can now deflect shots!"),
                 ("some sand", "sand", "Throw this to blind opponents!"),
@@ -172,7 +165,6 @@ class DuckGame:
             self.logger.debug(f"Max ducks already in {channel}")
             return
             
-        # Determine duck type
         if force_golden:
             duck_type = "golden"
         else:
@@ -188,13 +180,11 @@ class DuckGame:
             else:
                 duck_type = "normal"
                 
-        # Get duck configuration
         duck_config = self.get_config(f'duck_types.{duck_type}', {})
         if not duck_config.get('enabled', True):
             duck_type = "normal"
             duck_config = self.get_config('duck_types.normal', {})
             
-        # Create duck
         duck = {
             'id': str(uuid.uuid4())[:8],
             'type': duck_type,
@@ -206,14 +196,12 @@ class DuckGame:
         
         self.ducks[channel].append(duck)
         
-        # Send spawn message
         messages = duck_config.get('messages', [self.get_duck_spawn_message()])
         spawn_message = random.choice(messages)
         
         self.bot.send_message(channel, spawn_message)
         self.logger.info(f"Spawned {duck_type} duck in {channel}")
         
-        # Alert users who have alerts enabled
         await self.send_duck_alerts(channel, duck_type)
         
         return duck
@@ -223,8 +211,6 @@ class DuckGame:
         if not self.get_config('social.duck_alerts_enabled', True):
             return
             
-        # Implementation would iterate through players with alerts enabled
-        # For now, just log
         self.logger.debug(f"Duck alerts for {duck_type} duck in {channel}")
     
     async def spawn_ducks(self):
@@ -232,7 +218,7 @@ class DuckGame:
         while not self.bot.shutdown_requested:
             try:
                 if self.is_sleep_time():
-                    await asyncio.sleep(300)  # Check every 5 minutes during sleep
+                    await asyncio.sleep(300)
                     continue
                     
                 for channel in self.bot.channels_joined:
@@ -242,7 +228,6 @@ class DuckGame:
                     if channel not in self.ducks:
                         self.ducks[channel] = []
                         
-                    # Clean up dead ducks
                     self.ducks[channel] = [d for d in self.ducks[channel] if d['alive']]
                     
                     max_ducks = self.get_config('max_ducks_per_channel', 3)
@@ -252,10 +237,10 @@ class DuckGame:
                         min_spawn_time = self.get_config('duck_spawn_min', 1800)
                         max_spawn_time = self.get_config('duck_spawn_max', 5400)
                         
-                        if random.random() < 0.1:  # 10% chance each check
+                        if random.random() < 0.1:
                             await self.spawn_duck_now(channel)
                             
-                await asyncio.sleep(random.randint(60, 300))  # Check every 1-5 minutes
+                await asyncio.sleep(random.randint(60, 300))
                 
             except asyncio.CancelledError:
                 self.logger.info("Duck spawning loop cancelled")
@@ -277,7 +262,7 @@ class DuckGame:
                     if channel not in self.ducks:
                         continue
                         
-                    for duck in self.ducks[channel][:]:  # Copy to avoid modification
+                    for duck in self.ducks[channel][:]:
                         if not duck['alive']:
                             continue
                             
@@ -291,7 +276,6 @@ class DuckGame:
                             duck['alive'] = False
                             self.ducks[channel].remove(duck)
                             
-                            # Send timeout message (eggdrop style)
                             timeout_messages = [
                                 "-.,¸¸.-·°'`'°·-.,¸¸.-·°'`'°·   \\_o>   The duck flew away!",
                                 "-.,¸¸.-·°'`'°·-.,¸¸.-·°'`'°·   \\_O>   *FLAP FLAP FLAP*",
@@ -301,7 +285,7 @@ class DuckGame:
                             self.bot.send_message(channel, random.choice(timeout_messages))
                             self.logger.debug(f"Duck timed out in {channel}")
                 
-                await asyncio.sleep(10)  # Check every 10 seconds
+                await asyncio.sleep(10)
                 
             except asyncio.CancelledError:
                 self.logger.info("Duck timeout checker cancelled")

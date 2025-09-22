@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Logging utilities for DuckHunt Bot
 """
@@ -10,12 +9,12 @@ import logging.handlers
 class DetailedColorFormatter(logging.Formatter):
     """Console formatter with color support"""
     COLORS = {
-        'DEBUG': '\033[94m',    # Blue
-        'INFO': '\033[92m',     # Green
-        'WARNING': '\033[93m',  # Yellow
-        'ERROR': '\033[91m',    # Red
-        'CRITICAL': '\033[95m', # Magenta
-        'ENDC': '\033[0m'       # End color
+        'DEBUG': '\033[94m',
+        'INFO': '\033[92m',
+        'WARNING': '\033[93m',
+        'ERROR': '\033[91m',
+        'CRITICAL': '\033[95m',
+        'ENDC': '\033[0m'
     }
     
     def format(self, record):
@@ -36,10 +35,8 @@ def setup_logger(name="DuckHuntBot"):
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     
-    # Clear any existing handlers
     logger.handlers.clear()
     
-    # Console handler with colors
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_formatter = DetailedColorFormatter(
@@ -48,12 +45,11 @@ def setup_logger(name="DuckHuntBot"):
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
     
-    # File handler with rotation for detailed logs
     try:
         file_handler = logging.handlers.RotatingFileHandler(
             'duckhunt.log', 
-            maxBytes=10*1024*1024,  # 10MB per file
-            backupCount=5  # Keep 5 backup files
+            maxBytes=10*1024*1024,
+            backupCount=5
         )
         file_handler.setLevel(logging.DEBUG)
         file_formatter = DetailedFileFormatter(

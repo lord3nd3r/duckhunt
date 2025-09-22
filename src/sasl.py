@@ -55,7 +55,6 @@ class SASLHandler:
         subcommand = params[1]
         
         if subcommand == "LS":
-            # Server listing capabilities
             caps = trailing.split() if trailing else []
             self.logger.info(f"Server capabilities: {caps}")
             if "sasl" in caps:
@@ -69,7 +68,6 @@ class SASLHandler:
                 return False
                 
         elif subcommand == "ACK":
-            # Server acknowledged capability request
             caps = trailing.split() if trailing else []
             self.logger.info("SASL capability acknowledged")
             if "sasl" in caps:
@@ -82,7 +80,6 @@ class SASLHandler:
                 return False
                 
         elif subcommand == "NAK":
-            # Server rejected capability request
             self.logger.warning("SASL capability rejected")
             self.bot.send_raw("CAP END")
             await self.bot.register_user()
@@ -96,7 +93,6 @@ class SASLHandler:
         """
         self.logger.info("Sending AUTHENTICATE PLAIN")
         self.bot.send_raw('AUTHENTICATE PLAIN')
-        # Small delay to ensure proper sequencing
         await asyncio.sleep(0.1)
     
     async def handle_authenticate_response(self, params):
@@ -106,7 +102,6 @@ class SASLHandler:
         if params and params[0] == '+':
             self.logger.info("Server ready for SASL authentication")
             if self.username and self.password:
-                # Create auth string: username\0username\0password
                 authpass = f'{self.username}{NULL_BYTE}{self.username}{NULL_BYTE}{self.password}'
                 self.logger.debug(f"Auth string length: {len(authpass)} chars")
                 self.logger.debug(f"Auth components: user='{self.username}', pass='{self.password[:3]}...'")
@@ -125,14 +120,12 @@ class SASLHandler:
     async def handle_sasl_result(self, command, params, trailing):
         """Handle SASL authentication result."""
         if command == "903":
-            # SASL success
             self.logger.info("SASL authentication successful!")
             self.authenticated = True
             await self.handle_903()
             return True
             
         elif command == "904":
-            # SASL failed
             self.logger.error("SASL authentication failed! (904 - Invalid credentials or account not found)")
             self.logger.error(f"Attempted username: {self.username}")
             self.logger.error(f"Password length: {len(self.password)} chars")
@@ -145,28 +138,24 @@ class SASLHandler:
             return False
             
         elif command == "905":
-            # SASL too long
             self.logger.error("SASL authentication string too long")
             self.bot.send_raw("CAP END")
             await self.bot.register_user()
             return False
             
         elif command == "906":
-            # SASL aborted
             self.logger.error("SASL authentication aborted")
             self.bot.send_raw("CAP END")
             await self.bot.register_user()
             return False
             
         elif command == "907":
-            # Already authenticated
             self.logger.info("Already authenticated via SASL")
             self.authenticated = True
             await self.handle_903()
             return True
             
         elif command == "908":
-            # SASL mechanisms
             mechanisms = trailing.split() if trailing else []
             self.logger.info(f"Available SASL mechanisms: {mechanisms}")
             if "PLAIN" not in mechanisms:
@@ -182,7 +171,6 @@ class SASLHandler:
         Handles the 903 command by sending a CAP END command and triggering registration.
         """
         self.bot.send_raw('CAP END')
-        # Trigger user registration after successful SASL auth
         await self.bot.register_user()
     
     def is_authenticated(self):

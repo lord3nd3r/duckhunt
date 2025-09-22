@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Database functionality for DuckHunt Bot
 """
@@ -21,7 +20,6 @@ class DuckDB:
         
     def get_config(self, path, default=None):
         """Helper method to get config values (needs to be set by bot)"""
-        # This will be set by the main bot class
         if hasattr(self, '_config_getter'):
             return self._config_getter(path, default)
         return default
@@ -48,7 +46,6 @@ class DuckDB:
     def save_database(self):
         """Save all player data to JSON file with error handling"""
         try:
-            # Atomic write to prevent corruption
             temp_file = f"{self.db_file}.tmp"
             data = {
                 'players': self.players,
@@ -57,7 +54,6 @@ class DuckDB:
             with open(temp_file, 'w') as f:
                 json.dump(data, f, indent=2)
             
-            # Atomic rename to replace old file
             os.replace(temp_file, self.db_file)
             
         except IOError as e:
@@ -92,7 +88,6 @@ class DuckDB:
             
         if nick in self.players:
             player = self.players[nick]
-            # Ensure backward compatibility by adding missing fields
             self._ensure_player_fields(player)
             return player
         else:
@@ -118,7 +113,6 @@ class DuckDB:
             'level': 1,
             'inventory': {},
             'ignored_users': [],
-            # Gun mechanics (eggdrop style)
             'jammed': False,
             'jammed_count': 0,
             'total_ammo_used': 0,
@@ -137,24 +131,23 @@ class DuckDB:
     def _ensure_player_fields(self, player):
         """Ensure player has all required fields for backward compatibility"""
         required_fields = {
-            'shots': player.get('ammo', 6),  # Map old 'ammo' to 'shots'
-            'max_shots': player.get('max_ammo', 6),  # Map old 'max_ammo' to 'max_shots'
-            'chargers': player.get('chargers', 2),  # Map old 'chargers' (magazines)
-            'max_chargers': player.get('max_chargers', 2),  # Map old 'max_chargers'
+            'shots': player.get('ammo', 6),
+            'max_shots': player.get('max_ammo', 6),
+            'chargers': player.get('chargers', 2),
+            'max_chargers': player.get('max_chargers', 2),
             'reload_time': 5.0,
-            'ducks_shot': player.get('caught', 0),  # Map old 'caught' to 'ducks_shot'
-            'ducks_befriended': player.get('befriended', 0),  # Use existing befriended count
+            'ducks_shot': player.get('caught', 0),
+            'ducks_befriended': player.get('befriended', 0),
             'accuracy_bonus': 0,
             'xp_bonus': 0,
             'charm_bonus': 0,
-            'exp': player.get('xp', 0),  # Map old 'xp' to 'exp'
-            'money': player.get('coins', 100),  # Map old 'coins' to 'money'
+            'exp': player.get('xp', 0),
+            'money': player.get('coins', 100),
             'last_hunt': 0,
             'last_reload': 0,
             'level': 1,
             'inventory': {},
             'ignored_users': [],
-            # Gun mechanics (eggdrop style)
             'jammed': False,
             'jammed_count': player.get('jammed_count', 0),
             'total_ammo_used': player.get('total_ammo_used', 0),
@@ -174,12 +167,11 @@ class DuckDB:
         """Save player data - batch saves for performance"""
         if not self._save_pending:
             self._save_pending = True
-            # Schedule delayed save to batch multiple writes
             asyncio.create_task(self._delayed_save())
     
     async def _delayed_save(self):
         """Batch save to reduce disk I/O"""
-        await asyncio.sleep(0.5)  # Small delay to batch saves
+        await asyncio.sleep(0.5)
         try:
             self.save_database()
             self.logger.debug("Database batch save completed")
