@@ -64,10 +64,34 @@ class DuckDB:
         if nick_lower not in self.players:
             self.players[nick_lower] = self.create_player(nick)
         else:
-            # Ensure existing players have new fields
+            # Ensure existing players have new fields and migrate from old system
             player = self.players[nick_lower]
             if 'ducks_befriended' not in player:
                 player['ducks_befriended'] = 0
+            if 'inventory' not in player:
+                player['inventory'] = {}
+            if 'temporary_effects' not in player:
+                player['temporary_effects'] = []
+            
+            # Migrate from old ammo/chargers system to magazine system
+            if 'magazines' not in player:
+                # Convert old system: assume they had full magazines
+                old_ammo = player.get('ammo', 6)
+                old_chargers = player.get('chargers', 2)
+                
+                player['current_ammo'] = old_ammo
+                player['magazines'] = old_chargers + 1  # +1 for current loaded magazine
+                player['bullets_per_magazine'] = 6
+                
+                # Remove old fields
+                if 'ammo' in player:
+                    del player['ammo']
+                if 'max_ammo' in player:
+                    del player['max_ammo']
+                if 'chargers' in player:
+                    del player['chargers']
+                if 'max_chargers' in player:
+                    del player['max_chargers']
         
         return self.players[nick_lower]
     
@@ -78,10 +102,11 @@ class DuckDB:
             'xp': 0,
             'ducks_shot': 0,
             'ducks_befriended': 0,
-            'ammo': 6,
-            'max_ammo': 6,
-            'chargers': 2,
-            'max_chargers': 2,
+            'current_ammo': 6,  # Bullets in current magazine
+            'magazines': 3,     # Total magazines (including current)
+            'bullets_per_magazine': 6,  # Bullets per magazine
             'accuracy': 65,
-            'gun_confiscated': False
+            'gun_confiscated': False,
+            'inventory': {},  # {item_id: quantity}
+            'temporary_effects': []  # List of temporary effects
         }

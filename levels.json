@@ -1,79 +1,95 @@
 {
   "level_calculation": {
-    "method": "total_ducks",
-    "description": "Level based on total ducks interacted with (shot + befriended)"
+    "method": "xp",
+    "description": "Level based on XP earned from hunting and befriending ducks"
   },
   "levels": {
     "1": {
       "name": "Duck Novice",
-      "min_ducks": 0,
-      "max_ducks": 9,
+      "min_xp": 0,
+      "max_xp": 49,
       "befriend_success_rate": 85,
       "accuracy_modifier": 5,
       "duck_spawn_speed_modifier": 1.0,
+      "magazines": 3,
+      "bullets_per_magazine": 6,
       "description": "Just starting out, ducks are trusting and easier to hit"
     },
     "2": {
       "name": "Pond Visitor",
-      "min_ducks": 10,
-      "max_ducks": 24,
+      "min_xp": 50,
+      "max_xp": 149,
       "befriend_success_rate": 80,
       "accuracy_modifier": 0,
       "duck_spawn_speed_modifier": 1.0,
+      "magazines": 3,
+      "bullets_per_magazine": 6,
       "description": "Ducks are getting wary of you"
     },
     "3": {
       "name": "Duck Hunter",
-      "min_ducks": 25,
-      "max_ducks": 49,
+      "min_xp": 150,
+      "max_xp": 299,
       "befriend_success_rate": 75,
       "accuracy_modifier": -5,
       "duck_spawn_speed_modifier": 0.9,
+      "magazines": 2,
+      "bullets_per_magazine": 6,
       "description": "Your reputation precedes you, ducks are more cautious"
     },
     "4": {
       "name": "Wetland Stalker",
-      "min_ducks": 50,
-      "max_ducks": 99,
+      "min_xp": 300,
+      "max_xp": 599,
       "befriend_success_rate": 70,
       "accuracy_modifier": -10,
       "duck_spawn_speed_modifier": 0.8,
+      "magazines": 2,
+      "bullets_per_magazine": 6,
       "description": "Ducks flee at your approach, spawns are less frequent"
     },
     "5": {
       "name": "Apex Predator",
-      "min_ducks": 100,
-      "max_ducks": 199,
+      "min_xp": 600,
+      "max_xp": 999,
       "befriend_success_rate": 65,
       "accuracy_modifier": -15,
       "duck_spawn_speed_modifier": 0.7,
+      "magazines": 2,
+      "bullets_per_magazine": 6,
       "description": "You're feared throughout the pond, ducks are very elusive"
     },
     "6": {
       "name": "Duck Whisperer",
-      "min_ducks": 200,
-      "max_ducks": 399,
+      "min_xp": 1000,
+      "max_xp": 1999,
       "befriend_success_rate": 60,
       "accuracy_modifier": -20,
       "duck_spawn_speed_modifier": 0.6,
+      "magazines": 1,
+      "bullets_per_magazine": 6,
       "description": "Only the bravest ducks dare show themselves"
     },
     "7": {
       "name": "Legendary Hunter",
-      "min_ducks": 400,
-      "max_ducks": 999,
+      "min_xp": 2000,
+      "max_xp": 4999,
       "befriend_success_rate": 55,
       "accuracy_modifier": -25,
       "duck_spawn_speed_modifier": 0.5,
+      "magazines": 1,
+      "bullets_per_magazine": 6,
       "description": "Duck folklore speaks of your prowess, they're extremely rare"
     },
     "8": {
       "name": "Duck Deity",
-      "min_ducks": 1000,
-      "max_ducks": 999999,
+      "min_xp": 5000,
+      "max_xp": 999999,
       "befriend_success_rate": 50,
       "accuracy_modifier": -30,
       "duck_spawn_speed_modifier": 0.4,
+      "magazines": 1,
+      "bullets_per_magazine": 6,
       "description": "You've transcended mortal hunting, ducks are mythically scarce"
     }
   }

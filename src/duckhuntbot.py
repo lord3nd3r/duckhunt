@@ -1,7 +1,6 @@
 import asyncio
 import ssl
 import json
-import random
 import logging
 import sys
 import os
@@ -15,6 +14,7 @@ from .db import DuckDB
 from .game import DuckGame
 from .sasl import SASLHandler
 from .shop import ShopManager
+from .levels import LevelManager
 
 
 class DuckHuntBot:
@@ -41,6 +41,10 @@ class DuckHuntBot:
         shop_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shop.json')
         self.shop = ShopManager(shop_file)
         
+        # Initialize level manager
+        levels_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'levels.json')
+        self.levels = LevelManager(levels_file)
+        
     def get_config(self, path, default=None):
         """Get configuration value using dot notation"""
         keys = path.split('.')
@@ -59,12 +63,39 @@ class DuckHuntBot:
         nick = user.split('!')[0].lower()
         return nick in self.admins
     
+    def _handle_single_target_admin_command(self, args, usage_message_key, action_func, success_message_key, nick, channel):
+        """Helper for admin commands that target a single player"""
+        if not args:
+            message = self.messages.get(usage_message_key)
+            self.send_message(channel, message)
+            return False
+        
+        target = args[0].lower()
+        player = self.db.get_player(target)
+        action_func(player)
+        
+        message = self.messages.get(success_message_key, target=target, admin=nick)
+        self.send_message(channel, message)
+        self.db.save_database()
+        return True
+    
     def setup_signal_handlers(self):
-        """Setup signal handlers for graceful shutdown"""
+        """Setup signal handlers for immediate shutdown"""
         def signal_handler(signum, frame):
             signal_name = "SIGINT" if signum == signal.SIGINT else "SIGTERM"
-            self.logger.info(f"🛑 Received {signal_name} (Ctrl+C), initiating graceful shutdown...")
+            self.logger.info(f"🛑 Received {signal_name} (Ctrl+C), shutting down immediately...")
             self.shutdown_requested = True
+            
+            # Cancel all running tasks immediately
+            try:
+                # Get the current event loop and cancel all tasks
+                loop = asyncio.get_running_loop()
+                tasks = [t for t in asyncio.all_tasks(loop) if not t.done()]
+                for task in tasks:
+                    task.cancel()
+                self.logger.info(f"🔄 Cancelled {len(tasks)} running tasks")
+            except Exception as e:
+                self.logger.error(f"Error cancelling tasks: {e}")
         
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
@@ -147,6 +178,10 @@ class DuckHuntBot:
             await self.handle_reload(nick, channel, player)
         elif cmd == "shop":
             await self.handle_shop(nick, channel, player, args)
+        elif cmd == "duckstats":
+            await self.handle_duckstats(nick, channel, player)
+        elif cmd == "use":
+            await self.handle_use(nick, channel, player, args)
         elif cmd == "duckhelp":
             await self.handle_duckhelp(nick, channel, player)
         elif cmd == "rearm" and self.is_admin(user):
@@ -159,157 +194,66 @@ class DuckHuntBot:
             await self.handle_unignore(nick, channel, args)
         elif cmd == "ducklaunch" and self.is_admin(user):
             await self.handle_ducklaunch(nick, channel, args)
-        elif cmd == "reloadshop" and self.is_admin(user):
-            await self.handle_reloadshop(nick, channel, args)
     
     async def handle_bang(self, nick, channel, player):
         """Handle !bang command"""
-        # Check if gun is confiscated
-        if player.get('gun_confiscated', False):
-            message = self.messages.get('bang_not_armed', nick=nick)
-            self.send_message(channel, message)
-            return
-        
-        # Check ammo
-        if player['ammo'] <= 0:
-            message = self.messages.get('bang_no_ammo', nick=nick)
-            self.send_message(channel, message)
-            return
-        
-        # Check for duck
-        if channel not in self.game.ducks or not self.game.ducks[channel]:
-            # Wild shot - gun confiscated
-            player['ammo'] -= 1
-            player['gun_confiscated'] = True
-            message = self.messages.get('bang_no_duck', nick=nick)
-            self.send_message(channel, message)
-            self.db.save_database()
-            return
-        
-        # Shoot at duck
-        player['ammo'] -= 1
-        
-        # Calculate hit chance
-        hit_chance = player.get('accuracy', 65) / 100.0
-        if random.random() < hit_chance:
-            # Hit! Remove the duck
-            duck = self.game.ducks[channel].pop(0)
-            xp_gained = 10
-            player['xp'] = player.get('xp', 0) + xp_gained
-            player['ducks_shot'] = player.get('ducks_shot', 0) + 1
-            player['accuracy'] = min(player.get('accuracy', 65) + 1, 100)
-            
-            message = self.messages.get('bang_hit', 
-                                      nick=nick, 
-                                      xp_gained=xp_gained, 
-                                      ducks_shot=player['ducks_shot'])
-            self.send_message(channel, message)
-        else:
-            # Miss! Duck stays in the channel
-            player['accuracy'] = max(player.get('accuracy', 65) - 2, 10)
-            message = self.messages.get('bang_miss', nick=nick)
-            self.send_message(channel, message)
-        
-        self.db.save_database()
+        result = self.game.shoot_duck(nick, channel, player)
+        message = self.messages.get(result['message_key'], **result['message_args'])
+        self.send_message(channel, message)
     
     async def handle_bef(self, nick, channel, player):
         """Handle !bef (befriend) command"""
-        # Check for duck
-        if channel not in self.game.ducks or not self.game.ducks[channel]:
-            message = self.messages.get('bef_no_duck', nick=nick)
-            self.send_message(channel, message)
-            return
-        
-        # Check befriend success rate from config (default 75%)
-        success_rate_config = self.get_config('befriend_success_rate', 75)
-        try:
-            success_rate = float(success_rate_config) / 100.0
-        except (ValueError, TypeError):
-            success_rate = 0.75  # 75% default
-        
-        if random.random() < success_rate:
-            # Success - befriend the duck
-            duck = self.game.ducks[channel].pop(0)
-            
-            # Lower XP gain than shooting (5 instead of 10)
-            xp_gained = 5
-            player['xp'] = player.get('xp', 0) + xp_gained
-            player['ducks_befriended'] = player.get('ducks_befriended', 0) + 1
-            
-            message = self.messages.get('bef_success', 
-                                      nick=nick, 
-                                      xp_gained=xp_gained, 
-                                      ducks_befriended=player['ducks_befriended'])
-            self.send_message(channel, message)
-        else:
-            # Failure - duck flies away, remove from channel
-            duck = self.game.ducks[channel].pop(0)
-            
-            message = self.messages.get('bef_failed', nick=nick)
-            self.send_message(channel, message)
-        
-        self.db.save_database()
+        result = self.game.befriend_duck(nick, channel, player)
+        message = self.messages.get(result['message_key'], **result['message_args'])
+        self.send_message(channel, message)
     
     async def handle_reload(self, nick, channel, player):
         """Handle !reload command"""
-        if player.get('gun_confiscated', False):
-            message = self.messages.get('reload_not_armed', nick=nick)
-            self.send_message(channel, message)
-            return
-        
-        if player['ammo'] >= player.get('max_ammo', 6):
-            message = self.messages.get('reload_already_loaded', nick=nick)
-            self.send_message(channel, message)
-            return
-        
-        if player.get('chargers', 2) <= 0:
-            message = self.messages.get('reload_no_chargers', nick=nick)
-            self.send_message(channel, message)
-            return
-        
-        player['ammo'] = player.get('max_ammo', 6)
-        player['chargers'] = player.get('chargers', 2) - 1
-        
-        message = self.messages.get('reload_success', 
-                                  nick=nick, 
-                                  ammo=player['ammo'], 
-                                  max_ammo=player.get('max_ammo', 6),
-                                  chargers=player['chargers'])
+        result = self.game.reload_gun(nick, channel, player)
+        message = self.messages.get(result['message_key'], **result['message_args'])
         self.send_message(channel, message)
-        self.db.save_database()
     
     async def handle_shop(self, nick, channel, player, args=None):
         """Handle !shop command"""
-        # Handle buying: !shop buy <item_id>
-        if args and len(args) >= 2 and args[0].lower() == "buy":
-            try:
-                item_id = int(args[1])
-                await self.handle_shop_buy(nick, channel, player, item_id)
-                return
-            except (ValueError, IndexError):
-                message = self.messages.get('shop_buy_usage', nick=nick)
+        # Handle buying: !shop buy <item_id> [target] or !shop <item_id> [target]
+        if args and len(args) >= 1:
+            # Check for "buy" subcommand or direct item ID
+            start_idx = 0
+            if args[0].lower() == "buy":
+                start_idx = 1
+            
+            if len(args) > start_idx:
+                try:
+                    item_id = int(args[start_idx])
+                    target_nick = args[start_idx + 1] if len(args) > start_idx + 1 else None
+                    
+                    # If no target specified, store in inventory. If target specified, use immediately.
+                    store_in_inventory = target_nick is None
+                    await self.handle_shop_buy(nick, channel, player, item_id, target_nick, store_in_inventory)
+                    return
+                except (ValueError, IndexError):
+                    message = self.messages.get('shop_buy_usage', nick=nick)
+                    self.send_message(channel, message)
+                    return
+        
+        # Display shop items using ShopManager
+        shop_text = self.shop.get_shop_display(player, self.messages)
+        self.send_message(channel, shop_text)
+    
+    async def handle_shop_buy(self, nick, channel, player, item_id, target_nick=None, store_in_inventory=False):
+        """Handle buying an item from the shop"""
+        target_player = None
+        
+        # Get target player if specified
+        if target_nick:
+            target_player = self.db.get_player(target_nick)
+            if not target_player:
+                message = f"{nick} > Target player '{target_nick}' not found"
                 self.send_message(channel, message)
                 return
         
-        # Display shop items
-        items = []
-        for item_id, item in self.shop.get_items().items():
-            item_text = self.messages.get('shop_item_format',
-                                        id=item_id,
-                                        name=item['name'],
-                                        price=item['price'])
-            items.append(item_text)
-        
-        shop_text = self.messages.get('shop_display',
-                                    items=" | ".join(items),
-                                    xp=player.get('xp', 0))
-        
-        self.send_message(channel, shop_text)
-    
-    async def handle_shop_buy(self, nick, channel, player, item_id):
-        """Handle buying an item from the shop"""
         # Use ShopManager to handle the purchase
-        result = self.shop.purchase_item(player, item_id)
+        result = self.shop.purchase_item(player, item_id, target_player, store_in_inventory)
         
         if not result["success"]:
             # Handle different error types
@@ -321,6 +265,10 @@ class DuckHuntBot:
                                           item_name=result["item_name"],
                                           price=result["price"],
                                           current_xp=result["current_xp"])
+            elif result["error"] == "target_required":
+                message = f"{nick} > {result['message']}"
+            elif result["error"] == "invalid_storage":
+                message = f"{nick} > {result['message']}"
             else:
                 message = f"{nick} > Error: {result['message']}"
             
@@ -328,11 +276,17 @@ class DuckHuntBot:
             return
         
         # Purchase successful
-        message = self.messages.get('shop_buy_success',
-                                  nick=nick,
-                                  item_name=result["item_name"],
-                                  price=result["price"],
-                                  remaining_xp=result["remaining_xp"])
+        if result.get("stored_in_inventory"):
+            message = f"{nick} > Successfully purchased {result['item_name']} for {result['price']} XP! Stored in inventory (x{result['inventory_count']}). Remaining XP: {result['remaining_xp']}"
+        elif result.get("target_affected"):
+            message = f"{nick} > Used {result['item_name']} on {target_nick}! Remaining XP: {result['remaining_xp']}"
+        else:
+            message = self.messages.get('shop_buy_success',
+                                      nick=nick,
+                                      item_name=result["item_name"],
+                                      price=result["price"],
+                                      remaining_xp=result["remaining_xp"])
+        
         self.send_message(channel, message)
         self.db.save_database()
     
@@ -351,71 +305,130 @@ class DuckHuntBot:
         for line in help_lines:
             self.send_message(channel, line)
     
+    async def handle_duckstats(self, nick, channel, player):
+        """Handle !duckstats command - show player stats and inventory"""
+        # Get player level info
+        level_info = self.levels.get_player_level_info(player)
+        level = self.levels.calculate_player_level(player)
+        
+        # Build stats message
+        stats_parts = [
+            f"Level {level} {level_info.get('name', 'Unknown')}",
+            f"XP: {player.get('xp', 0)}",
+            f"Ducks Shot: {player.get('ducks_shot', 0)}",
+            f"Ducks Befriended: {player.get('ducks_befriended', 0)}",
+            f"Accuracy: {player.get('accuracy', 65)}%",
+            f"Ammo: {player.get('current_ammo', 0)}/{player.get('bullets_per_magazine', 6)}",
+            f"Magazines: {player.get('magazines', 1)}"
+        ]
+        
+        stats_message = f"{nick} > Stats: {' | '.join(stats_parts)}"
+        self.send_message(channel, stats_message)
+        
+        # Show inventory if not empty
+        inventory_info = self.shop.get_inventory_display(player)
+        if not inventory_info["empty"]:
+            items_text = []
+            for item in inventory_info["items"]:
+                items_text.append(f"{item['id']}: {item['name']} x{item['quantity']}")
+            inventory_message = f"{nick} > Inventory: {' | '.join(items_text)}"
+            self.send_message(channel, inventory_message)
+    
+    async def handle_use(self, nick, channel, player, args):
+        """Handle !use command"""
+        if not args:
+            message = f"{nick} > Usage: !use <item_id> [target]"
+            self.send_message(channel, message)
+            return
+        
+        try:
+            item_id = int(args[0])
+            target_nick = args[1] if len(args) > 1 else None
+            target_player = None
+            
+            # Get target player if specified
+            if target_nick:
+                target_player = self.db.get_player(target_nick)
+                if not target_player:
+                    message = f"{nick} > Target player '{target_nick}' not found"
+                    self.send_message(channel, message)
+                    return
+            
+            # Use item from inventory
+            result = self.shop.use_inventory_item(player, item_id, target_player)
+            
+            if not result["success"]:
+                message = f"{nick} > {result['message']}"
+            else:
+                if result.get("target_affected"):
+                    message = f"{nick} > Used {result['item_name']} on {target_nick}!"
+                else:
+                    message = f"{nick} > Used {result['item_name']}!"
+                
+                # Add remaining count if any
+                if result.get("remaining_in_inventory", 0) > 0:
+                    message += f" ({result['remaining_in_inventory']} remaining)"
+            
+            self.send_message(channel, message)
+            self.db.save_database()
+            
+        except ValueError:
+            message = f"{nick} > Invalid item ID. Use !duckstats to see your items."
+            self.send_message(channel, message)
+    
     async def handle_rearm(self, nick, channel, args):
         """Handle !rearm command (admin only)"""
         if args:
             target = args[0].lower()
             player = self.db.get_player(target)
             player['gun_confiscated'] = False
-            player['ammo'] = player.get('max_ammo', 6)
-            player['chargers'] = 2
+            
+            # Update magazines based on player level
+            self.levels.update_player_magazines(player)
+            player['current_ammo'] = player.get('bullets_per_magazine', 6)
+            
             message = self.messages.get('admin_rearm_player', target=target, admin=nick)
             self.send_message(channel, message)
         else:
-            # Rearm everyone
-            for player_data in self.db.players.values():
-                player_data['gun_confiscated'] = False
-                player_data['ammo'] = player_data.get('max_ammo', 6)
-                player_data['chargers'] = 2
-            message = self.messages.get('admin_rearm_all', admin=nick)
+            # Rearm the admin themselves
+            player = self.db.get_player(nick)
+            player['gun_confiscated'] = False
+            
+            # Update magazines based on admin's level
+            self.levels.update_player_magazines(player)
+            player['current_ammo'] = player.get('bullets_per_magazine', 6)
+            
+            message = self.messages.get('admin_rearm_self', admin=nick)
             self.send_message(channel, message)
         
         self.db.save_database()
     
     async def handle_disarm(self, nick, channel, args):
         """Handle !disarm command (admin only)"""
-        if not args:
-            message = self.messages.get('usage_disarm')
-            self.send_message(channel, message)
-            return
+        def disarm_player(player):
+            player['gun_confiscated'] = True
         
-        target = args[0].lower()
-        player = self.db.get_player(target)
-        player['gun_confiscated'] = True
-        
-        message = self.messages.get('admin_disarm', target=target, admin=nick)
-        self.send_message(channel, message)
-        self.db.save_database()
+        self._handle_single_target_admin_command(
+            args, 'usage_disarm', disarm_player, 'admin_disarm', nick, channel
+        )
     
     async def handle_ignore(self, nick, channel, args):
         """Handle !ignore command (admin only)"""
-        if not args:
-            message = self.messages.get('usage_ignore')
-            self.send_message(channel, message)
-            return
+        def ignore_player(player):
+            player['ignored'] = True
         
-        target = args[0].lower()
-        player = self.db.get_player(target)
-        player['ignored'] = True
-        
-        message = self.messages.get('admin_ignore', target=target, admin=nick)
-        self.send_message(channel, message)
-        self.db.save_database()
+        self._handle_single_target_admin_command(
+            args, 'usage_ignore', ignore_player, 'admin_ignore', nick, channel
+        )
     
     async def handle_unignore(self, nick, channel, args):
         """Handle !unignore command (admin only)"""
-        if not args:
-            message = self.messages.get('usage_unignore')
-            self.send_message(channel, message)
-            return
+        def unignore_player(player):
+            player['ignored'] = False
         
-        target = args[0].lower()
-        player = self.db.get_player(target)
-        player['ignored'] = False
-        
-        message = self.messages.get('admin_unignore', target=target, admin=nick)
-        self.send_message(channel, message)
-        self.db.save_database()
+        self._handle_single_target_admin_command(
+            args, 'usage_unignore', unignore_player, 'admin_unignore', nick, channel
+        )
     
     async def handle_ducklaunch(self, nick, channel, args):
         """Handle !ducklaunch command (admin only)"""
@@ -428,27 +441,23 @@ class DuckHuntBot:
         if channel not in self.game.ducks:
             self.game.ducks[channel] = []
         self.game.ducks[channel].append({"spawn_time": time.time()})
-        admin_message = self.messages.get('admin_ducklaunch', admin=nick)
         duck_message = self.messages.get('duck_spawn')
         
-        self.send_message(channel, admin_message)
+        # Only send the duck spawn message, no admin notification
         self.send_message(channel, duck_message)
-    
-    async def handle_reloadshop(self, nick, channel, args):
-        """Handle !reloadshop admin command"""
-        old_count = len(self.shop.get_items())
-        new_count = self.shop.reload_items()
-        
-        message = f"[ADMIN] Shop reloaded by {nick} - {new_count} items loaded"
-        self.send_message(channel, message)
-        self.logger.info(f"Shop reloaded by admin {nick}: {old_count} -> {new_count} items")
     
     
     async def message_loop(self):
-        """Main message processing loop"""
+        """Main message processing loop with responsive shutdown"""
         try:
             while not self.shutdown_requested and self.reader:
-                line = await self.reader.readline()
+                try:
+                    # Use a timeout on readline to make it more responsive to shutdown
+                    line = await asyncio.wait_for(self.reader.readline(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    # Check shutdown flag and continue
+                    continue
+                    
                 if not line:
                     break
                 
@@ -470,7 +479,7 @@ class DuckHuntBot:
             self.logger.info("Message loop ended")
     
     async def run(self):
-        """Main bot loop with improved shutdown handling"""
+        """Main bot loop with fast shutdown handling"""
         self.setup_signal_handlers()
         
         game_task = None
@@ -486,79 +495,69 @@ class DuckHuntBot:
             
             self.logger.info("🦆 Bot is now running! Press Ctrl+C to stop.")
             
-            # Wait for shutdown signal or task completion
-            done, pending = await asyncio.wait(
-                [game_task, message_task],
-                return_when=asyncio.FIRST_COMPLETED
-            )
+            # Wait for shutdown signal or task completion with frequent checks
+            while not self.shutdown_requested:
+                done, pending = await asyncio.wait(
+                    [game_task, message_task],
+                    timeout=0.1,  # Check every 100ms for shutdown
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # If any task completed, break out
+                if done:
+                    break
             
-            # Cancel remaining tasks
-            for task in pending:
-                if not task.done():
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        self.logger.debug(f"Task cancelled: {task}")
-                    except asyncio.TimeoutError:
-                        self.logger.debug(f"Task timed out: {task}")
-        
+            self.logger.info("🔄 Shutdown initiated, cleaning up...")
+            
         except asyncio.CancelledError:
             self.logger.info("🛑 Main loop cancelled")
         except Exception as e:
             self.logger.error(f"❌ Bot error: {e}")
         finally:
-            self.logger.info("🔄 Final cleanup...")
+            # Fast cleanup - cancel tasks immediately with short timeout
+            tasks_to_cancel = [task for task in [game_task, message_task] if task and not task.done()]
+            for task in tasks_to_cancel:
+                task.cancel()
             
-            # Ensure tasks are cancelled
-            for task in [game_task, message_task]:
-                if task and not task.done():
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+            # Wait briefly for tasks to cancel
+            if tasks_to_cancel:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*tasks_to_cancel, return_exceptions=True),
+                        timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    self.logger.warning("⚠️ Task cancellation timed out")
             
-            # Final database save
+            # Quick database save
             try:
                 self.db.save_database()
                 self.logger.info("💾 Database saved")
             except Exception as e:
                 self.logger.error(f"❌ Error saving database: {e}")
             
-            # Close IRC connection
+            # Fast connection close
             await self._close_connection()
             
             self.logger.info("✅ Bot shutdown complete")
     
-    async def _graceful_shutdown(self):
-        """Perform graceful shutdown steps"""
-        try:
-            # Send quit message to IRC
-            if self.writer and not self.writer.is_closing():
-                self.logger.info("📤 Sending QUIT message to IRC...")
-                quit_message = self.config.get('quit_message', 'DuckHunt Bot shutting down')
-                self.send_raw(f"QUIT :{quit_message}")
-                
-                # Give IRC server time to process quit
-                await asyncio.sleep(0.5)
-            
-            # Save database
-            self.logger.info("💾 Saving database...")
-            self.db.save_database()
-            
-        except Exception as e:
-            self.logger.error(f"❌ Error during graceful shutdown: {e}")
-    
     async def _close_connection(self):
-        """Close IRC connection safely"""
+        """Close IRC connection quickly"""
         if self.writer:
             try:
                 if not self.writer.is_closing():
+                    # Send quit message quickly without waiting
+                    try:
+                        quit_message = self.config.get('quit_message', 'DuckHunt Bot shutting down')
+                        self.send_raw(f"QUIT :{quit_message}")
+                        await asyncio.sleep(0.1)  # Very brief wait
+                    except:
+                        pass  # Don't block on quit message
+                    
                     self.writer.close()
-                    await asyncio.wait_for(self.writer.wait_closed(), timeout=3.0)
+                    await asyncio.wait_for(self.writer.wait_closed(), timeout=1.0)
                 self.logger.info("🔌 IRC connection closed")
             except asyncio.TimeoutError:
-                self.logger.warning("⚠️ Connection close timed out")
+                self.logger.warning("⚠️ Connection close timed out - forcing close")
             except Exception as e:
                 self.logger.error(f"❌ Error closing connection: {e}")

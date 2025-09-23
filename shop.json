@@ -8,18 +8,11 @@
       "amount": 1
     },
     "2": {
-      "name": "Accuracy Boost",
-      "price": 20,
-      "description": "+10% accuracy",
-      "type": "accuracy",
-      "amount": 10
-    },
-    "3": {
-      "name": "Lucky Charm",
-      "price": 30,
-      "description": "+5% duck spawn chance",
-      "type": "luck",
-      "amount": 5
+      "name": "Magazine",
+      "price": 15,
+      "description": "1 extra magazine",
+      "type": "magazine",
+      "amount": 1
     }
   }
 }
