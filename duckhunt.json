@@ -4,14 +4,15 @@
       "nick": "ComputerTech",
       "xp": 45,
       "ducks_shot": 4,
-      "ammo": 2,
-      "max_ammo": 6,
-      "chargers": 1,
-      "max_chargers": 2,
-      "accuracy": 65,
+      "accuracy": 61,
       "gun_confiscated": false,
-      "ducks_befriended": 1
+      "ducks_befriended": 1,
+      "inventory": {},
+      "temporary_effects": [],
+      "current_ammo": 6,
+      "magazines": 3,
+      "bullets_per_magazine": 6
     }
   },
-  "last_save": "1758646365.5768785"
+  "last_save": "1758654759.6627305"
 }

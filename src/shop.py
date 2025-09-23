@@ -313,6 +313,18 @@ class ShopManager:
                 "remaining": player['ammo']
             }
         
+        elif item_type == 'clean_gun':
+            # Clean gun to reduce jamming chance (positive amount reduces jam chance)
+            current_jam = player.get('jam_chance', 5)  # Default 5% jam chance
+            new_jam = max(current_jam + amount, 0)  # amount is negative for cleaning
+            player['jam_chance'] = new_jam
+            
+            return {
+                "type": "clean_gun",
+                "reduced": current_jam - new_jam,
+                "new_total": new_jam
+            }
+        
         else:
             self.logger.warning(f"Unknown item type: {item_type}")
             return {"type": "unknown", "message": f"Unknown effect type: {item_type}"}

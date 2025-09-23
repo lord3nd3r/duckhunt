@@ -13,6 +13,21 @@
       "description": "1 extra magazine",
       "type": "magazine",
       "amount": 1
+    },
+    "3": {
+      "name": "Sand",
+      "price": 10,
+      "description": "Throw sand in target's gun - increases jam chance by 15%",
+      "type": "sabotage_jam",
+      "amount": 15,
+      "target_required": true
+    },
+    "4": {
+      "name": "Gun Brush",
+      "price": 20,
+      "description": "Clean your gun - decreases jam chance by 10%",
+      "type": "clean_gun",
+      "amount": -10
     }
   }
 }

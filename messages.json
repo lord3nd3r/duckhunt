@@ -9,6 +9,7 @@
   "bang_miss": "{nick} > {red}*BANG*{reset} You missed the {cyan}duck{reset}!",
   "bang_no_duck": "{nick} > {red}*BANG*{reset} What did you shoot at? There is {red}no duck{reset} in the area... [{red}GUN CONFISCATED{reset}]",
   "bang_no_ammo": "{nick} > {orange}*click*{reset} You're out of ammo! Use {blue}!reload{reset}",
+  "bang_gun_jammed": "{nick} > {red}*click*{reset} Your gun jammed! [{red}AMMO WASTED{reset}]",
   "bang_not_armed": "{nick} > You are {red}not armed{reset}.",
   "bef_success": "{nick} > {orange}*befriend*{reset} You befriended the duck! [{green}+{xp_gained} xp{reset}] [Ducks befriended: {bold}{ducks_befriended}{reset}]",
   "bef_failed": "{nick} > {pink}*gentle approach*{reset} The {cyan}duck{reset} doesn't trust you and {yellow}flies away{reset}...",

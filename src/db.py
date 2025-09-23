@@ -72,6 +72,8 @@ class DuckDB:
                 player['inventory'] = {}
             if 'temporary_effects' not in player:
                 player['temporary_effects'] = []
+            if 'jam_chance' not in player:
+                player['jam_chance'] = 5  # Default 5% jam chance
             
             # Migrate from old ammo/chargers system to magazine system
             if 'magazines' not in player:
@@ -106,6 +108,7 @@ class DuckDB:
             'magazines': 3,     # Total magazines (including current)
             'bullets_per_magazine': 6,  # Bullets per magazine
             'accuracy': 65,
+            'jam_chance': 5,    # 5% base gun jamming chance
             'gun_confiscated': False,
             'inventory': {},  # {item_id: quantity}
             'temporary_effects': []  # List of temporary effects

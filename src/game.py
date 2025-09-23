@@ -125,6 +125,18 @@ class DuckGame:
                 'message_args': {'nick': nick}
             }
         
+        # Check for gun jamming
+        jam_chance = player.get('jam_chance', 5) / 100.0  # Convert percentage to decimal
+        if random.random() < jam_chance:
+            # Gun jammed! Use ammo but don't shoot
+            player['current_ammo'] = player.get('current_ammo', 1) - 1
+            self.db.save_database()
+            return {
+                'success': False,
+                'message_key': 'bang_gun_jammed',
+                'message_args': {'nick': nick}
+            }
+        
         # Check for duck
         if channel not in self.ducks or not self.ducks[channel]:
             # Wild shot - gun confiscated

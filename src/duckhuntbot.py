@@ -133,7 +133,20 @@ class DuckHuntBot:
     
     async def handle_message(self, prefix, command, params, trailing):
         """Handle incoming IRC messages"""
-        if command == "001":  # Welcome message
+        # Handle SASL-related messages
+        if command == "CAP":
+            await self.sasl_handler.handle_cap_response(params, trailing)
+            return
+            
+        elif command == "AUTHENTICATE":
+            await self.sasl_handler.handle_authenticate_response(params)
+            return
+            
+        elif command in ["903", "904", "905", "906", "907", "908"]:
+            await self.sasl_handler.handle_sasl_result(command, params, trailing)
+            return
+        
+        elif command == "001":  # Welcome message
             self.registered = True
             self.logger.info("Successfully registered with IRC server")
             
@@ -487,7 +500,12 @@ class DuckHuntBot:
         
         try:
             await self.connect()
-            await self.register_user()
+            
+            # Check if SASL should be used
+            if self.sasl_handler.should_authenticate():
+                await self.sasl_handler.start_negotiation()
+            else:
+                await self.register_user()
             
             # Start game loops
             game_task = asyncio.create_task(self.game.start_game_loops())

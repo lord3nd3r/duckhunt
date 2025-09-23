@@ -471,3 +471,172 @@
 2025-09-23 18:02:15,867 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
 2025-09-23 18:03:33,887 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
 2025-09-23 18:04:45,906 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:06:15,927 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:07:33,949 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:08:45,964 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:10:13,989 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:11:39,015 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:12:40,432 [INFO    ] DuckHuntBot - signal_handler:96: 🛑 Received SIGINT (Ctrl+C), initiating graceful shutdown...
+2025-09-23 18:12:55,030 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:14:11,056 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:15:25,077 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:16:46,092 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:18:08,112 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:19:24,142 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:20:28,170 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:21:47,188 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:23:03,221 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:24:16,247 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:25:43,278 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:26:53,306 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:28:11,333 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:29:20,356 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:30:29,378 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:31:37,395 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:32:58,414 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:34:16,428 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:35:32,453 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:36:56,469 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:38:23,506 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:39:39,523 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:40:45,553 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:42:09,571 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:43:21,600 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:44:32,624 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:45:38,657 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:46:16,579 [INFO    ] DuckHuntBot - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 18:46:16,581 [INFO    ] DuckHuntBot.DB - load_database:28: Loaded 1 players from duckhunt.json
+2025-09-23 18:46:16,584 [INFO    ] SASL - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 18:46:16,585 [INFO    ] DuckHuntBot.Shop - load_items:29: Loaded 3 shop items from /home/colby/duckhunt/shop.json
+2025-09-23 18:46:16,586 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
+2025-09-23 18:47:02,687 [INFO    ] DuckHuntBot.Game - spawn_duck:105: Duck spawned in #ct
+2025-09-23 18:47:06,705 [INFO    ] DuckHuntBot - signal_handler:96: 🛑 Received SIGINT (Ctrl+C), initiating graceful shutdown...
+2025-09-23 18:49:01,325 [INFO    ] DuckHuntBot - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 18:49:01,326 [INFO    ] DuckHuntBot.DB - load_database:28: Loaded 1 players from duckhunt.json
+2025-09-23 18:49:01,327 [INFO    ] SASL - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 18:49:01,328 [INFO    ] DuckHuntBot.Shop - load_items:29: Loaded 3 shop items from /home/colby/duckhunt/shop.json
+2025-09-23 18:49:01,328 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
+2025-09-23 18:49:01,329 [INFO    ] DuckHuntBot - main:28: 🦆 Starting DuckHunt Bot...
+2025-09-23 18:49:01,566 [INFO    ] DuckHuntBot - connect:112: Connected to irc.rizon.net:6697
+2025-09-23 18:49:01,566 [INFO    ] DuckHuntBot - run:386: 🦆 Bot is now running! Press Ctrl+C to stop.
+2025-09-23 18:49:02,098 [INFO    ] DuckHuntBot - handle_message:138: Successfully registered with IRC server
+2025-09-23 18:49:17,578 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 18:50:44,652 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 18:51:58,719 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 18:53:10,789 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 18:54:09,846 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 18:55:16,912 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 18:56:31,982 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 18:57:36,040 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 18:57:45,432 [INFO    ] DuckHuntBot - signal_handler:86: 🛑 Received SIGINT (Ctrl+C), shutting down immediately...
+2025-09-23 18:57:45,434 [INFO    ] DuckHuntBot - signal_handler:96: 🔄 Cancelled 5 running tasks
+2025-09-23 18:57:45,455 [INFO    ] DuckHuntBot.Game - duck_spawn_loop:53: Duck spawning loop cancelled
+2025-09-23 18:57:45,455 [INFO    ] DuckHuntBot.Game - duck_timeout_loop:85: Duck timeout loop cancelled
+2025-09-23 18:57:45,456 [INFO    ] DuckHuntBot - message_loop:365: Message loop cancelled
+2025-09-23 18:57:45,456 [INFO    ] DuckHuntBot - message_loop:369: Message loop ended
+2025-09-23 18:57:45,457 [INFO    ] DuckHuntBot - run:403: 🛑 Main loop cancelled
+2025-09-23 18:57:45,458 [INFO    ] DuckHuntBot.Game - start_game_loops:31: Game loops cancelled
+2025-09-23 18:57:45,462 [INFO    ] DuckHuntBot - run:425: 💾 Database saved
+2025-09-23 18:57:45,567 [INFO    ] DuckHuntBot - _close_connection:449: 🔌 IRC connection closed
+2025-09-23 18:57:45,568 [INFO    ] DuckHuntBot - run:432: ✅ Bot shutdown complete
+2025-09-23 19:24:12,604 [INFO    ] DuckHuntBot - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 19:24:12,607 [INFO    ] DuckHuntBot.DB - load_database:28: Loaded 1 players from duckhunt.json
+2025-09-23 19:24:12,608 [INFO    ] SASL - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 19:24:12,608 [INFO    ] DuckHuntBot.Shop - load_items:30: Loaded 2 shop items from /home/colby/duckhunt/shop.json
+2025-09-23 19:24:12,609 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
+2025-09-23 19:24:12,609 [INFO    ] DuckHuntBot - main:28: 🦆 Starting DuckHunt Bot...
+2025-09-23 19:24:12,867 [INFO    ] DuckHuntBot - connect:112: Connected to irc.rizon.net:6697
+2025-09-23 19:24:12,867 [INFO    ] DuckHuntBot - run:482: 🦆 Bot is now running! Press Ctrl+C to stop.
+2025-09-23 19:24:13,288 [INFO    ] DuckHuntBot - handle_message:138: Successfully registered with IRC server
+2025-09-23 19:24:29,882 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:25:38,947 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:26:55,022 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:28:13,096 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:29:39,179 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:31:00,250 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:32:02,065 [INFO    ] DuckHuntBot - signal_handler:86: 🛑 Received SIGINT (Ctrl+C), shutting down immediately...
+2025-09-23 19:32:02,067 [INFO    ] DuckHuntBot - signal_handler:96: 🔄 Cancelled 5 running tasks
+2025-09-23 19:32:02,117 [INFO    ] DuckHuntBot - run:499: 🛑 Main loop cancelled
+2025-09-23 19:32:02,118 [INFO    ] DuckHuntBot.Game - duck_spawn_loop:53: Duck spawning loop cancelled
+2025-09-23 19:32:02,119 [INFO    ] DuckHuntBot.Game - duck_timeout_loop:85: Duck timeout loop cancelled
+2025-09-23 19:32:02,119 [INFO    ] DuckHuntBot - message_loop:461: Message loop cancelled
+2025-09-23 19:32:02,120 [INFO    ] DuckHuntBot - message_loop:465: Message loop ended
+2025-09-23 19:32:02,120 [INFO    ] DuckHuntBot.Game - start_game_loops:31: Game loops cancelled
+2025-09-23 19:32:02,124 [INFO    ] DuckHuntBot - run:521: 💾 Database saved
+2025-09-23 19:32:02,271 [INFO    ] DuckHuntBot - _close_connection:545: 🔌 IRC connection closed
+2025-09-23 19:32:02,276 [INFO    ] DuckHuntBot - run:528: ✅ Bot shutdown complete
+2025-09-23 19:32:03,115 [INFO    ] DuckHuntBot - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 19:32:03,116 [INFO    ] DuckHuntBot.DB - load_database:28: Loaded 1 players from duckhunt.json
+2025-09-23 19:32:03,116 [INFO    ] SASL - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 19:32:03,117 [INFO    ] DuckHuntBot.Shop - load_items:30: Loaded 2 shop items from /home/colby/duckhunt/shop.json
+2025-09-23 19:32:03,118 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
+2025-09-23 19:32:03,118 [INFO    ] DuckHuntBot - main:28: 🦆 Starting DuckHunt Bot...
+2025-09-23 19:32:03,381 [INFO    ] DuckHuntBot - connect:112: Connected to irc.rizon.net:6697
+2025-09-23 19:32:03,382 [INFO    ] DuckHuntBot - run:482: 🦆 Bot is now running! Press Ctrl+C to stop.
+2025-09-23 19:32:03,875 [INFO    ] DuckHuntBot - handle_message:138: Successfully registered with IRC server
+2025-09-23 19:32:24,397 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:33:39,462 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:34:54,527 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:36:06,590 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:37:11,647 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:38:29,711 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:39:41,776 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:40:38,247 [ERROR   ] DuckHuntBot - message_loop:458: Error processing message ':ComputerTech!ComputerTe@ComputerTech.Network PRIVMSG #ct :!bang': 'LevelManager' object has no attribute 'get_player_level'
+2025-09-23 19:40:38,829 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:41:44,889 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:42:46,938 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:43:54,005 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:44:56,059 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:46:05,126 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:47:09,183 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:48:32,260 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:49:56,329 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:51:00,396 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:52:10,460 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:53:17,528 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:54:26,587 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:55:36,650 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:56:46,729 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:58:08,814 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 19:59:17,882 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:00:30,947 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:01:46,017 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:02:54,074 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:04:09,139 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:05:30,209 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:06:35,262 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:07:47,326 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:08:52,387 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:10:13,461 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:11:28,536 [INFO    ] DuckHuntBot.Game - spawn_duck:108: Duck spawned in #ct
+2025-09-23 20:11:38,121 [INFO    ] DuckHuntBot - signal_handler:86: 🛑 Received SIGINT (Ctrl+C), shutting down immediately...
+2025-09-23 20:11:38,125 [INFO    ] DuckHuntBot - signal_handler:96: 🔄 Cancelled 5 running tasks
+2025-09-23 20:11:38,159 [INFO    ] DuckHuntBot.Game - duck_timeout_loop:85: Duck timeout loop cancelled
+2025-09-23 20:11:38,160 [INFO    ] DuckHuntBot.Game - duck_spawn_loop:53: Duck spawning loop cancelled
+2025-09-23 20:11:38,160 [INFO    ] DuckHuntBot - message_loop:461: Message loop cancelled
+2025-09-23 20:11:38,160 [INFO    ] DuckHuntBot - message_loop:465: Message loop ended
+2025-09-23 20:11:38,161 [INFO    ] DuckHuntBot - run:499: 🛑 Main loop cancelled
+2025-09-23 20:11:38,161 [INFO    ] DuckHuntBot.Game - start_game_loops:31: Game loops cancelled
+2025-09-23 20:11:38,172 [INFO    ] DuckHuntBot - run:521: 💾 Database saved
+2025-09-23 20:11:38,280 [INFO    ] DuckHuntBot - _close_connection:545: 🔌 IRC connection closed
+2025-09-23 20:11:38,281 [INFO    ] DuckHuntBot - run:528: ✅ Bot shutdown complete
+2025-09-23 20:11:39,007 [INFO    ] DuckHuntBot - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 20:11:39,007 [INFO    ] DuckHuntBot.DB - load_database:28: Loaded 1 players from duckhunt.json
+2025-09-23 20:11:39,008 [INFO    ] SASL - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-23 20:11:39,009 [INFO    ] DuckHuntBot.Shop - load_items:30: Loaded 2 shop items from /home/colby/duckhunt/shop.json
+2025-09-23 20:11:39,009 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
+2025-09-23 20:11:39,010 [INFO    ] DuckHuntBot - main:28: 🦆 Starting DuckHunt Bot...
+2025-09-23 20:11:39,306 [INFO    ] DuckHuntBot - connect:112: Connected to irc.rizon.net:6697
+2025-09-23 20:11:39,306 [INFO    ] DuckHuntBot - run:496: 🦆 Bot is now running! Press Ctrl+C to stop.
+2025-09-23 20:11:39,797 [INFO    ] DuckHuntBot - handle_message:138: Successfully registered with IRC server
+2025-09-23 20:12:39,564 [INFO    ] DuckHuntBot - signal_handler:86: 🛑 Received SIGINT (Ctrl+C), shutting down immediately...
+2025-09-23 20:12:39,565 [INFO    ] DuckHuntBot - signal_handler:96: 🔄 Cancelled 5 running tasks
+2025-09-23 20:12:39,660 [INFO    ] DuckHuntBot.Game - duck_timeout_loop:85: Duck timeout loop cancelled
+2025-09-23 20:12:39,660 [INFO    ] DuckHuntBot.Game - duck_spawn_loop:53: Duck spawning loop cancelled
+2025-09-23 20:12:39,661 [INFO    ] DuckHuntBot - message_loop:475: Message loop cancelled
+2025-09-23 20:12:39,661 [INFO    ] DuckHuntBot - message_loop:479: Message loop ended
+2025-09-23 20:12:39,661 [INFO    ] DuckHuntBot - run:513: 🛑 Main loop cancelled
+2025-09-23 20:12:39,662 [INFO    ] DuckHuntBot.Game - start_game_loops:31: Game loops cancelled
+2025-09-23 20:12:39,664 [INFO    ] DuckHuntBot - run:535: 💾 Database saved
+2025-09-23 20:12:39,766 [INFO    ] DuckHuntBot - _close_connection:559: 🔌 IRC connection closed
+2025-09-23 20:12:39,766 [INFO    ] DuckHuntBot - run:542: ✅ Bot shutdown complete
