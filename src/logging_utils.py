@@ -6,9 +6,9 @@ import logging
 import logging.handlers
 
 
-class DetailedColorFormatter(logging.Formatter):
-    """Console formatter with color support"""
-    COLORS = {
+class DetailedColourFormatter(logging.Formatter):
+    """Console formatter with colour support"""
+    COLOURS = {
         'DEBUG': '\033[94m',
         'INFO': '\033[92m',
         'WARNING': '\033[93m',
@@ -18,14 +18,14 @@ class DetailedColorFormatter(logging.Formatter):
     }
     
     def format(self, record):
-        color = self.COLORS.get(record.levelname, '')
-        endc = self.COLORS['ENDC']
+        colour = self.COLOURS.get(record.levelname, '')
+        endc = self.COLOURS['ENDC']
         msg = super().format(record)
-        return f"{color}{msg}{endc}"
+        return f"{colour}{msg}{endc}"
 
 
 class DetailedFileFormatter(logging.Formatter):
-    """File formatter with extra context but no colors"""
+    """File formatter with extra context but no colours"""
     def format(self, record):
         return super().format(record)
 
@@ -39,7 +39,7 @@ def setup_logger(name="DuckHuntBot"):
     
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
-    console_formatter = DetailedColorFormatter(
+    console_formatter = DetailedColourFormatter(
         '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
     )
     console_handler.setFormatter(console_formatter)
