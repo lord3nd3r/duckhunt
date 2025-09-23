@@ -1,8 +1,3 @@
-"""
-Simplified DuckHunt IRC Bot - Core Features Only
-Commands: !bang, !reload, !shop, !duckhelp, !rearm, !disarm, !ignore, !unignore, !ducklaunch
-"""
-
 import asyncio
 import ssl
 import json
@@ -19,6 +14,7 @@ from .utils import parse_irc_message, InputValidator, MessageManager
 from .db import DuckDB
 from .game import DuckGame
 from .sasl import SASLHandler
+from .shop import ShopManager
 
 
 class DuckHuntBot:
@@ -41,12 +37,9 @@ class DuckHuntBot:
         
         self.admins = [admin.lower() for admin in self.config.get('admins', ['colby'])]
         
-        # Simple shop items - hardcoded
-        self.shop_items = {
-            1: {"name": "Extra Shots", "price": 10, "description": "5 extra shots"},
-            2: {"name": "Accuracy Boost", "price": 20, "description": "+10% accuracy"},
-            3: {"name": "Lucky Charm", "price": 30, "description": "+5% duck spawn chance"}
-        }
+        # Initialize shop manager
+        shop_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shop.json')
+        self.shop = ShopManager(shop_file)
         
     def get_config(self, path, default=None):
         """Get configuration value using dot notation"""
@@ -148,10 +141,12 @@ class DuckHuntBot:
         
         if cmd == "bang":
             await self.handle_bang(nick, channel, player)
+        elif cmd == "bef" or cmd == "befriend":
+            await self.handle_bef(nick, channel, player)
         elif cmd == "reload":
             await self.handle_reload(nick, channel, player)
         elif cmd == "shop":
-            await self.handle_shop(nick, channel, player)
+            await self.handle_shop(nick, channel, player, args)
         elif cmd == "duckhelp":
             await self.handle_duckhelp(nick, channel, player)
         elif cmd == "rearm" and self.is_admin(user):
@@ -164,6 +159,8 @@ class DuckHuntBot:
             await self.handle_unignore(nick, channel, args)
         elif cmd == "ducklaunch" and self.is_admin(user):
             await self.handle_ducklaunch(nick, channel, args)
+        elif cmd == "reloadshop" and self.is_admin(user):
+            await self.handle_reloadshop(nick, channel, args)
     
     async def handle_bang(self, nick, channel, player):
         """Handle !bang command"""
@@ -215,6 +212,44 @@ class DuckHuntBot:
         
         self.db.save_database()
     
+    async def handle_bef(self, nick, channel, player):
+        """Handle !bef (befriend) command"""
+        # Check for duck
+        if channel not in self.game.ducks or not self.game.ducks[channel]:
+            message = self.messages.get('bef_no_duck', nick=nick)
+            self.send_message(channel, message)
+            return
+        
+        # Check befriend success rate from config (default 75%)
+        success_rate_config = self.get_config('befriend_success_rate', 75)
+        try:
+            success_rate = float(success_rate_config) / 100.0
+        except (ValueError, TypeError):
+            success_rate = 0.75  # 75% default
+        
+        if random.random() < success_rate:
+            # Success - befriend the duck
+            duck = self.game.ducks[channel].pop(0)
+            
+            # Lower XP gain than shooting (5 instead of 10)
+            xp_gained = 5
+            player['xp'] = player.get('xp', 0) + xp_gained
+            player['ducks_befriended'] = player.get('ducks_befriended', 0) + 1
+            
+            message = self.messages.get('bef_success', 
+                                      nick=nick, 
+                                      xp_gained=xp_gained, 
+                                      ducks_befriended=player['ducks_befriended'])
+            self.send_message(channel, message)
+        else:
+            # Failure - duck flies away, remove from channel
+            duck = self.game.ducks[channel].pop(0)
+            
+            message = self.messages.get('bef_failed', nick=nick)
+            self.send_message(channel, message)
+        
+        self.db.save_database()
+    
     async def handle_reload(self, nick, channel, player):
         """Handle !reload command"""
         if player.get('gun_confiscated', False):
@@ -243,10 +278,22 @@ class DuckHuntBot:
         self.send_message(channel, message)
         self.db.save_database()
     
-    async def handle_shop(self, nick, channel, player):
+    async def handle_shop(self, nick, channel, player, args=None):
         """Handle !shop command"""
+        # Handle buying: !shop buy <item_id>
+        if args and len(args) >= 2 and args[0].lower() == "buy":
+            try:
+                item_id = int(args[1])
+                await self.handle_shop_buy(nick, channel, player, item_id)
+                return
+            except (ValueError, IndexError):
+                message = self.messages.get('shop_buy_usage', nick=nick)
+                self.send_message(channel, message)
+                return
+        
+        # Display shop items
         items = []
-        for item_id, item in self.shop_items.items():
+        for item_id, item in self.shop.get_items().items():
             item_text = self.messages.get('shop_item_format',
                                         id=item_id,
                                         name=item['name'],
@@ -258,6 +305,36 @@ class DuckHuntBot:
                                     xp=player.get('xp', 0))
         
         self.send_message(channel, shop_text)
+    
+    async def handle_shop_buy(self, nick, channel, player, item_id):
+        """Handle buying an item from the shop"""
+        # Use ShopManager to handle the purchase
+        result = self.shop.purchase_item(player, item_id)
+        
+        if not result["success"]:
+            # Handle different error types
+            if result["error"] == "invalid_id":
+                message = self.messages.get('shop_buy_invalid_id', nick=nick)
+            elif result["error"] == "insufficient_xp":
+                message = self.messages.get('shop_buy_insufficient_xp', 
+                                          nick=nick,
+                                          item_name=result["item_name"],
+                                          price=result["price"],
+                                          current_xp=result["current_xp"])
+            else:
+                message = f"{nick} > Error: {result['message']}"
+            
+            self.send_message(channel, message)
+            return
+        
+        # Purchase successful
+        message = self.messages.get('shop_buy_success',
+                                  nick=nick,
+                                  item_name=result["item_name"],
+                                  price=result["price"],
+                                  remaining_xp=result["remaining_xp"])
+        self.send_message(channel, message)
+        self.db.save_database()
     
     async def handle_duckhelp(self, nick, channel, player):
         """Handle !duckhelp command"""
@@ -357,6 +434,15 @@ class DuckHuntBot:
         self.send_message(channel, admin_message)
         self.send_message(channel, duck_message)
     
+    async def handle_reloadshop(self, nick, channel, args):
+        """Handle !reloadshop admin command"""
+        old_count = len(self.shop.get_items())
+        new_count = self.shop.reload_items()
+        
+        message = f"[ADMIN] Shop reloaded by {nick} - {new_count} items loaded"
+        self.send_message(channel, message)
+        self.logger.info(f"Shop reloaded by admin {nick}: {old_count} -> {new_count} items")
+    
     
     async def message_loop(self):
         """Main message processing loop"""
@@ -397,19 +483,14 @@ class DuckHuntBot:
             # Start game loops
             game_task = asyncio.create_task(self.game.start_game_loops())
             message_task = asyncio.create_task(self.message_loop())
-            shutdown_task = asyncio.create_task(self.shutdown_event.wait())
             
             self.logger.info("🦆 Bot is now running! Press Ctrl+C to stop.")
             
             # Wait for shutdown signal or task completion
             done, pending = await asyncio.wait(
-                [game_task, message_task, shutdown_task],
+                [game_task, message_task],
                 return_when=asyncio.FIRST_COMPLETED
             )
-            
-            if shutdown_task in done:
-                self.logger.info("🛑 Shutdown signal received, cleaning up...")
-                await self._graceful_shutdown()
             
             # Cancel remaining tasks
             for task in pending:

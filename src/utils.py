@@ -5,6 +5,7 @@ Utility functions for DuckHunt Bot
 import re
 import json
 import os
+import random
 from typing import Optional, Tuple, List, Dict, Any
 
 
@@ -29,10 +30,17 @@ class MessageManager:
             print(f"Error loading messages: {e}, using defaults")
             self.messages = self._get_default_messages()
     
-    def _get_default_messages(self) -> Dict[str, str]:
+    def _get_default_messages(self) -> Dict[str, Any]:
         """Default fallback messages without colors"""
         return {
-            "duck_spawn": "・゜゜・。。・゜゜\\_o< QUACK! A duck has appeared! Type !bang to shoot it!",
+            "duck_spawn": [
+                "・゜゜・。。・゜゜\\_o< QUACK! A duck has appeared! Type !bang to shoot it!",
+                "・゜゜・。。・゜゜\\_o< *flap flap* A wild duck landed! Use !bang to hunt it!",
+                "🦆 A duck swoops into view! Quick, type !bang before it escapes!",
+                "・゜゜・。。・゜゜\\_o< Quack quack! Fresh duck spotted! !bang to bag it!",
+                "*rustling* A duck waddles out from the bushes! Fire with !bang!",
+                "・゜゜・。。・゜゜\\_o< Splash! A duck surfaces! Shoot it with !bang!"
+            ],
             "duck_flies_away": "The duck flies away. ·°'`'°-.,¸¸.·°'`",
             "bang_hit": "{nick} > *BANG* You shot the duck! [+{xp_gained} xp] [Total ducks: {ducks_shot}]",
             "bang_miss": "{nick} > *BANG* You missed the duck!",
@@ -63,11 +71,27 @@ class MessageManager:
         }
     
     def get(self, key: str, **kwargs) -> str:
-        """Get a formatted message by key"""
+        """Get a formatted message by key with color placeholder replacement"""
         if key not in self.messages:
             return f"[Missing message: {key}]"
         
         message = self.messages[key]
+        
+        # If message is an array, randomly select one
+        if isinstance(message, list):
+            if not message:
+                return f"[Empty message array: {key}]"
+            message = random.choice(message)
+        
+        # Ensure message is a string
+        if not isinstance(message, str):
+            return f"[Invalid message type: {key}]"
+        
+        # Replace color placeholders with IRC codes
+        if "colours" in self.messages and isinstance(self.messages["colours"], dict):
+            for color_name, color_code in self.messages["colours"].items():
+                placeholder = "{" + color_name + "}"
+                message = message.replace(placeholder, color_code)
         
         # Format with provided variables
         try:

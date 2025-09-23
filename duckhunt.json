@@ -2,15 +2,16 @@
   "players": {
     "computertech": {
       "nick": "ComputerTech",
-      "xp": 10,
-      "ducks_shot": 1,
-      "ammo": 5,
+      "xp": 45,
+      "ducks_shot": 4,
+      "ammo": 2,
       "max_ammo": 6,
-      "chargers": 2,
+      "chargers": 1,
       "max_chargers": 2,
-      "accuracy": 64,
-      "gun_confiscated": false
+      "accuracy": 65,
+      "gun_confiscated": false,
+      "ducks_befriended": 1
     }
   },
-  "last_save": "1758592642.337953"
+  "last_save": "1758646365.5768785"
 }

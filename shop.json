@@ -1,0 +1,25 @@
+{
+  "items": {
+    "1": {
+      "name": "Single Bullet",
+      "price": 5,
+      "description": "1 extra bullet",
+      "type": "ammo",
+      "amount": 1
+    },
+    "2": {
+      "name": "Accuracy Boost",
+      "price": 20,
+      "description": "+10% accuracy",
+      "type": "accuracy",
+      "amount": 10
+    },
+    "3": {
+      "name": "Lucky Charm",
+      "price": 30,
+      "description": "+5% duck spawn chance",
+      "type": "luck",
+      "amount": 5
+    }
+  }
+}

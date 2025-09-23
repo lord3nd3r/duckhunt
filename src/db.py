@@ -63,6 +63,11 @@ class DuckDB:
         
         if nick_lower not in self.players:
             self.players[nick_lower] = self.create_player(nick)
+        else:
+            # Ensure existing players have new fields
+            player = self.players[nick_lower]
+            if 'ducks_befriended' not in player:
+                player['ducks_befriended'] = 0
         
         return self.players[nick_lower]
     
@@ -72,6 +77,7 @@ class DuckDB:
             'nick': nick,
             'xp': 0,
             'ducks_shot': 0,
+            'ducks_befriended': 0,
             'ammo': 6,
             'max_ammo': 6,
             'chargers': 2,
