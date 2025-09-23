@@ -51,7 +51,6 @@ duckhunt.db
 *.sqlite3
 
 # Configuration (sensitive)
-config.json
 config_local.json
 config_backup.json
 
