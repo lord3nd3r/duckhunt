@@ -169,6 +169,11 @@ class DuckGame:
             new_level = self.bot.levels.calculate_player_level(player)
             if new_level != old_level:
                 self.bot.levels.update_player_magazines(player)
+            
+            # If config option enabled, rearm all disarmed players when duck is shot
+            if self.bot.get_config('rearm_on_duck_shot', False):
+                self._rearm_all_disarmed_players()
+            
             self.db.save_database()
             return {
                 'success': True,
@@ -229,6 +234,10 @@ class DuckGame:
             new_level = self.bot.levels.calculate_player_level(player)
             if new_level != old_level:
                 self.bot.levels.update_player_magazines(player)
+            
+            # If config option enabled, rearm all disarmed players when duck is befriended
+            if self.bot.get_config('rearm_on_duck_shot', False):
+                self._rearm_all_disarmed_players()
             
             self.db.save_database()
             return {
@@ -297,3 +306,20 @@ class DuckGame:
                 'chargers': player['magazines'] - 1  # Spare magazines (excluding current)
             }
         }
+    
+    def _rearm_all_disarmed_players(self):
+        """Rearm all players who have been disarmed (gun confiscated)"""
+        try:
+            rearmed_count = 0
+            for player_name, player_data in self.db.players.items():
+                if player_data.get('gun_confiscated', False):
+                    player_data['gun_confiscated'] = False
+                    # Update magazines based on player level
+                    self.bot.levels.update_player_magazines(player_data)
+                    player_data['current_ammo'] = player_data.get('bullets_per_magazine', 6)
+                    rearmed_count += 1
+            
+            if rearmed_count > 0:
+                self.logger.info(f"Auto-rearmed {rearmed_count} disarmed players after duck shot")
+        except Exception as e:
+            self.logger.error(f"Error in _rearm_all_disarmed_players: {e}")

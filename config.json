@@ -15,6 +15,7 @@
     "duck_spawn_min": 10,
     "duck_spawn_max": 30,
     "duck_timeout": 60,
-    "befriend_success_rate": 75
+    "befriend_success_rate": 75,
+    "rearm_on_duck_shot": true
     
 }
