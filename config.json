@@ -16,6 +16,15 @@
     "duck_spawn_max": 30,
     "duck_timeout": 60,
     "befriend_success_rate": 75,
-    "rearm_on_duck_shot": true
+    "rearm_on_duck_shot": true,
+    
+    "golden_duck_chance": 0.15,
+    "golden_duck_min_hp": 3,
+    "golden_duck_max_hp": 5,
+    "golden_duck_xp": 15,
+    
+    "fast_duck_chance": 0.25,
+    "fast_duck_timeout": 30,
+    "fast_duck_xp": 12
     
 }

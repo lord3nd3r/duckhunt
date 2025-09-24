@@ -5,7 +5,12 @@
   "・゜゜・。。・゜゜\\_O> {bold}*flap flap*{reset}"
   ],
   "duck_flies_away": "The {bold}duck{reset} flies away. ·°'`'°-.,¸¸.·°'`",
+  "fast_duck_flies_away": "The {cyan}fast duck{reset} quickly flies away! ·°'`'°-.,¸¸.·°'`",
+  "golden_duck_flies_away": "The {yellow}{bold}golden duck{reset} flies away majestically. ·°'`'°-.,¸¸.·°'`",
   "bang_hit": "{nick} > {green}*BANG*{reset} You shot the duck! [{green}+{xp_gained} xp{reset}] [Total ducks: {bold}{ducks_shot}{reset}]",
+  "bang_hit_golden": "{nick} > {green}*BANG*{reset} You shot a {yellow}{bold}GOLDEN DUCK{reset}! [{yellow}{hp_remaining} HP remaining{reset}] [{green}+{xp_gained} xp{reset}]",
+  "bang_hit_golden_killed": "{nick} > {green}*BANG*{reset} You killed the {yellow}{bold}GOLDEN DUCK{reset}! [{green}+{xp_gained} xp{reset}] [Total ducks: {bold}{ducks_shot}{reset}]",
+  "bang_hit_fast": "{nick} > {green}*BANG*{reset} You shot a {cyan}{bold}FAST DUCK{reset}! [{green}+{xp_gained} xp{reset}] [Total ducks: {bold}{ducks_shot}{reset}]",
   "bang_miss": "{nick} > {red}*BANG*{reset} You missed the {cyan}duck{reset}!",
   "bang_no_duck": "{nick} > {red}*BANG*{reset} What did you shoot at? There is {red}no duck{reset} in the area... [{red}GUN CONFISCATED{reset}]",
   "bang_no_ammo": "{nick} > {orange}*click*{reset} You're out of ammo! Use {blue}!reload{reset}",
