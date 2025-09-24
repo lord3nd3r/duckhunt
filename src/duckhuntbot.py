@@ -32,7 +32,8 @@ class DuckHuntBot:
         
         self.sasl_handler = SASLHandler(self, config)
         
-        self.admins = [admin.lower() for admin in self.config.get('admins', ['colby'])]
+        admins_list = self.get_config('admins', ['colby']) or ['colby']
+        self.admins = [admin.lower() for admin in admins_list]
         
         # Initialize shop manager
         shop_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shop.json')
@@ -103,24 +104,26 @@ class DuckHuntBot:
         for attempt in range(max_retries):
             try:
                 ssl_context = None
-                if self.config.get('ssl', False):
+                if self.get_config('connection.ssl', False):
                     ssl_context = ssl.create_default_context()
                     # Add SSL context configuration for better compatibility
                     ssl_context.check_hostname = False
                     ssl_context.verify_mode = ssl.CERT_NONE
                 
-                self.logger.info(f"Attempting to connect to {self.config['server']}:{self.config['port']} (attempt {attempt + 1}/{max_retries})")
+                server = self.get_config('connection.server', 'irc.libera.chat')
+                port = self.get_config('connection.port', 6667)
+                self.logger.info(f"Attempting to connect to {server}:{port} (attempt {attempt + 1}/{max_retries})")
                 
                 self.reader, self.writer = await asyncio.wait_for(
                     asyncio.open_connection(
-                        self.config['server'], 
-                        self.config['port'],
+                        server, 
+                        port,
                         ssl=ssl_context
                     ),
                     timeout=self.get_config('connection.timeout', 30) or 30.0  # Connection timeout from config
                 )
                 
-                self.logger.info(f"✅ Successfully connected to {self.config['server']}:{self.config['port']}")
+                self.logger.info(f"✅ Successfully connected to {server}:{port}")
                 return
                 
             except asyncio.TimeoutError:
@@ -183,11 +186,13 @@ class DuckHuntBot:
     
     async def register_user(self):
         """Register user with IRC server"""
-        if self.config.get('password'):
-            self.send_raw(f"PASS {self.config['password']}")
+        password = self.get_config('connection.password')
+        if password and password != "your_iline_password_here":
+            self.send_raw(f"PASS {password}")
         
-        self.send_raw(f"NICK {self.config['nick']}")
-        self.send_raw(f"USER {self.config['nick']} 0 * :{self.config['nick']}")
+        nick = self.get_config('connection.nick', 'DuckHunt')
+        self.send_raw(f"NICK {nick}")
+        self.send_raw(f"USER {nick} 0 * :{nick}")
     
     async def handle_message(self, prefix, command, params, trailing):
         """Handle incoming IRC messages with comprehensive error handling"""
@@ -227,7 +232,8 @@ class DuckHuntBot:
                 self.logger.info("Successfully registered with IRC server")
                 
                 # Join channels
-                for channel in self.config.get('channels', []):
+                channels = self.get_config('connection.channels', []) or []
+                for channel in channels:
                     try:
                         self.send_raw(f"JOIN {channel}")
                         self.channels_joined.add(channel)

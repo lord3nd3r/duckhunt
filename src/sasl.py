@@ -14,10 +14,10 @@ class SASLHandler:
     def __init__(self, bot, config):
         self.bot = bot
         self.logger = setup_logger("SASL")
-        sasl_config = config.get("sasl", {})
-        self.enabled = sasl_config.get("enabled", False)
-        self.username = sasl_config.get("username", config.get("nick", ""))
-        self.password = sasl_config.get("password", "")
+        # Use bot's get_config method for nested config access
+        self.enabled = bot.get_config("sasl.enabled", False)
+        self.username = bot.get_config("sasl.username", bot.get_config("connection.nick", ""))
+        self.password = bot.get_config("sasl.password", "")
         self.authenticated = False
         self.cap_negotiating = False
     

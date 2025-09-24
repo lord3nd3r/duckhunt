@@ -36,12 +36,12 @@
             "min_hp": 3,
             "max_hp": 5,
             "xp": 15,
-            "timeout": 50
+            "timeout": 60
         },
         "fast": {
             "chance": 0.25,
             "timeout": 20,
-            "xp": 20
+            "xp": 12
         }
     },
     
@@ -49,7 +49,7 @@
         "accuracy": 75,
         "magazines": 3,
         "bullets_per_magazine": 6,
-        "jam_chance": 5,
+        "jam_chance": 15,
         "xp": 0
     },
     
@@ -72,6 +72,6 @@
     
     "limits": {
         "max_inventory_items": 20,
-        "max_temp_effects": 5
+        "max_temp_effects": 20
     }
 }
