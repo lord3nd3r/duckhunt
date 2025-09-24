@@ -147,19 +147,66 @@ class InputValidator:
 
 
 def parse_irc_message(line: str) -> Tuple[str, str, List[str], str]:
-    """Parse IRC message format"""
-    prefix = ''
-    trailing = ''
-    if line.startswith(':'):
-        if ' ' in line[1:]:
-            prefix, line = line[1:].split(' ', 1)
-        else:
-            # Handle malformed IRC line with no space after prefix
-            prefix = line[1:]
-            line = ''
-    if ' :' in line:
-        line, trailing = line.split(' :', 1)
-    parts = line.split()
-    command = parts[0] if parts else ''
-    params = parts[1:] if len(parts) > 1 else []
-    return prefix, command, params, trailing
+    """Parse IRC message format with comprehensive error handling"""
+    try:
+        # Validate input
+        if not isinstance(line, str):
+            raise ValueError(f"Expected string, got {type(line)}")
+        
+        # Handle empty or whitespace-only lines
+        if not line or not line.strip():
+            return '', '', [], ''
+        
+        line = line.strip()
+        
+        # Initialize return values
+        prefix = ''
+        trailing = ''
+        command = ''
+        params = []
+        
+        # Handle prefix (starts with :)
+        if line.startswith(':'):
+            try:
+                if ' ' in line[1:]:
+                    prefix, line = line[1:].split(' ', 1)
+                else:
+                    # Handle malformed IRC line with no space after prefix
+                    prefix = line[1:]
+                    line = ''
+            except ValueError:
+                # If split fails, treat entire line as prefix
+                prefix = line[1:]
+                line = ''
+        
+        # Handle trailing parameter (starts with ' :')
+        if line and ' :' in line:
+            try:
+                line, trailing = line.split(' :', 1)
+            except ValueError:
+                # If split fails, keep line as is
+                pass
+        
+        # Parse command and parameters
+        if line:
+            try:
+                parts = line.split()
+                command = parts[0] if parts else ''
+                params = parts[1:] if len(parts) > 1 else []
+            except Exception:
+                # If parsing fails, try to extract at least the command
+                command = line.split()[0] if line.split() else ''
+                params = []
+        
+        # Validate that we have at least a command
+        if not command and not prefix:
+            raise ValueError(f"No valid command or prefix found in line: {line[:50]}...")
+            
+        return prefix, command, params, trailing
+        
+    except Exception as e:
+        # Log the error but return safe defaults to prevent crashes
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Error parsing IRC message '{line[:50]}...': {e}")
+        return '', 'UNKNOWN', [], ''

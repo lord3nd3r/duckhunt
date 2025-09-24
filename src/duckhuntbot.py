@@ -1,15 +1,12 @@
 import asyncio
 import ssl
-import json
-import logging
-import sys
 import os
 import time
 import signal
 from typing import Optional
 
 from .logging_utils import setup_logger
-from .utils import parse_irc_message, InputValidator, MessageManager
+from .utils import parse_irc_message, MessageManager
 from .db import DuckDB
 from .game import DuckGame
 from .sasl import SASLHandler
@@ -82,12 +79,12 @@ class DuckHuntBot:
     def setup_signal_handlers(self):
         """Setup signal handlers for immediate shutdown"""
         def signal_handler(signum, frame):
+    def setup_signal_handlers(self):
+        """Setup signal handlers for immediate shutdown"""
+        def signal_handler(signum, _frame):
             signal_name = "SIGINT" if signum == signal.SIGINT else "SIGTERM"
             self.logger.info(f"🛑 Received {signal_name} (Ctrl+C), shutting down immediately...")
             self.shutdown_requested = True
-            
-            # Cancel all running tasks immediately
-            try:
                 # Get the current event loop and cancel all tasks
                 loop = asyncio.get_running_loop()
                 tasks = [t for t in asyncio.all_tasks(loop) if not t.done()]
@@ -101,27 +98,90 @@ class DuckHuntBot:
         signal.signal(signal.SIGTERM, signal_handler)
     
     async def connect(self):
-        """Connect to IRC server"""
-        try:
-            ssl_context = ssl.create_default_context() if self.config.get('ssl', False) else None
-            self.reader, self.writer = await asyncio.open_connection(
-                self.config['server'], 
-                self.config['port'],
-                ssl=ssl_context
-            )
-            self.logger.info(f"Connected to {self.config['server']}:{self.config['port']}")
-        except Exception as e:
-            self.logger.error(f"Failed to connect: {e}")
-            raise
+        """Connect to IRC server with comprehensive error handling"""
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                ssl_context = None
+                if self.config.get('ssl', False):
+                    ssl_context = ssl.create_default_context()
+                    # Add SSL context configuration for better compatibility
+                    ssl_context.check_hostname = False
+                    ssl_context.verify_mode = ssl.CERT_NONE
+                
+                self.logger.info(f"Attempting to connect to {self.config['server']}:{self.config['port']} (attempt {attempt + 1}/{max_retries})")
+                
+                self.reader, self.writer = await asyncio.wait_for(
+                    asyncio.open_connection(
+                        self.config['server'], 
+                        self.config['port'],
+                        ssl=ssl_context
+                    ),
+                    timeout=30.0  # 30 second connection timeout
+                )
+                
+                self.logger.info(f"✅ Successfully connected to {self.config['server']}:{self.config['port']}")
+                return
+                
+            except asyncio.TimeoutError:
+                self.logger.error(f"Connection attempt {attempt + 1} timed out after 30 seconds")
+            except ssl.SSLError as e:
+                self.logger.error(f"SSL error on attempt {attempt + 1}: {e}")
+            except OSError as e:
+                self.logger.error(f"Network error on attempt {attempt + 1}: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected connection error on attempt {attempt + 1}: {e}")
+            
+            if attempt < max_retries - 1:
+                self.logger.info(f"Retrying connection in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+        
+        # If all attempts failed
+        raise ConnectionError(f"Failed to connect after {max_retries} attempts")
     
     def send_raw(self, msg):
-        """Send raw IRC message"""
-        if self.writer:
-            self.writer.write(f"{msg}\r\n".encode('utf-8'))
+        """Send raw IRC message with error handling"""
+        if not self.writer or self.writer.is_closing():
+            self.logger.warning(f"Cannot send message: connection not available")
+            return False
+            
+        try:
+            encoded_msg = f"{msg}\r\n".encode('utf-8', errors='replace')
+            self.writer.write(encoded_msg)
+            return True
+        except ConnectionResetError:
+            self.logger.error("Connection reset while sending message")
+            return False
+        except BrokenPipeError:
+            self.logger.error("Broken pipe while sending message")
+            return False
+        except OSError as e:
+            self.logger.error(f"Network error while sending message: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error while sending message: {e}")
+            return False
     
     def send_message(self, target, msg):
-        """Send message to target (channel or user)"""
-        self.send_raw(f"PRIVMSG {target} :{msg}")
+        """Send message to target (channel or user) with error handling"""
+        if not isinstance(target, str) or not isinstance(msg, str):
+            self.logger.warning(f"Invalid message parameters: target={type(target)}, msg={type(msg)}")
+            return False
+            
+        # Sanitize message to prevent IRC injection
+        try:
+            # Remove potential IRC control characters
+            sanitized_msg = msg.replace('\r', '').replace('\n', ' ').strip()
+            if not sanitized_msg:
+                return False
+                
+            return self.send_raw(f"PRIVMSG {target} :{sanitized_msg}")
+        except Exception as e:
+            self.logger.error(f"Error sanitizing/sending message: {e}")
+            return False
     
     async def register_user(self):
         """Register user with IRC server"""
@@ -132,81 +192,159 @@ class DuckHuntBot:
         self.send_raw(f"USER {self.config['nick']} 0 * :{self.config['nick']}")
     
     async def handle_message(self, prefix, command, params, trailing):
-        """Handle incoming IRC messages"""
-        # Handle SASL-related messages
-        if command == "CAP":
-            await self.sasl_handler.handle_cap_response(params, trailing)
-            return
-            
-        elif command == "AUTHENTICATE":
-            await self.sasl_handler.handle_authenticate_response(params)
-            return
-            
-        elif command in ["903", "904", "905", "906", "907", "908"]:
-            await self.sasl_handler.handle_sasl_result(command, params, trailing)
-            return
+        """Handle incoming IRC messages with comprehensive error handling"""
+        try:
+            # Validate input parameters
+            if not isinstance(command, str):
+                self.logger.warning(f"Invalid command type: {type(command)}")
+                return
+                
+            if params is None:
+                params = []
+            elif not isinstance(params, list):
+                self.logger.warning(f"Invalid params type: {type(params)}")
+                params = []
+                
+            if trailing is None:
+                trailing = ""
+            elif not isinstance(trailing, str):
+                self.logger.warning(f"Invalid trailing type: {type(trailing)}")
+                trailing = str(trailing)
         
-        elif command == "001":  # Welcome message
-            self.registered = True
-            self.logger.info("Successfully registered with IRC server")
+            # Handle SASL-related messages
+            if command == "CAP":
+                await self.sasl_handler.handle_cap_response(params, trailing)
+                return
+                
+            elif command == "AUTHENTICATE":
+                await self.sasl_handler.handle_authenticate_response(params)
+                return
+                
+            elif command in ["903", "904", "905", "906", "907", "908"]:
+                await self.sasl_handler.handle_sasl_result(command, params, trailing)
+                return
             
-            # Join channels
-            for channel in self.config.get('channels', []):
-                self.send_raw(f"JOIN {channel}")
-                self.channels_joined.add(channel)
-        
-        elif command == "PRIVMSG":
-            if len(params) >= 1:
-                target = params[0]
-                message = trailing or ""
-                await self.handle_command(prefix, target, message)
-        
-        elif command == "PING":
-            self.send_raw(f"PONG :{trailing}")
+            elif command == "001":  # Welcome message
+                self.registered = True
+                self.logger.info("Successfully registered with IRC server")
+                
+                # Join channels
+                for channel in self.config.get('channels', []):
+                    try:
+                        self.send_raw(f"JOIN {channel}")
+                        self.channels_joined.add(channel)
+                    except Exception as e:
+                        self.logger.error(f"Error joining channel {channel}: {e}")
+            
+            elif command == "PRIVMSG":
+                if len(params) >= 1:
+                    target = params[0]
+                    message = trailing or ""
+                    await self.handle_command(prefix, target, message)
+            
+            elif command == "PING":
+                try:
+                    self.send_raw(f"PONG :{trailing}")
+                except Exception as e:
+                    self.logger.error(f"Error responding to PING: {e}")
+                    
+        except Exception as e:
+            self.logger.error(f"Critical error in handle_message: {e}")
+            # Continue execution to prevent bot crashes
     
     async def handle_command(self, user, channel, message):
-        """Handle bot commands"""
-        if not message.startswith('!'):
-            return
-        
-        parts = message[1:].split()
-        if not parts:
-            return
-        
-        cmd = parts[0].lower()
-        args = parts[1:] if len(parts) > 1 else []
-        nick = user.split('!')[0] if '!' in user else user
-        
-        player = self.db.get_player(nick)
-        
-        # Check if player is ignored (unless it's an admin)
-        if player.get('ignored', False) and not self.is_admin(user):
-            return
-        
-        if cmd == "bang":
-            await self.handle_bang(nick, channel, player)
-        elif cmd == "bef" or cmd == "befriend":
-            await self.handle_bef(nick, channel, player)
-        elif cmd == "reload":
-            await self.handle_reload(nick, channel, player)
-        elif cmd == "shop":
-            await self.handle_shop(nick, channel, player, args)
-        elif cmd == "duckstats":
-            await self.handle_duckstats(nick, channel, player)
-        elif cmd == "use":
-            await self.handle_use(nick, channel, player, args)
-        elif cmd == "duckhelp":
-            await self.handle_duckhelp(nick, channel, player)
-        elif cmd == "rearm" and self.is_admin(user):
-            await self.handle_rearm(nick, channel, args)
-        elif cmd == "disarm" and self.is_admin(user):
-            await self.handle_disarm(nick, channel, args)
-        elif cmd == "ignore" and self.is_admin(user):
-            await self.handle_ignore(nick, channel, args)
-        elif cmd == "unignore" and self.is_admin(user):
-            await self.handle_unignore(nick, channel, args)
-        elif cmd == "ducklaunch" and self.is_admin(user):
-            await self.handle_ducklaunch(nick, channel, args)
+        """Handle bot commands with comprehensive error handling"""
+        try:
+            # Validate inputs
+            if not isinstance(message, str) or not message.startswith('!'):
+                return
+            
+            if not isinstance(user, str) or not isinstance(channel, str):
+                self.logger.warning(f"Invalid user/channel types: {type(user)}, {type(channel)}")
+                return
+            
+            # Safely parse command
+            try:
+                parts = message[1:].split()
+            except Exception as e:
+                self.logger.warning(f"Error parsing command '{message}': {e}")
+                return
+                
+            if not parts:
+                return
+            
+            cmd = parts[0].lower()
+            args = parts[1:] if len(parts) > 1 else []
+            
+            # Safely extract nick
+            try:
+                nick = user.split('!')[0] if '!' in user else user
+                if not nick:
+                    self.logger.warning(f"Empty nick from user string: {user}")
+                    return
+            except Exception as e:
+                self.logger.error(f"Error extracting nick from '{user}': {e}")
+                return
+            
+            # Get player data safely
+            try:
+                player = self.db.get_player(nick)
+                if player is None:
+                    player = {}
+            except Exception as e:
+                self.logger.error(f"Error getting player data for {nick}: {e}")
+                player = {}
+            
+            # Check if player is ignored (unless it's an admin)
+            try:
+                if player.get('ignored', False) and not self.is_admin(user):
+                    return
+            except Exception as e:
+                self.logger.error(f"Error checking admin/ignore status: {e}")
+                return
+            
+            # Handle commands with individual error isolation
+            await self._execute_command_safely(cmd, nick, channel, player, args, user)
+            
+        except Exception as e:
+            self.logger.error(f"Critical error in handle_command: {e}")
+            # Continue execution to prevent bot crashes
+    
+    async def _execute_command_safely(self, cmd, nick, channel, player, args, user):
+        """Execute individual commands with error isolation"""
+        try:
+            if cmd == "bang":
+                await self.handle_bang(nick, channel, player)
+            elif cmd == "bef" or cmd == "befriend":
+                await self.handle_bef(nick, channel, player)
+            elif cmd == "reload":
+                await self.handle_reload(nick, channel, player)
+            elif cmd == "shop":
+                await self.handle_shop(nick, channel, player, args)
+            elif cmd == "duckstats":
+                await self.handle_duckstats(nick, channel, player)
+            elif cmd == "use":
+                await self.handle_use(nick, channel, player, args)
+            elif cmd == "duckhelp":
+                await self.handle_duckhelp(nick, channel, player)
+            elif cmd == "rearm" and self.is_admin(user):
+                await self.handle_rearm(nick, channel, args)
+            elif cmd == "disarm" and self.is_admin(user):
+                await self.handle_disarm(nick, channel, args)
+            elif cmd == "ignore" and self.is_admin(user):
+                await self.handle_ignore(nick, channel, args)
+            elif cmd == "unignore" and self.is_admin(user):
+                await self.handle_unignore(nick, channel, args)
+            elif cmd == "ducklaunch" and self.is_admin(user):
+                await self.handle_ducklaunch(nick, channel, args)
+        except Exception as e:
+            self.logger.error(f"Error executing command '{cmd}' for user {nick}: {e}")
+            # Send a generic error message to the user to indicate something went wrong
+            try:
+                error_msg = f"{nick} > An error occurred processing your command. Please try again."
+                self.send_message(channel, error_msg)
+            except Exception as send_error:
+                self.logger.error(f"Error sending error message: {send_error}")
     
     async def handle_bang(self, nick, channel, player):
         """Handle !bang command"""
@@ -303,7 +441,58 @@ class DuckHuntBot:
         self.send_message(channel, message)
         self.db.save_database()
     
-    async def handle_duckhelp(self, nick, channel, player):
+    async def handle_duckstats(self, nick, channel, player):
+        """Handle !duckstats command"""
+        # Apply color formatting
+        bold = self.messages.messages.get('colours', {}).get('bold', '')
+        reset = self.messages.messages.get('colours', {}).get('reset', '')
+        
+        # Get player level info
+        level_info = self.levels.get_player_level_info(player)
+        level = level_info['level']
+        level_name = level_info['level_data']['name']
+        
+        # Build stats message
+        xp = player.get('xp', 0)
+        ducks_shot = player.get('ducks_shot', 0)
+        ducks_befriended = player.get('ducks_befriended', 0)
+        accuracy = player.get('accuracy', 65)
+        
+        # Ammo info
+        current_ammo = player.get('current_ammo', 0)
+        magazines = player.get('magazines', 0)
+        bullets_per_mag = player.get('bullets_per_magazine', 6)
+        
+        # Gun status
+        gun_status = "🔫 Armed" if not player.get('gun_confiscated', False) else "❌ Confiscated"
+        
+        stats_lines = [
+            f"📊 {bold}Duck Hunt Stats for {nick}{reset}",
+            f"🏆 Level {level}: {level_name}",
+            f"⭐ XP: {xp}",
+            f"🦆 Ducks Shot: {ducks_shot}",
+            f"💚 Ducks Befriended: {ducks_befriended}",
+            f"🎯 Accuracy: {accuracy}%",
+            f"🔫 Status: {gun_status}",
+            f"💀 Ammo: {current_ammo}/{bullets_per_mag} | Magazines: {magazines}"
+        ]
+        
+        # Add inventory if player has items
+        inventory = player.get('inventory', {})
+        if inventory:
+            items = []
+            for item_id, quantity in inventory.items():
+                item = self.shop.get_item(int(item_id))
+                if item:
+                    items.append(f"{item['name']} x{quantity}")
+            if items:
+                stats_lines.append(f"🎒 Inventory: {', '.join(items)}")
+        
+        # Send each line
+        for line in stats_lines:
+            self.send_message(channel, line)
+    
+    async def handle_duckhelp(self, nick, channel, _player):
         """Handle !duckhelp command"""
         help_lines = [
             self.messages.get('help_header'),
@@ -317,35 +506,6 @@ class DuckHuntBot:
         
         for line in help_lines:
             self.send_message(channel, line)
-    
-    async def handle_duckstats(self, nick, channel, player):
-        """Handle !duckstats command - show player stats and inventory"""
-        # Get player level info
-        level_info = self.levels.get_player_level_info(player)
-        level = self.levels.calculate_player_level(player)
-        
-        # Build stats message
-        stats_parts = [
-            f"Level {level} {level_info.get('name', 'Unknown')}",
-            f"XP: {player.get('xp', 0)}",
-            f"Ducks Shot: {player.get('ducks_shot', 0)}",
-            f"Ducks Befriended: {player.get('ducks_befriended', 0)}",
-            f"Accuracy: {player.get('accuracy', 65)}%",
-            f"Ammo: {player.get('current_ammo', 0)}/{player.get('bullets_per_magazine', 6)}",
-            f"Magazines: {player.get('magazines', 1)}"
-        ]
-        
-        stats_message = f"{nick} > Stats: {' | '.join(stats_parts)}"
-        self.send_message(channel, stats_message)
-        
-        # Show inventory if not empty
-        inventory_info = self.shop.get_inventory_display(player)
-        if not inventory_info["empty"]:
-            items_text = []
-            for item in inventory_info["items"]:
-                items_text.append(f"{item['id']}: {item['name']} x{item['quantity']}")
-            inventory_message = f"{nick} > Inventory: {' | '.join(items_text)}"
-            self.send_message(channel, inventory_message)
     
     async def handle_use(self, nick, channel, player, args):
         """Handle !use command"""
@@ -392,8 +552,13 @@ class DuckHuntBot:
     async def handle_rearm(self, nick, channel, args):
         """Handle !rearm command (admin only)"""
         if args:
+    async def handle_rearm(self, nick, channel, args):
+        """Handle !rearm command (admin only)"""
+        if args:
             target = args[0].lower()
             player = self.db.get_player(target)
+            if player is None:
+                player = {}
             player['gun_confiscated'] = False
             
             # Update magazines based on player level
@@ -405,6 +570,8 @@ class DuckHuntBot:
         else:
             # Rearm the admin themselves
             player = self.db.get_player(nick)
+            if player is None:
+                player = {}
             player['gun_confiscated'] = False
             
             # Update magazines based on admin's level
@@ -415,9 +582,6 @@ class DuckHuntBot:
             self.send_message(channel, message)
         
         self.db.save_database()
-    
-    async def handle_disarm(self, nick, channel, args):
-        """Handle !disarm command (admin only)"""
         def disarm_player(player):
             player['gun_confiscated'] = True
         
@@ -442,8 +606,7 @@ class DuckHuntBot:
         self._handle_single_target_admin_command(
             args, 'usage_unignore', unignore_player, 'admin_unignore', nick, channel
         )
-    
-    async def handle_ducklaunch(self, nick, channel, args):
+    async def handle_ducklaunch(self, _nick, channel, _args):
         """Handle !ducklaunch command (admin only)"""
         if channel not in self.channels_joined:
             message = self.messages.get('admin_ducklaunch_not_enabled')
@@ -458,36 +621,77 @@ class DuckHuntBot:
         
         # Only send the duck spawn message, no admin notification
         self.send_message(channel, duck_message)
+        self.send_message(channel, duck_message)
     
     
     async def message_loop(self):
-        """Main message processing loop with responsive shutdown"""
+        """Main message processing loop with comprehensive error handling"""
+        consecutive_errors = 0
+        max_consecutive_errors = 10
+        
         try:
             while not self.shutdown_requested and self.reader:
                 try:
                     # Use a timeout on readline to make it more responsive to shutdown
                     line = await asyncio.wait_for(self.reader.readline(), timeout=1.0)
+                    
+                    # Reset error counter on successful read
+                    consecutive_errors = 0
+                    
                 except asyncio.TimeoutError:
                     # Check shutdown flag and continue
                     continue
+                except ConnectionResetError:
+                    self.logger.error("Connection reset by peer")
+                    break
+                except OSError as e:
+                    self.logger.error(f"Network error during read: {e}")
+                    consecutive_errors += 1
+                    if consecutive_errors >= max_consecutive_errors:
+                        self.logger.error("Too many consecutive network errors, breaking message loop")
+                        break
+                    await asyncio.sleep(1)  # Brief delay before retry
+                    continue
+                except Exception as e:
+                    self.logger.error(f"Unexpected error reading from stream: {e}")
+                    consecutive_errors += 1
+                    if consecutive_errors >= max_consecutive_errors:
+                        self.logger.error("Too many consecutive read errors, breaking message loop")
+                        break
+                    continue
                     
+                # Check if connection is closed
                 if not line:
+                    self.logger.info("Connection closed by server")
                     break
                 
-                line = line.decode('utf-8').strip()
+                # Safely decode with comprehensive error handling
+                try:
+                    line = line.decode('utf-8', errors='replace').strip()
+                except (UnicodeDecodeError, AttributeError) as e:
+                    self.logger.warning(f"Failed to decode message: {e}")
+                    continue
+                except Exception as e:
+                    self.logger.error(f"Unexpected error decoding message: {e}")
+                    continue
+                    
                 if not line:
                     continue
                 
+                # Process the message with full error isolation
                 try:
                     prefix, command, params, trailing = parse_irc_message(line)
                     await self.handle_message(prefix, command, params, trailing)
+                except ValueError as e:
+                    self.logger.warning(f"Malformed IRC message ignored: {line[:100]}... Error: {e}")
                 except Exception as e:
-                    self.logger.error(f"Error processing message '{line}': {e}")
+                    self.logger.error(f"Error processing message '{line[:100]}...': {e}")
+                    # Continue processing other messages even if one fails
         
         except asyncio.CancelledError:
             self.logger.info("Message loop cancelled")
         except Exception as e:
-            self.logger.error(f"Message loop error: {e}")
+            self.logger.error(f"Critical message loop error: {e}")
         finally:
             self.logger.info("Message loop ended")
     
@@ -512,10 +716,9 @@ class DuckHuntBot:
             message_task = asyncio.create_task(self.message_loop())
             
             self.logger.info("🦆 Bot is now running! Press Ctrl+C to stop.")
-            
             # Wait for shutdown signal or task completion with frequent checks
             while not self.shutdown_requested:
-                done, pending = await asyncio.wait(
+                done, _pending = await asyncio.wait(
                     [game_task, message_task],
                     timeout=0.1,  # Check every 100ms for shutdown
                     return_when=asyncio.FIRST_COMPLETED
@@ -523,6 +726,7 @@ class DuckHuntBot:
                 
                 # If any task completed, break out
                 if done:
+                    break
                     break
             
             self.logger.info("🔄 Shutdown initiated, cleaning up...")
@@ -560,22 +764,34 @@ class DuckHuntBot:
             self.logger.info("✅ Bot shutdown complete")
     
     async def _close_connection(self):
-        """Close IRC connection quickly"""
-        if self.writer:
-            try:
-                if not self.writer.is_closing():
-                    # Send quit message quickly without waiting
-                    try:
-                        quit_message = self.config.get('quit_message', 'DuckHunt Bot shutting down')
-                        self.send_raw(f"QUIT :{quit_message}")
-                        await asyncio.sleep(0.1)  # Very brief wait
-                    except:
-                        pass  # Don't block on quit message
-                    
+        """Close IRC connection with comprehensive error handling"""
+        if not self.writer:
+            return
+            
+        try:
+            if not self.writer.is_closing():
+                # Send quit message with timeout
+                try:
+                    quit_message = self.config.get('quit_message', 'DuckHunt Bot shutting down')
+                    if self.send_raw(f"QUIT :{quit_message}"):
+                        await asyncio.sleep(0.2)  # Brief wait for message to send
+                except Exception as e:
+                    self.logger.debug(f"Error sending quit message: {e}")
+                
+                # Close the writer
+                try:
                     self.writer.close()
-                    await asyncio.wait_for(self.writer.wait_closed(), timeout=1.0)
-                self.logger.info("🔌 IRC connection closed")
-            except asyncio.TimeoutError:
-                self.logger.warning("⚠️ Connection close timed out - forcing close")
-            except Exception as e:
-                self.logger.error(f"❌ Error closing connection: {e}")
+                    await asyncio.wait_for(self.writer.wait_closed(), timeout=2.0)
+                except asyncio.TimeoutError:
+                    self.logger.warning("⚠️ Connection close timed out - forcing close")
+                except Exception as e:
+                    self.logger.debug(f"Error during connection close: {e}")
+                    
+            self.logger.info("🔌 IRC connection closed")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Critical error closing connection: {e}")
+        finally:
+            # Ensure writer is cleared regardless of errors
+            self.writer = None
+            self.reader = None

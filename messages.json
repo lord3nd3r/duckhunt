@@ -1,8 +1,8 @@
 {
   "duck_spawn": [
-    "・゜゜・。。・゜゜\\_O< {bold}QUACK!{reset}",
-    "・゜゜・。。・゜゜\\_o< {light_grey}quack~{reset}",
-    "・゜゜・。。・゜゜\\_O> {bold}*flap flap*{reset}"
+  "・゜゜・。。・゜゜\\_O< {bold}QUACK!{reset}",
+  "・゜゜・。。・゜゜\\_o< {light_grey}quack~{reset}",
+  "・゜゜・。。・゜゜\\_O> {bold}*flap flap*{reset}"
   ],
   "duck_flies_away": "The {bold}duck{reset} flies away. ·°'`'°-.,¸¸.·°'`",
   "bang_hit": "{nick} > {green}*BANG*{reset} You shot the duck! [{green}+{xp_gained} xp{reset}] [Total ducks: {bold}{ducks_shot}{reset}]",

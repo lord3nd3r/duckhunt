@@ -70,7 +70,11 @@ class DuckGame:
                     
                     for duck in ducks_to_remove:
                         ducks.remove(duck)
-                        message = self.bot.messages.get('duck_flies_away')
+                        # Use appropriate fly away message based on duck type
+                        if duck.get('is_golden', False):
+                            message = self.bot.messages.get('golden_duck_flies_away')
+                        else:
+                            message = self.bot.messages.get('duck_flies_away')
                         self.bot.send_message(channel, message)
                     
                     if not ducks:
@@ -96,16 +100,15 @@ class DuckGame:
         duck = {
             'id': f"duck_{int(time.time())}_{random.randint(1000, 9999)}",
             'spawn_time': time.time(),
-            'channel': channel
+            'channel': channel,
+            'max_hp': 1,
+            'current_hp': 1
         }
-        
-        self.ducks[channel].append(duck)
-        
-        # Send spawn message
+        # Send regular duck spawn message
         message = self.bot.messages.get('duck_spawn')
+        self.logger.info(f"Regular duck spawned in {channel}")
+        self.ducks[channel].append(duck)
         self.bot.send_message(channel, message)
-        
-        self.logger.info(f"Duck spawned in {channel}")
     
     def shoot_duck(self, nick, channel, player):
         """Handle shooting at a duck"""
@@ -151,25 +154,21 @@ class DuckGame:
         
         # Shoot at duck
         player['current_ammo'] = player.get('current_ammo', 1) - 1
-        
         # Calculate hit chance using level-modified accuracy
         modified_accuracy = self.bot.levels.get_modified_accuracy(player)
         hit_chance = modified_accuracy / 100.0
-        
         if random.random() < hit_chance:
-            # Hit! Remove the duck
-            duck = self.ducks[channel].pop(0)
+            # Hit! Get the duck
+            self.ducks[channel].pop(0)
             xp_gained = 10
             old_level = self.bot.levels.calculate_player_level(player)
             player['xp'] = player.get('xp', 0) + xp_gained
             player['ducks_shot'] = player.get('ducks_shot', 0) + 1
             player['accuracy'] = min(player.get('accuracy', 65) + 1, 100)
-            
             # Check if player leveled up and update magazines if needed
             new_level = self.bot.levels.calculate_player_level(player)
             if new_level != old_level:
                 self.bot.levels.update_player_magazines(player)
-            
             self.db.save_database()
             return {
                 'success': True,
