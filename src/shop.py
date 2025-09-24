@@ -178,7 +178,7 @@ class ShopManager:
         
         elif item_type == 'accuracy':
             # Increase accuracy up to 100%
-            current_accuracy = player.get('accuracy', 65)
+            current_accuracy = player.get('accuracy', 75)
             new_accuracy = min(current_accuracy + amount, 100)
             player['accuracy'] = new_accuracy
             return {
@@ -279,7 +279,7 @@ class ShopManager:
         
         elif item_type == 'sabotage_accuracy':
             # Reduce target's accuracy temporarily
-            current_acc = player.get('accuracy', 65)
+            current_acc = player.get('accuracy', 75)
             new_acc = max(current_acc + amount, 10)  # Min 10% accuracy (amount is negative)
             player['accuracy'] = new_acc
             
@@ -323,6 +323,27 @@ class ShopManager:
                 "type": "clean_gun",
                 "reduced": current_jam - new_jam,
                 "new_total": new_jam
+            }
+        
+        elif item_type == 'attract_ducks':
+            # Add bread effect to increase duck spawn rate
+            if 'temporary_effects' not in player:
+                player['temporary_effects'] = []
+            
+            duration = item.get('duration', 600)  # 10 minutes default
+            spawn_multiplier = item.get('spawn_multiplier', 2.0)  # 2x spawn rate default
+            
+            effect = {
+                'type': 'attract_ducks',
+                'spawn_multiplier': spawn_multiplier,
+                'expires_at': time.time() + duration
+            }
+            player['temporary_effects'].append(effect)
+            
+            return {
+                "type": "attract_ducks",
+                "spawn_multiplier": spawn_multiplier,
+                "duration": duration // 60  # return duration in minutes
             }
         
         else:

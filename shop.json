@@ -28,6 +28,14 @@
       "description": "Clean your gun - decreases jam chance by 10%",
       "type": "clean_gun",
       "amount": -10
+    },
+    "5": {
+      "name": "Bread",
+      "price": 50,
+      "description": "Attract ducks - increases duck spawn rate for 20 minutes",
+      "type": "attract_ducks",
+      "duration": 1200,
+      "spawn_multiplier": 2.0
     }
   }
 }

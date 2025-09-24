@@ -35,8 +35,16 @@ class DuckGame:
         try:
             while True:
                 # Wait random time between spawns, but in small chunks for responsiveness
-                min_wait = self.bot.get_config('duck_spawn_min', 300)  # 5 minutes
-                max_wait = self.bot.get_config('duck_spawn_max', 900)  # 15 minutes
+                min_wait = self.bot.get_config('duck_spawning.spawn_min', 300)  # 5 minutes
+                max_wait = self.bot.get_config('duck_spawning.spawn_max', 900)  # 15 minutes
+                
+                # Check for active bread effects to modify spawn timing
+                spawn_multiplier = self._get_active_spawn_multiplier()
+                if spawn_multiplier > 1.0:
+                    # Reduce wait time when bread is active
+                    min_wait = int(min_wait / spawn_multiplier)
+                    max_wait = int(max_wait / spawn_multiplier)
+                
                 wait_time = random.randint(min_wait, max_wait)
                 
                 # Sleep in 1-second intervals to allow for quick cancellation
@@ -65,12 +73,9 @@ class DuckGame:
                 for channel, ducks in self.ducks.items():
                     ducks_to_remove = []
                     for duck in ducks:
-                        # Different timeouts for different duck types
+                        # Get timeout for each duck type from config
                         duck_type = duck.get('duck_type', 'normal')
-                        if duck_type == 'fast':
-                            timeout = self.bot.get_config('fast_duck_timeout', 30)
-                        else:
-                            timeout = self.bot.get_config('duck_timeout', 60)
+                        timeout = self.bot.get_config(f'duck_types.{duck_type}.timeout', 60)
                         
                         if current_time - duck['spawn_time'] > timeout:
                             ducks_to_remove.append(duck)
@@ -94,6 +99,9 @@ class DuckGame:
                 for channel in channels_to_clear:
                     if channel in self.ducks and not self.ducks[channel]:
                         del self.ducks[channel]
+                
+                # Clean expired effects every loop iteration
+                self._clean_expired_effects()
         
         except asyncio.CancelledError:
             self.logger.info("Duck timeout loop cancelled")
@@ -175,8 +183,8 @@ class DuckGame:
                 'message_args': {'nick': nick}
             }
         
-        # Check for gun jamming
-        jam_chance = player.get('jam_chance', 5) / 100.0  # Convert percentage to decimal
+        # Check for gun jamming using level-based jam chance
+        jam_chance = self.bot.levels.get_jam_chance(player) / 100.0  # Convert percentage to decimal
         if random.random() < jam_chance:
             # Gun jammed! Use ammo but don't shoot
             player['current_ammo'] = player.get('current_ammo', 1) - 1
@@ -216,7 +224,9 @@ class DuckGame:
                 
                 if duck['current_hp'] > 0:
                     # Still alive, reveal it's golden but don't remove
-                    player['accuracy'] = min(player.get('accuracy', 65) + 1, 100)
+                    accuracy_gain = self.bot.get_config('accuracy_gain_on_hit', 1)
+                    max_accuracy = self.bot.get_config('max_accuracy', 100)
+                    player['accuracy'] = min(player.get('accuracy', self.bot.get_config('default_accuracy', 75)) + accuracy_gain, max_accuracy)
                     self.db.save_database()
                     return {
                         'success': True,
@@ -241,14 +251,16 @@ class DuckGame:
             else:
                 # Normal duck
                 self.ducks[channel].pop(0)
-                xp_gained = 10
+                xp_gained = self.bot.get_config('normal_duck_xp', 10)
                 message_key = 'bang_hit'
             
             # Apply XP and level changes
             old_level = self.bot.levels.calculate_player_level(player)
             player['xp'] = player.get('xp', 0) + xp_gained
             player['ducks_shot'] = player.get('ducks_shot', 0) + 1
-            player['accuracy'] = min(player.get('accuracy', 65) + 1, 100)
+            accuracy_gain = self.bot.get_config('accuracy_gain_on_hit', 1)
+            max_accuracy = self.bot.get_config('max_accuracy', 100)
+            player['accuracy'] = min(player.get('accuracy', self.bot.get_config('default_accuracy', 75)) + accuracy_gain, max_accuracy)
             
             # Check if player leveled up and update magazines if needed
             new_level = self.bot.levels.calculate_player_level(player)
@@ -272,7 +284,9 @@ class DuckGame:
             }
         else:
             # Miss! Duck stays in the channel
-            player['accuracy'] = max(player.get('accuracy', 65) - 2, 10)
+            accuracy_loss = self.bot.get_config('accuracy_loss_on_miss', 2)
+            min_accuracy = self.bot.get_config('min_accuracy', 10)
+            player['accuracy'] = max(player.get('accuracy', self.bot.get_config('default_accuracy', 75)) - accuracy_loss, min_accuracy)
             self.db.save_database()
             return {
                 'success': True,
@@ -309,8 +323,8 @@ class DuckGame:
             # Success - befriend the duck
             duck = self.ducks[channel].pop(0)
             
-            # Lower XP gain than shooting (5 instead of 10)
-            xp_gained = 5
+            # Lower XP gain than shooting
+            xp_gained = self.bot.get_config('befriend_duck_xp', 5)
             old_level = self.bot.levels.calculate_player_level(player)
             player['xp'] = player.get('xp', 0) + xp_gained
             player['ducks_befriended'] = player.get('ducks_befriended', 0) + 1
@@ -408,3 +422,44 @@ class DuckGame:
                 self.logger.info(f"Auto-rearmed {rearmed_count} disarmed players after duck shot")
         except Exception as e:
             self.logger.error(f"Error in _rearm_all_disarmed_players: {e}")
+    
+    def _get_active_spawn_multiplier(self):
+        """Get the current spawn rate multiplier from active bread effects"""
+        import time
+        max_multiplier = 1.0
+        current_time = time.time()
+        
+        try:
+            for player_name, player_data in self.db.players.items():
+                effects = player_data.get('temporary_effects', [])
+                for effect in effects:
+                    if (effect.get('type') == 'attract_ducks' and 
+                        effect.get('expires_at', 0) > current_time):
+                        multiplier = effect.get('spawn_multiplier', 1.0)
+                        max_multiplier = max(max_multiplier, multiplier)
+            
+            return max_multiplier
+        except Exception as e:
+            self.logger.error(f"Error getting spawn multiplier: {e}")
+            return 1.0
+    
+    def _clean_expired_effects(self):
+        """Remove expired temporary effects from all players"""
+        import time
+        current_time = time.time()
+        
+        try:
+            for player_name, player_data in self.db.players.items():
+                effects = player_data.get('temporary_effects', [])
+                active_effects = []
+                
+                for effect in effects:
+                    if effect.get('expires_at', 0) > current_time:
+                        active_effects.append(effect)
+                
+                if len(active_effects) != len(effects):
+                    player_data['temporary_effects'] = active_effects
+                    self.logger.debug(f"Cleaned expired effects for {player_name}")
+                    
+        except Exception as e:
+            self.logger.error(f"Error cleaning expired effects: {e}")

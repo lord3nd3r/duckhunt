@@ -26,7 +26,7 @@ class DuckHuntBot:
         self.channels_joined = set()
         self.shutdown_requested = False
         
-        self.db = DuckDB()
+        self.db = DuckDB(bot=self)
         self.game = DuckGame(self, self.db)
         self.messages = MessageManager()
         
@@ -97,8 +97,8 @@ class DuckHuntBot:
     
     async def connect(self):
         """Connect to IRC server with comprehensive error handling"""
-        max_retries = 3
-        retry_delay = 5
+        max_retries = self.get_config('connection.max_retries', 3) or 3
+        retry_delay = self.get_config('connection.retry_delay', 5) or 5
         
         for attempt in range(max_retries):
             try:
@@ -117,7 +117,7 @@ class DuckHuntBot:
                         self.config['port'],
                         ssl=ssl_context
                     ),
-                    timeout=30.0  # 30 second connection timeout
+                    timeout=self.get_config('connection.timeout', 30) or 30.0  # Connection timeout from config
                 )
                 
                 self.logger.info(f"✅ Successfully connected to {self.config['server']}:{self.config['port']}")
@@ -454,7 +454,7 @@ class DuckHuntBot:
         xp = player.get('xp', 0)
         ducks_shot = player.get('ducks_shot', 0)
         ducks_befriended = player.get('ducks_befriended', 0)
-        accuracy = player.get('accuracy', 65)
+        accuracy = player.get('accuracy', self.get_config('player_defaults.accuracy', 75))
         
         # Ammo info
         current_ammo = player.get('current_ammo', 0)
@@ -531,13 +531,24 @@ class DuckHuntBot:
             if not result["success"]:
                 message = f"{nick} > {result['message']}"
             else:
-                if result.get("target_affected"):
+                # Handle specific item effect messages
+                effect = result.get('effect', {})
+                effect_type = effect.get('type', '')
+                
+                if effect_type == 'attract_ducks':
+                    # Use specific message for bread
+                    message = self.messages.get('use_attract_ducks', 
+                        nick=nick, 
+                        spawn_multiplier=effect.get('spawn_multiplier', 2.0),
+                        duration=effect.get('duration', 10)
+                    )
+                elif result.get("target_affected"):
                     message = f"{nick} > Used {result['item_name']} on {target_nick}!"
                 else:
                     message = f"{nick} > Used {result['item_name']}!"
                 
-                # Add remaining count if any
-                if result.get("remaining_in_inventory", 0) > 0:
+                # Add remaining count if any (not for bread message which has its own format)
+                if effect_type != 'attract_ducks' and result.get("remaining_in_inventory", 0) > 0:
                     message += f" ({result['remaining_in_inventory']} remaining)"
             
             self.send_message(channel, message)

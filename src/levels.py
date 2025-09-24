@@ -141,7 +141,7 @@ class LevelManager:
     
     def get_modified_accuracy(self, player: Dict[str, Any]) -> int:
         """Get player's accuracy modified by their level"""
-        base_accuracy = player.get('accuracy', 65)
+        base_accuracy = player.get('accuracy', 75)  # This will be updated by bot config in create_player
         level_info = self.get_player_level_info(player)
         modifier = level_info.get('accuracy_modifier', 0)
         
@@ -154,8 +154,19 @@ class LevelManager:
         level_info = self.get_player_level_info(player)
         level_rate = level_info.get('befriend_success_rate', base_rate)
         
-        # Return as percentage (0-100)
+        # Return as percentage (0-100) - these will be configurable later if bot reference is available
         return max(5.0, min(95.0, level_rate))
+    
+    def get_jam_chance(self, player: Dict[str, Any]) -> float:
+        """Get player's gun jam chance based on their level"""
+        level_info = self.get_player_level_info(player)
+        level_data = self.get_level_data(level_info['level'])
+        
+        if level_data and 'jam_chance' in level_data:
+            return level_data['jam_chance']
+        
+        # Fallback to old system if no level-specific jam chance
+        return player.get('jam_chance', 5)
     
     def get_duck_spawn_modifier(self, player_levels: list) -> float:
         """Get duck spawn speed modifier based on highest level player in channel"""

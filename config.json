@@ -1,30 +1,77 @@
 {
-    "server": "irc.rizon.net",
-    "port": 6697,
-    "nick": "DickHunt",
-    "channels": ["#ct"],
-    "ssl": true,
+    "connection": {
+        "server": "irc.rizon.net",
+        "port": 6697,
+        "nick": "DickHunt",
+        "channels": ["#ct"],
+        "ssl": true,
+        "password": "your_iline_password_here",
+        "max_retries": 3,
+        "retry_delay": 5,
+        "timeout": 30
+    },
+    
     "sasl": {
         "enabled": false,
         "username": "duckhunt",
         "password": "duckhunt//789//"
     },
-    "password": "your_iline_password_here",
+    
     "admins": ["peorth", "computertech", "colby"],
     
-    "duck_spawn_min": 10,
-    "duck_spawn_max": 30,
-    "duck_timeout": 60,
-    "befriend_success_rate": 75,
-    "rearm_on_duck_shot": true,
+    "duck_spawning": {
+        "spawn_min": 10,
+        "spawn_max": 30,
+        "timeout": 60,
+        "rearm_on_duck_shot": true
+    },
     
-    "golden_duck_chance": 0.15,
-    "golden_duck_min_hp": 3,
-    "golden_duck_max_hp": 5,
-    "golden_duck_xp": 15,
+    "duck_types": {
+        "normal": {
+            "xp": 10,
+            "timeout": 60
+        },
+        "golden": {
+            "chance": 0.15,
+            "min_hp": 3,
+            "max_hp": 5,
+            "xp": 15,
+            "timeout": 50
+        },
+        "fast": {
+            "chance": 0.25,
+            "timeout": 20,
+            "xp": 20
+        }
+    },
     
-    "fast_duck_chance": 0.25,
-    "fast_duck_timeout": 30,
-    "fast_duck_xp": 12
+    "player_defaults": {
+        "accuracy": 75,
+        "magazines": 3,
+        "bullets_per_magazine": 6,
+        "jam_chance": 5,
+        "xp": 0
+    },
     
+    "gameplay": {
+        "befriend_success_rate": 75,
+        "befriend_xp": 5,
+        "accuracy_gain_on_hit": 1,
+        "accuracy_loss_on_miss": 2,
+        "min_accuracy": 10,
+        "max_accuracy": 100,
+        "min_befriend_success_rate": 5,
+        "max_befriend_success_rate": 95
+    },
+    
+    "features": {
+        "shop_enabled": true,
+        "inventory_enabled": true,
+        "auto_rearm_enabled": true
+    },
+    
+    "limits": {
+        "max_inventory_items": 20,
+        "max_temp_effects": 5
+    }
 }

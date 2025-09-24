@@ -12,8 +12,9 @@ import os
 class DuckDB:
     """Simplified database management"""
     
-    def __init__(self, db_file="duckhunt.json"):
+    def __init__(self, db_file="duckhunt.json", bot=None):
         self.db_file = db_file
+        self.bot = bot
         self.players = {}
         self.logger = logging.getLogger('DuckHuntBot.DB')
         self.load_database()
@@ -67,7 +68,9 @@ class DuckDB:
             sanitized['xp'] = max(0, int(player_data.get('xp', 0)))  # Non-negative XP
             sanitized['ducks_shot'] = max(0, int(player_data.get('ducks_shot', 0)))
             sanitized['ducks_befriended'] = max(0, int(player_data.get('ducks_befriended', 0)))
-            sanitized['accuracy'] = max(0, min(100, int(player_data.get('accuracy', 65))))  # 0-100 range
+            default_accuracy = self.bot.get_config('default_accuracy', 75) if self.bot else 75
+            max_accuracy = self.bot.get_config('max_accuracy', 100) if self.bot else 100
+            sanitized['accuracy'] = max(0, min(max_accuracy, int(player_data.get('accuracy', default_accuracy))))  # 0-max_accuracy range
             sanitized['gun_confiscated'] = bool(player_data.get('gun_confiscated', False))
             
             # Ammo system with validation
@@ -209,23 +212,38 @@ class DuckDB:
             return self.create_player(nick)
     
     def create_player(self, nick):
-        """Create a new player with basic stats and validation"""
+        """Create a new player with configurable starting stats and inventory"""
         try:
             # Sanitize nick
             safe_nick = str(nick)[:50] if nick else 'Unknown'
             
+            # Get configurable defaults from bot config
+            if self.bot:
+                accuracy = self.bot.get_config('player_defaults.accuracy', 75)
+                magazines = self.bot.get_config('player_defaults.magazines', 3)
+                bullets_per_mag = self.bot.get_config('player_defaults.bullets_per_magazine', 6)
+                jam_chance = self.bot.get_config('player_defaults.jam_chance', 5)
+                xp = self.bot.get_config('player_defaults.xp', 0)
+            else:
+                # Fallback defaults if no bot config available
+                accuracy = 75
+                magazines = 3
+                bullets_per_mag = 6
+                jam_chance = 5
+                xp = 0
+            
             return {
                 'nick': safe_nick,
-                'xp': 0,
+                'xp': xp,
                 'ducks_shot': 0,
                 'ducks_befriended': 0,
-                'current_ammo': 6,  # Bullets in current magazine
-                'magazines': 3,     # Total magazines (including current)
-                'bullets_per_magazine': 6,  # Bullets per magazine
-                'accuracy': 65,
-                'jam_chance': 5,    # 5% base gun jamming chance
+                'current_ammo': bullets_per_mag,  # Bullets in current magazine
+                'magazines': magazines,     # Total magazines (including current)  
+                'bullets_per_magazine': bullets_per_mag,  # Bullets per magazine
+                'accuracy': accuracy,     # Starting accuracy from config
+                'jam_chance': jam_chance,    # Base gun jamming chance from config
                 'gun_confiscated': False,
-                'inventory': {},  # {item_id: quantity}
+                'inventory': {},  # Empty starting inventory
                 'temporary_effects': []  # List of temporary effects
             }
         except Exception as e:
@@ -238,7 +256,7 @@ class DuckDB:
                 'current_ammo': 6,
                 'magazines': 3,
                 'bullets_per_magazine': 6,
-                'accuracy': 65,
+                'accuracy': 75,
                 'jam_chance': 5,
                 'gun_confiscated': False,
                 'inventory': {},

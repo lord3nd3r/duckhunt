@@ -640,3 +640,14 @@
 2025-09-23 20:12:39,664 [INFO    ] DuckHuntBot - run:535: 💾 Database saved
 2025-09-23 20:12:39,766 [INFO    ] DuckHuntBot - _close_connection:559: 🔌 IRC connection closed
 2025-09-23 20:12:39,766 [INFO    ] DuckHuntBot - run:542: ✅ Bot shutdown complete
+2025-09-24 16:45:23,678 [INFO    ] DuckHuntBot - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-24 16:45:23,679 [INFO    ] DuckHuntBot.DB - load_database:47: Loaded 1 players from duckhunt.json
+2025-09-24 16:45:23,681 [INFO    ] SASL - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-24 16:45:23,682 [INFO    ] DuckHuntBot.Shop - load_items:30: Loaded 4 shop items from /home/colby/duckhunt/shop.json
+2025-09-24 16:45:23,683 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
+2025-09-24 18:56:53,426 [INFO    ] DuckHuntBot - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-24 18:56:53,428 [INFO    ] DuckHuntBot.DB - load_database:47: Loaded 1 players from duckhunt.json
+2025-09-24 18:56:53,431 [INFO    ] SASL - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-24 18:56:53,434 [INFO    ] DuckHuntBot.Shop - load_items:30: Loaded 5 shop items from /home/colby/duckhunt/shop.json
+2025-09-24 18:56:53,436 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
+2025-09-24 18:56:53,439 [INFO    ] DuckHuntBot.DB - load_database:47: Loaded 1 players from duckhunt.json
