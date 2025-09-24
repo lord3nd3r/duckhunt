@@ -78,13 +78,11 @@ class DuckHuntBot:
     
     def setup_signal_handlers(self):
         """Setup signal handlers for immediate shutdown"""
-        def signal_handler(signum, frame):
-    def setup_signal_handlers(self):
-        """Setup signal handlers for immediate shutdown"""
         def signal_handler(signum, _frame):
             signal_name = "SIGINT" if signum == signal.SIGINT else "SIGTERM"
             self.logger.info(f"🛑 Received {signal_name} (Ctrl+C), shutting down immediately...")
             self.shutdown_requested = True
+            try:
                 # Get the current event loop and cancel all tasks
                 loop = asyncio.get_running_loop()
                 tasks = [t for t in asyncio.all_tasks(loop) if not t.done()]
@@ -552,9 +550,6 @@ class DuckHuntBot:
     async def handle_rearm(self, nick, channel, args):
         """Handle !rearm command (admin only)"""
         if args:
-    async def handle_rearm(self, nick, channel, args):
-        """Handle !rearm command (admin only)"""
-        if args:
             target = args[0].lower()
             player = self.db.get_player(target)
             if player is None:
@@ -582,6 +577,9 @@ class DuckHuntBot:
             self.send_message(channel, message)
         
         self.db.save_database()
+
+    async def handle_disarm(self, nick, channel, args):
+        """Handle !disarm command (admin only)"""
         def disarm_player(player):
             player['gun_confiscated'] = True
         
@@ -606,6 +604,7 @@ class DuckHuntBot:
         self._handle_single_target_admin_command(
             args, 'usage_unignore', unignore_player, 'admin_unignore', nick, channel
         )
+
     async def handle_ducklaunch(self, _nick, channel, _args):
         """Handle !ducklaunch command (admin only)"""
         if channel not in self.channels_joined:
@@ -620,7 +619,6 @@ class DuckHuntBot:
         duck_message = self.messages.get('duck_spawn')
         
         # Only send the duck spawn message, no admin notification
-        self.send_message(channel, duck_message)
         self.send_message(channel, duck_message)
     
     
