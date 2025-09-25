@@ -2,30 +2,33 @@
     "connection": {
         "server": "irc.rizon.net",
         "port": 6697,
-        "nick": "DickHunt",
-        "channels": ["#ct"],
+        "nick": "DuckHunt",
+        "channels": [
+            "#ct"
+        ],
         "ssl": true,
-        "password": "your_iline_password_here",
+        "password": "duckyhunt789",
         "max_retries": 3,
         "retry_delay": 5,
         "timeout": 30
     },
-    
     "sasl": {
-        "enabled": false,
+        "enabled": true,
         "username": "duckhunt",
         "password": "duckhunt//789//"
     },
     
-    "admins": ["peorth", "computertech", "colby"],
-    
+    "admins": [
+        "peorth",
+        "computertech",
+        "colby"
+    ],
     "duck_spawning": {
         "spawn_min": 10,
         "spawn_max": 30,
         "timeout": 60,
         "rearm_on_duck_shot": true
     },
-    
     "duck_types": {
         "normal": {
             "xp": 10,
@@ -44,7 +47,6 @@
             "xp": 12
         }
     },
-    
     "player_defaults": {
         "accuracy": 75,
         "magazines": 3,
@@ -52,7 +54,6 @@
         "jam_chance": 15,
         "xp": 0
     },
-    
     "gameplay": {
         "befriend_success_rate": 75,
         "befriend_xp": 5,
@@ -63,15 +64,29 @@
         "min_befriend_success_rate": 5,
         "max_befriend_success_rate": 95
     },
-    
     "features": {
         "shop_enabled": true,
         "inventory_enabled": true,
         "auto_rearm_enabled": true
     },
-    
     "limits": {
         "max_inventory_items": 20,
         "max_temp_effects": 20
+    },
+    "debug": {
+        "_comment_enabled": "Whether debug logging is enabled at all (true=debug mode, false=minimal logging)",
+        "enabled": true,
+        "_comment_log_level": "Overall logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        "log_level": "DEBUG",
+        "_comment_console_level": "Console output level - what shows in terminal (DEBUG, INFO, WARNING, ERROR)",
+        "console_log_level": "INFO",
+        "_comment_file_level": "File logging level - what gets written to log files (DEBUG, INFO, WARNING, ERROR)",
+        "file_log_level": "DEBUG",
+        "_comment_log_everything": "If true, logs ALL events. If false, logs only important events",
+        "log_everything": true,
+        "_comment_log_performance": "Whether to enable performance/metrics logging to performance.log",
+        "log_performance": true,
+        "_comment_unified_format": "If true, console and file logs use same format. If false, console has colors, file is plain",
+        "unified_format": true
     }
 }

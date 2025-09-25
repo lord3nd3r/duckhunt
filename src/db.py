@@ -262,3 +262,27 @@ class DuckDB:
                 'inventory': {},
                 'temporary_effects': []
             }
+
+    def get_leaderboard(self, category='xp', limit=3):
+        """Get top players by specified category"""
+        try:
+            # Create list of (nick, value) tuples
+            leaderboard = []
+            
+            for nick, player_data in self.players.items():
+                if category == 'xp':
+                    value = player_data.get('xp', 0)
+                elif category == 'ducks_shot':
+                    value = player_data.get('ducks_shot', 0)
+                else:
+                    continue
+                    
+                leaderboard.append((nick, value))
+            
+            # Sort by value (descending) and take top N
+            leaderboard.sort(key=lambda x: x[1], reverse=True)
+            return leaderboard[:limit]
+            
+        except Exception as e:
+            self.logger.error(f"Error getting leaderboard for {category}: {e}")
+            return []

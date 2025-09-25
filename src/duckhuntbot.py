@@ -26,6 +26,8 @@ class DuckHuntBot:
         self.channels_joined = set()
         self.shutdown_requested = False
         
+        self.logger.info("🤖 Initializing DuckHunt Bot components...")
+        
         self.db = DuckDB(bot=self)
         self.game = DuckGame(self, self.db)
         self.messages = MessageManager()
@@ -34,6 +36,7 @@ class DuckHuntBot:
         
         admins_list = self.get_config('admins', ['colby']) or ['colby']
         self.admins = [admin.lower() for admin in admins_list]
+        self.logger.info(f"👑 Configured {len(self.admins)} admin(s): {', '.join(self.admins)}")
         
         # Initialize shop manager
         shop_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shop.json')
@@ -184,12 +187,17 @@ class DuckHuntBot:
             self.logger.error(f"Error sanitizing/sending message: {e}")
             return False
     
-    async def register_user(self):
-        """Register user with IRC server"""
+    async def send_server_password(self):
+        """Send server password if configured (must be sent immediately after connection)"""
         password = self.get_config('connection.password')
         if password and password != "your_iline_password_here":
+            self.logger.info("🔐 Sending server password")
             self.send_raw(f"PASS {password}")
-        
+            return True
+        return False
+
+    async def register_user(self):
+        """Register user with IRC server (NICK/USER commands)"""
         nick = self.get_config('connection.nick', 'DuckHunt')
         self.send_raw(f"NICK {nick}")
         self.send_raw(f"USER {nick} 0 * :{nick}")
@@ -327,6 +335,8 @@ class DuckHuntBot:
                 await self.handle_shop(nick, channel, player, args)
             elif cmd == "duckstats":
                 await self.handle_duckstats(nick, channel, player)
+            elif cmd == "topduck":
+                await self.handle_topduck(nick, channel)
             elif cmd == "use":
                 await self.handle_use(nick, channel, player, args)
             elif cmd == "duckhelp":
@@ -496,6 +506,45 @@ class DuckHuntBot:
         for line in stats_lines:
             self.send_message(channel, line)
     
+    async def handle_topduck(self, nick, channel):
+        """Handle !topduck command - show leaderboards"""
+        try:
+            # Apply color formatting
+            bold = self.messages.messages.get('colours', {}).get('bold', '')
+            reset = self.messages.messages.get('colours', {}).get('reset', '')
+            
+            # Get top 3 by XP
+            top_xp = self.db.get_leaderboard('xp', 3)
+            
+            # Get top 3 by ducks shot
+            top_ducks = self.db.get_leaderboard('ducks_shot', 3)
+            
+            # Format XP leaderboard as single line
+            if top_xp:
+                xp_rankings = []
+                for i, (player_nick, xp) in enumerate(top_xp, 1):
+                    medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
+                    xp_rankings.append(f"{medal}{player_nick}:{xp}XP")
+                xp_line = f"🏆 {bold}Top XP{reset} " + " | ".join(xp_rankings)
+                self.send_message(channel, xp_line)
+            else:
+                self.send_message(channel, "🏆 No XP data available yet!")
+            
+            # Format ducks shot leaderboard as single line
+            if top_ducks:
+                duck_rankings = []
+                for i, (player_nick, ducks) in enumerate(top_ducks, 1):
+                    medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
+                    duck_rankings.append(f"{medal}{player_nick}:{ducks}")
+                duck_line = f"🦆 {bold}Top Hunters{reset} " + " | ".join(duck_rankings)
+                self.send_message(channel, duck_line)
+            else:
+                self.send_message(channel, "🦆 No duck hunting data available yet!")
+                
+        except Exception as e:
+            self.logger.error(f"Error in handle_topduck: {e}")
+            self.send_message(channel, f"{nick} > Error retrieving leaderboard data.")
+    
     async def handle_duckhelp(self, nick, channel, _player):
         """Handle !duckhelp command"""
         help_lines = [
@@ -565,7 +614,9 @@ class DuckHuntBot:
             self.send_message(channel, message)
     
     async def handle_rearm(self, nick, channel, args):
-        """Handle !rearm command (admin only)"""
+        """Handle !rearm command (admin only) - supports private messages"""
+        is_private_msg = not channel.startswith('#')
+        
         if args:
             target = args[0].lower()
             player = self.db.get_player(target)
@@ -577,10 +628,17 @@ class DuckHuntBot:
             self.levels.update_player_magazines(player)
             player['current_ammo'] = player.get('bullets_per_magazine', 6)
             
-            message = self.messages.get('admin_rearm_player', target=target, admin=nick)
+            if is_private_msg:
+                message = f"{nick} > Rearmed {target}"
+            else:
+                message = self.messages.get('admin_rearm_player', target=target, admin=nick)
             self.send_message(channel, message)
         else:
-            # Rearm the admin themselves
+            if is_private_msg:
+                self.send_message(channel, f"{nick} > Usage: !rearm <player>")
+                return
+            
+            # Rearm the admin themselves (only in channels)
             player = self.db.get_player(nick)
             if player is None:
                 player = {}
@@ -596,47 +654,162 @@ class DuckHuntBot:
         self.db.save_database()
 
     async def handle_disarm(self, nick, channel, args):
-        """Handle !disarm command (admin only)"""
-        def disarm_player(player):
-            player['gun_confiscated'] = True
+        """Handle !disarm command (admin only) - supports private messages"""
+        is_private_msg = not channel.startswith('#')
         
-        self._handle_single_target_admin_command(
-            args, 'usage_disarm', disarm_player, 'admin_disarm', nick, channel
-        )
-    
-    async def handle_ignore(self, nick, channel, args):
-        """Handle !ignore command (admin only)"""
-        def ignore_player(player):
-            player['ignored'] = True
-        
-        self._handle_single_target_admin_command(
-            args, 'usage_ignore', ignore_player, 'admin_ignore', nick, channel
-        )
-    
-    async def handle_unignore(self, nick, channel, args):
-        """Handle !unignore command (admin only)"""
-        def unignore_player(player):
-            player['ignored'] = False
-        
-        self._handle_single_target_admin_command(
-            args, 'usage_unignore', unignore_player, 'admin_unignore', nick, channel
-        )
-
-    async def handle_ducklaunch(self, _nick, channel, _args):
-        """Handle !ducklaunch command (admin only)"""
-        if channel not in self.channels_joined:
-            message = self.messages.get('admin_ducklaunch_not_enabled')
-            self.send_message(channel, message)
+        if not args:
+            if is_private_msg:
+                self.send_message(channel, f"{nick} > Usage: !disarm <player>")
+            else:
+                message = self.messages.get('usage_disarm')
+                self.send_message(channel, message)
             return
         
-        # Force spawn a duck
-        if channel not in self.game.ducks:
-            self.game.ducks[channel] = []
-        self.game.ducks[channel].append({"spawn_time": time.time()})
+        target = args[0].lower()
+        player = self.db.get_player(target)
+        if player is None:
+            player = {}
+        player['gun_confiscated'] = True
+        
+        if is_private_msg:
+            message = f"{nick} > Disarmed {target}"
+        else:
+            message = self.messages.get('admin_disarm', target=target, admin=nick)
+        
+        self.send_message(channel, message)
+        self.db.save_database()
+    
+    async def handle_ignore(self, nick, channel, args):
+        """Handle !ignore command (admin only) - supports private messages"""
+        is_private_msg = not channel.startswith('#')
+        
+        if not args:
+            if is_private_msg:
+                self.send_message(channel, f"{nick} > Usage: !ignore <player>")
+            else:
+                message = self.messages.get('usage_ignore')
+                self.send_message(channel, message)
+            return
+        
+        target = args[0].lower()
+        player = self.db.get_player(target)
+        if player is None:
+            player = {}
+        player['ignored'] = True
+        
+        if is_private_msg:
+            message = f"{nick} > Ignored {target}"
+        else:
+            message = self.messages.get('admin_ignore', target=target, admin=nick)
+        
+        self.send_message(channel, message)
+        self.db.save_database()
+    
+    async def handle_unignore(self, nick, channel, args):
+        """Handle !unignore command (admin only) - supports private messages"""
+        is_private_msg = not channel.startswith('#')
+        
+        if not args:
+            if is_private_msg:
+                self.send_message(channel, f"{nick} > Usage: !unignore <player>")
+            else:
+                message = self.messages.get('usage_unignore')
+                self.send_message(channel, message)
+            return
+        
+        target = args[0].lower()
+        player = self.db.get_player(target)
+        if player is None:
+            player = {}
+        player['ignored'] = False
+        
+        if is_private_msg:
+            message = f"{nick} > Unignored {target}"
+        else:
+            message = self.messages.get('admin_unignore', target=target, admin=nick)
+        
+        self.send_message(channel, message)
+        self.db.save_database()
+
+    async def handle_ducklaunch(self, nick, channel, args):
+        """Handle !ducklaunch command (admin only) - supports duck type specification"""
+        # For private messages, need to specify a target channel
+        target_channel = channel
+        is_private_msg = not channel.startswith('#')
+        
+        if is_private_msg:
+            if not args:
+                self.send_message(channel, f"{nick} > Usage: !ducklaunch [channel] [duck_type] - duck_type can be: normal, golden, fast")
+                return
+            target_channel = args[0]
+            duck_type_arg = args[1] if len(args) > 1 else "normal"
+        else:
+            duck_type_arg = args[0] if args else "normal"
+        
+        # Validate target channel
+        if target_channel not in self.channels_joined:
+            if is_private_msg:
+                self.send_message(channel, f"{nick} > Channel {target_channel} is not available for duckhunt")
+            else:
+                message = self.messages.get('admin_ducklaunch_not_enabled')
+                self.send_message(channel, message)
+            return
+        
+        # Validate duck type
+        duck_type_arg = duck_type_arg.lower()
+        valid_types = ["normal", "golden", "fast"]
+        if duck_type_arg not in valid_types:
+            self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {', '.join(valid_types)}")
+            return
+        
+        # Force spawn the specified duck type
+        import time
+        import random
+        
+        if target_channel not in self.game.ducks:
+            self.game.ducks[target_channel] = []
+        
+        # Create duck based on specified type
+        current_time = time.time()
+        duck_id = f"{duck_type_arg}_duck_{int(current_time)}_{random.randint(1000, 9999)}"
+        
+        if duck_type_arg == "golden":
+            min_hp_val = self.get_config('duck_types.golden.min_hp', 3)
+            max_hp_val = self.get_config('duck_types.golden.max_hp', 5)
+            min_hp = int(min_hp_val) if min_hp_val is not None else 3
+            max_hp = int(max_hp_val) if max_hp_val is not None else 5
+            hp = random.randint(min_hp, max_hp)
+            duck = {
+                'id': duck_id,
+                'spawn_time': current_time,
+                'channel': target_channel,
+                'duck_type': 'golden',
+                'max_hp': hp,
+                'current_hp': hp
+            }
+        else:
+            # Both normal and fast ducks have 1 HP
+            duck = {
+                'id': duck_id,
+                'spawn_time': current_time,
+                'channel': target_channel,
+                'duck_type': duck_type_arg,
+                'max_hp': 1,
+                'current_hp': 1
+            }
+        
+        self.game.ducks[target_channel].append(duck)
         duck_message = self.messages.get('duck_spawn')
         
-        # Only send the duck spawn message, no admin notification
-        self.send_message(channel, duck_message)
+        # Send duck spawn message to target channel
+        self.send_message(target_channel, duck_message)
+        
+        # Send confirmation to admin (either in channel or private message)
+        if is_private_msg:
+            self.send_message(channel, f"{nick} > Launched {duck_type_arg} duck in {target_channel}")
+        else:
+            # In channel, only send the duck message (no admin notification to avoid spam)
+            pass
     
     
     async def message_loop(self):
@@ -719,6 +892,9 @@ class DuckHuntBot:
         
         try:
             await self.connect()
+            
+            # Send server password immediately after connection (RFC requirement)
+            await self.send_server_password()
             
             # Check if SASL should be used
             if self.sasl_handler.should_authenticate():

@@ -2,17 +2,18 @@
   "players": {
     "computertech": {
       "nick": "ComputerTech",
-      "xp": 45,
-      "ducks_shot": 4,
-      "accuracy": 61,
+      "xp": 60,
+      "ducks_shot": 5,
+      "ducks_befriended": 2,
+      "accuracy": 62,
       "gun_confiscated": false,
-      "ducks_befriended": 1,
-      "inventory": {},
-      "temporary_effects": [],
-      "current_ammo": 6,
+      "current_ammo": 5,
       "magazines": 3,
-      "bullets_per_magazine": 6
+      "bullets_per_magazine": 6,
+      "jam_chance": 5,
+      "inventory": {},
+      "temporary_effects": []
     }
   },
-  "last_save": "1758654759.6627305"
+  "last_save": "1758825127.4272072"
 }
