@@ -374,7 +374,7 @@ class DuckHuntBot:
             elif cmd == "shop":
                 await self.handle_shop(nick, channel, player, args)
             elif cmd == "duckstats":
-                await self.handle_duckstats(nick, channel, player)
+                await self.handle_duckstats(nick, channel, player, args)
             elif cmd == "topduck":
                 await self.handle_topduck(nick, channel)
             elif cmd == "use":
@@ -434,11 +434,9 @@ class DuckHuntBot:
         if not has_activity:
             return False, None, f"Player '{target_nick}' has no hunting activity. They may not be an active hunter."
         
-        # Check if player is currently in the channel (for channel messages only)
-        if channel.startswith('#'):
-            is_in_channel = self.is_user_in_channel_sync(target_nick, channel)
-            if not is_in_channel:
-                return False, None, f"Player '{target_nick}' is not currently in {channel}."
+        # Skip channel membership check - it causes more problems than it solves
+        # If an admin is targeting someone, they probably have a good reason
+        # The activity check above is sufficient validation
         
         return True, player, None
     
@@ -567,8 +565,23 @@ class DuckHuntBot:
         self.send_message(channel, message)
         self.db.save_database()
     
-    async def handle_duckstats(self, nick, channel, player):
+    async def handle_duckstats(self, nick, channel, player, args=None):
         """Handle !duckstats command"""
+        # Check if targeting another player
+        if args and len(args) > 0:
+            target_nick = args[0]
+            target_player = self.db.get_player(target_nick)
+            if not target_player:
+                message = f"{nick} > Player '{target_nick}' not found."
+                self.send_message(channel, message)
+                return
+            # Show target's stats
+            display_nick = target_nick
+            display_player = target_player
+        else:
+            # Show own stats
+            display_nick = nick
+            display_player = player
         # Apply color formatting
         bold = self.messages.messages.get('colours', {}).get('bold', '')
         reset = self.messages.messages.get('colours', {}).get('reset', '')
@@ -578,19 +591,19 @@ class DuckHuntBot:
         red = self.messages.messages.get('colours', {}).get('red', '')
         
         # Get player level info
-        level_info = self.levels.get_player_level_info(player)
+        level_info = self.levels.get_player_level_info(display_player)
         level = level_info['level']
         level_name = level_info['name']
         
         # Build stats message
-        xp = player.get('xp', 0)
-        ducks_shot = player.get('ducks_shot', 0)
-        ducks_befriended = player.get('ducks_befriended', 0)
-        accuracy = player.get('accuracy', self.get_config('player_defaults.accuracy', 75))
+        xp = display_player.get('xp', 0)
+        ducks_shot = display_player.get('ducks_shot', 0)
+        ducks_befriended = display_player.get('ducks_befriended', 0)
+        accuracy = display_player.get('accuracy', self.get_config('player_defaults.accuracy', 75))
         
         # Calculate additional stats
         total_ducks_encountered = ducks_shot + ducks_befriended
-        shots_missed = player.get('shots_missed', 0)
+        shots_missed = display_player.get('shots_missed', 0)
         total_shots = ducks_shot + shots_missed
         hit_rate = round((ducks_shot / total_shots * 100) if total_shots > 0 else 0, 1)
         
@@ -603,13 +616,13 @@ class DuckHuntBot:
             xp_progress = " (Max level reached!)"
         
         # Ammo info
-        current_ammo = player.get('current_ammo', 0)
-        magazines = player.get('magazines', 0)
-        bullets_per_mag = player.get('bullets_per_magazine', 6)
-        jam_chance = player.get('jam_chance', 0)
+        current_ammo = display_player.get('current_ammo', 0)
+        magazines = display_player.get('magazines', 0)
+        bullets_per_mag = display_player.get('bullets_per_magazine', 6)
+        jam_chance = display_player.get('jam_chance', 0)
         
         # Gun status
-        gun_status = "Armed" if not player.get('gun_confiscated', False) else "Confiscated"
+        gun_status = "Armed" if not display_player.get('gun_confiscated', False) else "Confiscated"
         
         # Build compact stats message with subtle colors
         stats_parts = [
@@ -625,7 +638,7 @@ class DuckHuntBot:
         ]
         
         # Add inventory if player has items
-        inventory = player.get('inventory', {})
+        inventory = display_player.get('inventory', {})
         if inventory:
             items = []
             for item_id, quantity in inventory.items():
@@ -636,14 +649,14 @@ class DuckHuntBot:
                 stats_parts.append(f"Items: {', '.join(items)}")
         
         # Add temporary effects if any
-        temp_effects = player.get('temporary_effects', [])
+        temp_effects = display_player.get('temporary_effects', [])
         if temp_effects:
             active_effects = [effect.get('name', 'Unknown Effect') for effect in temp_effects if isinstance(effect, dict)]
             if active_effects:
                 stats_parts.append(f"Effects:{','.join(active_effects)}")
         
         # Send as one compact message
-        stats_message = f"{bold}{nick}{reset}: {' | '.join(stats_parts)}"
+        stats_message = f"{bold}{display_nick}{reset}: {' | '.join(stats_parts)}"
         self.send_message(channel, stats_message)
     
     async def handle_topduck(self, nick, channel):
