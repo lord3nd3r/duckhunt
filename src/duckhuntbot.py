@@ -344,6 +344,8 @@ class DuckHuntBot:
             if channel.startswith('#'):  # Only track for channel messages
                 player['last_activity_channel'] = channel
                 player['last_activity_time'] = time.time()
+                # Save activity immediately to ensure validation works
+                self.db.players[nick.lower()] = player
             
             # Check if player is ignored (unless it's an admin)
             try:
