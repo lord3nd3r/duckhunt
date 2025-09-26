@@ -13,8 +13,9 @@ from typing import Dict, Any, Optional
 class ShopManager:
     """Manages the DuckHunt shop system"""
     
-    def __init__(self, shop_file: str = "shop.json"):
+    def __init__(self, shop_file: str = "shop.json", levels_manager=None):
         self.shop_file = shop_file
+        self.levels = levels_manager
         self.items = {}
         self.logger = logging.getLogger('DuckHuntBot.Shop')
         self.load_items()
@@ -198,13 +199,23 @@ class ShopManager:
             }
         
         elif item_type == 'magazine':
-            # Add magazines to player's inventory
+            # Add magazines (limit checking is done before this function is called)
             current_magazines = player.get('magazines', 1)
-            new_magazines = current_magazines + amount
+            
+            if self.levels:
+                level_info = self.levels.get_player_level_info(player)
+                max_magazines = level_info.get('magazines', 3)
+                # Don't exceed maximum magazines for level
+                magazines_to_add = min(amount, max_magazines - current_magazines)
+            else:
+                # Fallback if levels not available
+                magazines_to_add = amount
+            
+            new_magazines = current_magazines + magazines_to_add
             player['magazines'] = new_magazines
             return {
                 "type": "magazine",
-                "added": amount,
+                "added": magazines_to_add,
                 "new_total": new_magazines
             }
         
@@ -519,6 +530,33 @@ class ShopManager:
                 "message": f"{item['name']} requires a target player to use",
                 "item_name": item['name']
             }
+        
+        # Special checks for ammo/magazine limits
+        if item['type'] == 'magazine' and self.levels:
+            affected_player = target_player if target_player else player
+            current_magazines = affected_player.get('magazines', 1)
+            level_info = self.levels.get_player_level_info(affected_player)
+            max_magazines = level_info.get('magazines', 3)
+            
+            if current_magazines >= max_magazines:
+                return {
+                    "success": False,
+                    "error": "max_magazines_reached",
+                    "message": f"Already at maximum magazines ({max_magazines}) for current level!",
+                    "item_name": item['name']
+                }
+        elif item['type'] == 'ammo':
+            affected_player = target_player if target_player else player
+            current_ammo = affected_player.get('current_ammo', 0)
+            bullets_per_mag = affected_player.get('bullets_per_magazine', 6)
+            
+            if current_ammo >= bullets_per_mag:
+                return {
+                    "success": False,
+                    "error": "magazine_full",
+                    "message": f"Current magazine is already full ({bullets_per_mag}/{bullets_per_mag})!",
+                    "item_name": item['name']
+                }
         
         # Remove item from inventory
         inventory[item_id_str] -= 1

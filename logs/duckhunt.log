@@ -410,3 +410,93 @@
 19:04:05.573 📘 INFO     DuckHuntBot.Game     Normal duck spawned in #ct
 19:05:15.648 📘 INFO     DuckHuntBot.Game     Fast duck (hidden) spawned in #ct
 19:05:39.670 📘 INFO     DuckHuntBot.Game     Normal duck spawned in #ct
+19:06:48.726 📘 INFO     DuckHuntBot.Game     Normal duck spawned in #ct
+19:06:49.141 📘 INFO     DuckHuntBot          🛑 Received SIGINT (Ctrl+C), shutting down immediately...
+19:06:49.151 📘 INFO     DuckHuntBot          🔄 Cancelled 5 running tasks
+19:06:49.158 📘 INFO     DuckHuntBot          Message loop cancelled
+19:06:49.159 📘 INFO     DuckHuntBot          Message loop ended
+19:06:49.159 📘 INFO     DuckHuntBot          🛑 Main loop cancelled
+19:06:49.160 📘 INFO     DuckHuntBot.Game     Duck spawning loop cancelled
+19:06:49.161 📘 INFO     DuckHuntBot.Game     Duck timeout loop cancelled
+19:06:49.161 📘 INFO     DuckHuntBot.Game     Game loops cancelled
+19:06:49.185 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:06:49.186 📘 INFO     DuckHuntBot          💾 Database saved
+19:06:49.398 📘 INFO     DuckHuntBot          🔌 IRC connection closed
+19:06:49.399 📘 INFO     DuckHuntBot          ✅ Bot shutdown complete
+19:06:57.707 📘 INFO     DuckHuntBot          Unified logging system initialized: all logs in duckhunt.log
+19:06:57.707 📘 INFO     DuckHuntBot          Debug mode: ON
+19:06:57.707 📘 INFO     DuckHuntBot          Log everything: YES
+19:06:57.707 📘 INFO     DuckHuntBot          Unified format: YES
+19:06:57.707 📘 INFO     DuckHuntBot          Console level: INFO
+19:06:57.707 📘 INFO     DuckHuntBot          File level: DEBUG
+19:06:57.708 📘 INFO     DuckHuntBot          Main log: /home/colby/duckhunt/logs/duckhunt.log
+19:06:57.708 📘 INFO     DuckHuntBot          🤖 Initializing DuckHunt Bot components...
+19:06:57.708 📘 INFO     DuckHuntBot.DB       Loaded 1 players from duckhunt.json
+19:06:57.715 📘 INFO     SASL                 Unified logging system initialized: all logs in duckhunt.log
+19:06:57.715 📘 INFO     SASL                 Debug mode: ON
+19:06:57.716 📘 INFO     SASL                 Log everything: YES
+19:06:57.716 📘 INFO     SASL                 Unified format: YES
+19:06:57.717 📘 INFO     SASL                 Console level: INFO
+19:06:57.717 📘 INFO     SASL                 File level: DEBUG
+19:06:57.717 📘 INFO     SASL                 Main log: /home/colby/duckhunt/logs/duckhunt.log
+19:06:57.717 📘 INFO     DuckHuntBot          👑 Configured 3 admin(s): peorth, computertech, colby
+19:06:57.718 📘 INFO     DuckHuntBot.Shop     Loaded 9 shop items from /home/colby/duckhunt/shop.json
+19:06:57.718 📘 INFO     DuckHuntBot.Levels   Loaded 8 levels from /home/colby/duckhunt/levels.json
+19:06:57.719 📘 INFO     DuckHuntBot          🦆 Starting DuckHunt Bot...
+19:06:57.767 📘 INFO     DuckHuntBot          Attempting to connect to irc.rizon.net:6697 (attempt 1/3)
+19:06:57.944 📘 INFO     DuckHuntBot          ✅ Successfully connected to irc.rizon.net:6697
+19:06:57.944 📘 INFO     DuckHuntBot          🔐 Sending server password
+19:06:57.945 📘 INFO     DuckHuntBot          🦆 Bot is now running! Press Ctrl+C to stop.
+19:06:59.122 📘 INFO     DuckHuntBot          Successfully registered with IRC server
+19:07:02.131 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:07:10.467 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:07:12.307 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:07:29.690 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:07:32.598 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:07:39.223 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:07:41.056 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:07:45.298 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:07:46.350 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 1 players [save_database:142]
+19:12:52.027 📘 INFO     DuckHuntBot          🛑 Received SIGINT (Ctrl+C), shutting down immediately...
+19:12:52.066 📘 INFO     DuckHuntBot          🔄 Cancelled 5 running tasks
+19:12:51.888 📘 INFO     DuckHuntBot          🛑 Received SIGINT (Ctrl+C), shutting down immediately...
+19:12:52.067 📘 INFO     DuckHuntBot          🔄 Cancelled 5 running tasks
+19:12:52.069 📘 INFO     DuckHuntBot          Message loop cancelled
+19:12:52.071 📘 INFO     DuckHuntBot          Message loop ended
+19:12:52.080 📘 INFO     DuckHuntBot.Game     Duck spawning loop cancelled
+19:12:52.082 📘 INFO     DuckHuntBot.Game     Duck timeout loop cancelled
+19:12:52.082 📘 INFO     DuckHuntBot          🛑 Main loop cancelled
+19:12:52.085 📘 INFO     DuckHuntBot.Game     Game loops cancelled
+19:12:52.306 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]
+19:12:52.309 📘 INFO     DuckHuntBot          💾 Database saved
+19:12:53.133 📘 INFO     DuckHuntBot          🔌 IRC connection closed
+19:12:53.136 📘 INFO     DuckHuntBot          ✅ Bot shutdown complete
+19:12:53.597 📘 INFO     DuckHuntBot          Unified logging system initialized: all logs in duckhunt.log
+19:12:53.597 📘 INFO     DuckHuntBot          Debug mode: ON
+19:12:53.597 📘 INFO     DuckHuntBot          Log everything: YES
+19:12:53.598 📘 INFO     DuckHuntBot          Unified format: YES
+19:12:53.598 📘 INFO     DuckHuntBot          Console level: INFO
+19:12:53.598 📘 INFO     DuckHuntBot          File level: DEBUG
+19:12:53.598 📘 INFO     DuckHuntBot          Main log: /home/colby/duckhunt/logs/duckhunt.log
+19:12:53.598 📘 INFO     DuckHuntBot          🤖 Initializing DuckHunt Bot components...
+19:12:53.599 📘 INFO     DuckHuntBot.DB       Loaded 2 players from duckhunt.json
+19:12:53.605 📘 INFO     SASL                 Unified logging system initialized: all logs in duckhunt.log
+19:12:53.606 📘 INFO     SASL                 Debug mode: ON
+19:12:53.606 📘 INFO     SASL                 Log everything: YES
+19:12:53.606 📘 INFO     SASL                 Unified format: YES
+19:12:53.606 📘 INFO     SASL                 Console level: INFO
+19:12:53.606 📘 INFO     SASL                 File level: DEBUG
+19:12:53.606 📘 INFO     SASL                 Main log: /home/colby/duckhunt/logs/duckhunt.log
+19:12:53.607 📘 INFO     DuckHuntBot          👑 Configured 3 admin(s): peorth, computertech, colby
+19:12:53.607 📘 INFO     DuckHuntBot.Levels   Loaded 8 levels from /home/colby/duckhunt/levels.json
+19:12:53.608 📘 INFO     DuckHuntBot.Shop     Loaded 9 shop items from /home/colby/duckhunt/shop.json
+19:12:53.608 📘 INFO     DuckHuntBot          🦆 Starting DuckHunt Bot...
+19:12:53.660 📘 INFO     DuckHuntBot          Attempting to connect to irc.rizon.net:6697 (attempt 1/3)
+19:12:53.826 📘 INFO     DuckHuntBot          ✅ Successfully connected to irc.rizon.net:6697
+19:12:53.826 📘 INFO     DuckHuntBot          🔐 Sending server password
+19:12:53.827 📘 INFO     DuckHuntBot          🦆 Bot is now running! Press Ctrl+C to stop.
+19:12:55.118 📘 INFO     DuckHuntBot          Successfully registered with IRC server
+19:13:06.811 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]
+19:13:10.747 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]
+19:13:13.374 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]
+19:13:14.741 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]

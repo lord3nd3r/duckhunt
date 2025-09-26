@@ -38,13 +38,13 @@ class DuckHuntBot:
         self.admins = [admin.lower() for admin in admins_list]
         self.logger.info(f"👑 Configured {len(self.admins)} admin(s): {', '.join(self.admins)}")
         
-        # Initialize shop manager
-        shop_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shop.json')
-        self.shop = ShopManager(shop_file)
-        
-        # Initialize level manager
+        # Initialize level manager first
         levels_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'levels.json')
         self.levels = LevelManager(levels_file)
+        
+        # Initialize shop manager with levels reference
+        shop_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shop.json')
+        self.shop = ShopManager(shop_file, self.levels)
         
     def get_config(self, path, default=None):
         """Get configuration value using dot notation"""
