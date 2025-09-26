@@ -500,3 +500,15 @@
 19:13:10.747 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]
 19:13:13.374 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]
 19:13:14.741 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]
+19:13:48.117 📘 INFO     DuckHuntBot          🛑 Received SIGINT (Ctrl+C), shutting down immediately...
+19:13:48.117 📘 INFO     DuckHuntBot          🔄 Cancelled 5 running tasks
+19:13:48.174 📘 INFO     DuckHuntBot.Game     Duck timeout loop cancelled
+19:13:48.175 📘 INFO     DuckHuntBot          🛑 Main loop cancelled
+19:13:48.175 📘 INFO     DuckHuntBot.Game     Duck spawning loop cancelled
+19:13:48.175 📘 INFO     DuckHuntBot          Message loop cancelled
+19:13:48.176 📘 INFO     DuckHuntBot          Message loop ended
+19:13:48.176 📘 INFO     DuckHuntBot.Game     Game loops cancelled
+19:13:48.193 🔍 DEBUG    DuckHuntBot.DB       Database saved successfully with 2 players [save_database:142]
+19:13:48.194 📘 INFO     DuckHuntBot          💾 Database saved
+19:13:48.395 📘 INFO     DuckHuntBot          🔌 IRC connection closed
+19:13:48.396 📘 INFO     DuckHuntBot          ✅ Bot shutdown complete
