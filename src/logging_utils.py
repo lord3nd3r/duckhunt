@@ -33,9 +33,9 @@ def load_config():
 
 
 class EnhancedColourFormatter(logging.Formatter):
-    """Enhanced console formatter with colors, emojis, and better formatting"""
+    """Enhanced colour formatter for different log levels"""
     
-    # ANSI color codes with styles
+    # ANSI color codes
     COLORS = {
         'DEBUG': '\033[36m',      # Cyan
         'INFO': '\033[32m',       # Green  
@@ -48,13 +48,13 @@ class EnhancedColourFormatter(logging.Formatter):
         'UNDERLINE': '\033[4m',   # Underline
     }
     
-    # Emojis for different log levels
+    # Log level prefixes  
     EMOJIS = {
-        'DEBUG': '🔍',
-        'INFO': '📘', 
-        'WARNING': '⚠️',
-        'ERROR': '❌',
-        'CRITICAL': '💥',
+        'DEBUG': 'DEBUG',
+        'INFO': 'INFO', 
+        'WARNING': 'WARNING',
+        'ERROR': 'ERROR',
+        'CRITICAL': 'CRITICAL',
     }
     
     # Component colors
@@ -75,8 +75,8 @@ class EnhancedColourFormatter(logging.Formatter):
         bold = self.COLORS['BOLD']
         dim = self.COLORS['DIM']
         
-        # Get emoji
-        emoji = self.EMOJIS.get(record.levelname, '📝')
+        # Get level prefix
+        emoji = self.EMOJIS.get(record.levelname, 'LOG')
         
         # Format timestamp
         timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S.%f')[:-3]
@@ -109,18 +109,18 @@ class EnhancedColourFormatter(logging.Formatter):
 class EnhancedFileFormatter(logging.Formatter):
     """Enhanced file formatter matching console format (no colors)"""
     
-    # Emojis for different log levels (same as console)
+    # Log level prefixes (same as console)
     EMOJIS = {
-        'DEBUG': '🔍',
-        'INFO': '📘', 
-        'WARNING': '⚠️',
-        'ERROR': '❌',
-        'CRITICAL': '💥',
+        'DEBUG': 'DEBUG',
+        'INFO': 'INFO', 
+        'WARNING': 'WARNING',
+        'ERROR': 'ERROR',
+        'CRITICAL': 'CRITICAL',
     }
     
     def format(self, record):
-        # Get emoji (same as console)
-        emoji = self.EMOJIS.get(record.levelname, '📝')
+        # Get level prefix (same as console)
+        emoji = self.EMOJIS.get(record.levelname, 'LOG')
         
         # Format timestamp (same as console - just time, not date)
         timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S.%f')[:-3]
@@ -169,13 +169,13 @@ class UnifiedFormatter(logging.Formatter):
         'DIM': '\033[2m',         # Dim
     }
     
-    # Emojis for different log levels
+    # Log level prefixes
     EMOJIS = {
-        'DEBUG': '🔍',
-        'INFO': '📘', 
-        'WARNING': '⚠️',
-        'ERROR': '❌',
-        'CRITICAL': '💥',
+        'DEBUG': 'DEBUG',
+        'INFO': 'INFO', 
+        'WARNING': 'WARNING',
+        'ERROR': 'ERROR',
+        'CRITICAL': 'CRITICAL',
     }
     
     # Component colors
@@ -193,8 +193,8 @@ class UnifiedFormatter(logging.Formatter):
         self.use_colors = use_colors
     
     def format(self, record):
-        # Get emoji
-        emoji = self.EMOJIS.get(record.levelname, '📝')
+        # Get level prefix
+        emoji = self.EMOJIS.get(record.levelname, 'LOG')
         
         # Format timestamp (same for both)
         timestamp = datetime.fromtimestamp(record.created).strftime('%H:%M:%S.%f')[:-3]
@@ -350,7 +350,7 @@ def setup_logger(name="DuckHuntBot", console_level=None, file_level=None):
             simple_handler.setFormatter(simple_formatter)
             logger.addHandler(simple_handler)
             logger.error(f"❌ Failed to setup enhanced file logging: {e}")
-            logger.info("📝 Using fallback file logging")
+            logger.info("Using fallback file logging")
         except Exception as fallback_error:
             logger.error(f"💥 Complete logging setup failure: {fallback_error}")
     

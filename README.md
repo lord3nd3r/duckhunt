@@ -1,16 +1,16 @@
-# 🦆 DuckHunt IRC Bot
+# DuckHunt IRC Bot
 
 A feature-rich IRC bot that brings the classic duck hunting game to your IRC channels. Players can shoot, befriend, and collect various types of ducks while managing their equipment and competing for high scores.
 
 ## ✨ Features
 
-- 🦆 **Multiple Duck Types**: Normal, Golden (high HP), and Fast (quick timeout) ducks
+- **Multiple Duck Types**: Normal, Golden (high HP), and Fast (quick timeout) ducks
 - 🎯 **Accuracy System**: Dynamic accuracy that improves with hits and degrades with misses
-- 🔫 **Weapon Management**: Magazines, bullets, and gun jamming mechanics
+- **Weapon Management**: Magazines, bullets, and gun jamming mechanics
 - 🛒 **Shop System**: Buy equipment and items with XP (currency)
 - 🎒 **Inventory System**: Collect and use various items (bread, grease, sights, etc.)
 - 👥 **Player Statistics**: Track shots, hits, misses, and best times
-- 🔧 **Fully Configurable**: Every game parameter can be customized via config
+- **Fully Configurable**: Every game parameter can be customized via config
 - 🔐 **Authentication**: Support for both server passwords and SASL/NickServ auth
 - 📊 **Admin Commands**: Comprehensive bot management and player administration
 
@@ -100,7 +100,7 @@ The bot uses a nested JSON configuration system. Key settings include:
 - `!setstat <player> <stat> <value>` - Modify player stats
 - `!reload_config` - Reload configuration without restart
 
-## 🦆 Duck Types
+## Duck Types
 
 | Type | Spawn Rate | HP | Timeout | XP Reward |
 |------|------------|----|---------|-----------| 
@@ -139,7 +139,7 @@ duckhunt/
 └── duckhunt.json       # Player database
 ```
 
-## 🔧 Development
+## Development
 
 ### Adding New Features
 
@@ -198,4 +198,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Happy Duck Hunting!** 🦆🔫
+**Happy Duck Hunting!**

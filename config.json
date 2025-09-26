@@ -32,20 +32,46 @@
     "duck_types": {
         "normal": {
             "xp": 10,
-            "timeout": 60
+            "timeout": 60,
+            "drop_chance": 0.15
         },
         "golden": {
             "chance": 0.15,
             "min_hp": 3,
             "max_hp": 5,
             "xp": 15,
-            "timeout": 60
+            "timeout": 60,
+            "drop_chance": 0.50
         },
         "fast": {
             "chance": 0.25,
             "timeout": 20,
-            "xp": 12
+            "xp": 12,
+            "drop_chance": 0.25
         }
+    },
+    "item_drops": {
+        "normal_duck_drops": [
+            {"item_id": 1, "weight": 40},
+            {"item_id": 2, "weight": 25},
+            {"item_id": 4, "weight": 20},
+            {"item_id": 3, "weight": 15}
+        ],
+        "fast_duck_drops": [
+            {"item_id": 1, "weight": 30},
+            {"item_id": 2, "weight": 25},
+            {"item_id": 4, "weight": 20},
+            {"item_id": 8, "weight": 15},
+            {"item_id": 3, "weight": 10}
+        ],
+        "golden_duck_drops": [
+            {"item_id": 5, "weight": 25},
+            {"item_id": 6, "weight": 20},
+            {"item_id": 7, "weight": 20},
+            {"item_id": 2, "weight": 15},
+            {"item_id": 9, "weight": 10},
+            {"item_id": 1, "weight": 10}
+        ]
     },
     "player_defaults": {
         "accuracy": 75,

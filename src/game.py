@@ -286,8 +286,13 @@ class DuckGame:
             if self.bot.get_config('duck_spawning.rearm_on_duck_shot', False):
                 self._rearm_all_disarmed_players()
             
+            # Check for item drops
+            dropped_item = self._check_item_drop(player, duck_type)
+            
             self.db.save_database()
-            return {
+            
+            # Include drop info in the return
+            result = {
                 'success': True,
                 'hit': True,
                 'message_key': message_key,
@@ -297,6 +302,12 @@ class DuckGame:
                     'ducks_shot': player['ducks_shot']
                 }
             }
+            
+            # Add drop info if an item was dropped
+            if dropped_item:
+                result['dropped_item'] = dropped_item
+            
+            return result
         else:
             # Miss! Duck stays in the channel
             player['shots_missed'] = player.get('shots_missed', 0) + 1  # Track missed shots
@@ -565,3 +576,64 @@ class DuckGame:
                     
         except Exception as e:
             self.logger.error(f"Error cleaning expired effects: {e}")
+    
+    def _check_item_drop(self, player, duck_type):
+        """
+        Check if the duck drops an item and add it to player's inventory
+        Returns the dropped item info or None
+        """
+        import random
+        
+        try:
+            # Get drop chance for this duck type
+            drop_chance = self.bot.get_config(f'duck_types.{duck_type}.drop_chance', 0.0)
+            
+            # Roll for drop
+            if random.random() > drop_chance:
+                return None  # No drop
+            
+            # Get drop table for this duck type
+            drop_table_key = f'{duck_type}_duck_drops'
+            drop_table = self.bot.get_config(f'item_drops.{drop_table_key}', [])
+            
+            if not drop_table:
+                self.logger.warning(f"No drop table found for {duck_type} duck")
+                return None
+            
+            # Weighted random selection
+            total_weight = sum(item.get('weight', 1) for item in drop_table)
+            if total_weight <= 0:
+                return None
+                
+            random_weight = random.randint(1, total_weight)
+            current_weight = 0
+            
+            for drop_item in drop_table:
+                current_weight += drop_item.get('weight', 1)
+                if random_weight <= current_weight:
+                    item_id = drop_item.get('item_id')
+                    if item_id:
+                        # Add item to player's inventory
+                        inventory = player.get('inventory', {})
+                        item_key = str(item_id)
+                        inventory[item_key] = inventory.get(item_key, 0) + 1
+                        player['inventory'] = inventory
+                        
+                        # Get item info from shop
+                        item_info = self.bot.shop.get_item(item_id)
+                        item_name = item_info.get('name', f'Item {item_id}') if item_info else f'Item {item_id}'
+                        
+                        self.logger.info(f"Duck dropped {item_name} for player {player.get('nick', 'Unknown')}")
+                        
+                        return {
+                            'item_id': item_id,
+                            'item_name': item_name,
+                            'duck_type': duck_type
+                        }
+                    break
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error in _check_item_drop: {e}")
+            return None

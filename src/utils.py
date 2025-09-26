@@ -36,7 +36,7 @@ class MessageManager:
             "duck_spawn": [
                 "・゜゜・。。・゜゜\\_o< QUACK! A duck has appeared! Type !bang to shoot it!",
                 "・゜゜・。。・゜゜\\_o< *flap flap* A wild duck landed! Use !bang to hunt it!",
-                "🦆 A duck swoops into view! Quick, type !bang before it escapes!",
+                "A duck swoops into view! Quick, type !bang before it escapes!",
                 "・゜゜・。。・゜゜\\_o< Quack quack! Fresh duck spotted! !bang to bag it!",
                 "*rustling* A duck waddles out from the bushes! Fire with !bang!",
                 "・゜゜・。。・゜゜\\_o< Splash! A duck surfaces! Shoot it with !bang!"

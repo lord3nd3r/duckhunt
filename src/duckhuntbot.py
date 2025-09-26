@@ -36,7 +36,7 @@ class DuckHuntBot:
         
         admins_list = self.get_config('admins', ['colby']) or ['colby']
         self.admins = [admin.lower() for admin in admins_list]
-        self.logger.info(f"👑 Configured {len(self.admins)} admin(s): {', '.join(self.admins)}")
+        self.logger.info(f"Configured {len(self.admins)} admin(s): {', '.join(self.admins)}")
         
         # Initialize level manager first
         levels_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'levels.json')
@@ -125,7 +125,7 @@ class DuckHuntBot:
                 tasks = [t for t in asyncio.all_tasks(loop) if not t.done()]
                 for task in tasks:
                     task.cancel()
-                self.logger.info(f"🔄 Cancelled {len(tasks)} running tasks")
+                self.logger.info(f"Cancelled {len(tasks)} running tasks")
             except Exception as e:
                 self.logger.error(f"Error cancelling tasks: {e}")
         
@@ -159,7 +159,7 @@ class DuckHuntBot:
                     timeout=self.get_config('connection.timeout', 30) or 30.0  # Connection timeout from config
                 )
                 
-                self.logger.info(f"✅ Successfully connected to {server}:{port}")
+                self.logger.info(f"Successfully connected to {server}:{port}")
                 return
                 
             except asyncio.TimeoutError:
@@ -474,6 +474,28 @@ class DuckHuntBot:
         result = self.game.shoot_duck(nick, channel, player)
         message = self.messages.get(result['message_key'], **result['message_args'])
         self.send_message(channel, message)
+        
+        # Check if an item was dropped
+        if result.get('success') and result.get('dropped_item'):
+            dropped_item = result['dropped_item']
+            duck_type = dropped_item['duck_type']
+            item_name = dropped_item['item_name']
+            
+            # Send drop notification message
+            drop_message_key = f'duck_drop_{duck_type}'
+            drop_message = self.messages.get(drop_message_key, 
+                nick=nick, 
+                item_name=item_name
+            )
+            self.send_message(channel, drop_message)
+            
+            # Send drop notification message
+            drop_message_key = f'duck_drop_{duck_type}'
+            drop_message = self.messages.get(drop_message_key, 
+                nick=nick, 
+                item_name=dropped_item['item_name']
+            )
+            self.send_message(channel, drop_message)
     
     async def handle_bef(self, nick, channel, player):
         """Handle !bef (befriend) command"""
@@ -676,23 +698,23 @@ class DuckHuntBot:
             if top_xp:
                 xp_rankings = []
                 for i, (player_nick, xp) in enumerate(top_xp, 1):
-                    medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
-                    xp_rankings.append(f"{medal}{player_nick}:{xp}XP")
-                xp_line = f"🏆 {bold}Top XP{reset} " + " | ".join(xp_rankings)
+                    medal = "#1" if i == 1 else "#2" if i == 2 else "#3"
+                    xp_rankings.append(f"{medal} {player_nick}:{xp}XP")
+                xp_line = f"Top XP: {bold}{reset} " + " | ".join(xp_rankings)
                 self.send_message(channel, xp_line)
             else:
-                self.send_message(channel, "🏆 No XP data available yet!")
+                self.send_message(channel, "No XP data available yet!")
             
             # Format ducks shot leaderboard as single line
             if top_ducks:
                 duck_rankings = []
                 for i, (player_nick, ducks) in enumerate(top_ducks, 1):
-                    medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
-                    duck_rankings.append(f"{medal}{player_nick}:{ducks}")
-                duck_line = f"🦆 {bold}Top Hunters{reset} " + " | ".join(duck_rankings)
+                    medal = "#1" if i == 1 else "#2" if i == 2 else "#3"
+                    duck_rankings.append(f"{medal} {player_nick}:{ducks}")
+                duck_line = f"Top Hunters: {bold}{reset} " + " | ".join(duck_rankings)
                 self.send_message(channel, duck_line)
             else:
-                self.send_message(channel, "🦆 No duck hunting data available yet!")
+                self.send_message(channel, "No duck hunting data available yet!")
                 
         except Exception as e:
             self.logger.error(f"Error in handle_topduck: {e}")
@@ -1167,7 +1189,7 @@ class DuckHuntBot:
             game_task = asyncio.create_task(self.game.start_game_loops())
             message_task = asyncio.create_task(self.message_loop())
             
-            self.logger.info("🦆 Bot is now running! Press Ctrl+C to stop.")
+            self.logger.info("Bot is now running! Press Ctrl+C to stop.")
             # Wait for shutdown signal or task completion with frequent checks
             while not self.shutdown_requested:
                 done, _pending = await asyncio.wait(
@@ -1181,12 +1203,12 @@ class DuckHuntBot:
                     break
                     break
             
-            self.logger.info("🔄 Shutdown initiated, cleaning up...")
+            self.logger.info("Shutdown initiated, cleaning up...")
             
         except asyncio.CancelledError:
             self.logger.info("🛑 Main loop cancelled")
         except Exception as e:
-            self.logger.error(f"❌ Bot error: {e}")
+            self.logger.error(f"Bot error: {e}")
         finally:
             # Fast cleanup - cancel tasks immediately with short timeout
             tasks_to_cancel = [task for task in [game_task, message_task] if task and not task.done()]
@@ -1201,19 +1223,19 @@ class DuckHuntBot:
                         timeout=1.0
                     )
                 except asyncio.TimeoutError:
-                    self.logger.warning("⚠️ Task cancellation timed out")
+                    self.logger.warning("Task cancellation timed out")
             
             # Quick database save
             try:
                 self.db.save_database()
-                self.logger.info("💾 Database saved")
+                self.logger.info("Database saved")
             except Exception as e:
-                self.logger.error(f"❌ Error saving database: {e}")
+                self.logger.error(f"Error saving database: {e}")
             
             # Fast connection close
             await self._close_connection()
             
-            self.logger.info("✅ Bot shutdown complete")
+            self.logger.info("Bot shutdown complete")
     
     async def _close_connection(self):
         """Close IRC connection with comprehensive error handling"""
@@ -1235,14 +1257,14 @@ class DuckHuntBot:
                     self.writer.close()
                     await asyncio.wait_for(self.writer.wait_closed(), timeout=2.0)
                 except asyncio.TimeoutError:
-                    self.logger.warning("⚠️ Connection close timed out - forcing close")
+                    self.logger.warning("Connection close timed out - forcing close")
                 except Exception as e:
                     self.logger.debug(f"Error during connection close: {e}")
                     
             self.logger.info("🔌 IRC connection closed")
             
         except Exception as e:
-            self.logger.error(f"❌ Critical error closing connection: {e}")
+            self.logger.error(f"Critical error closing connection: {e}")
         finally:
             # Ensure writer is cleared regardless of errors
             self.writer = None

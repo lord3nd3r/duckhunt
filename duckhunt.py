@@ -25,7 +25,7 @@ def main():
             config = json.load(f)
         
         bot = DuckHuntBot(config)
-        bot.logger.info("🦆 Starting DuckHunt Bot...")
+        bot.logger.info("Starting DuckHunt Bot...")
         
         # Run the bot
         asyncio.run(bot.run())
