@@ -58,11 +58,44 @@ class DuckHuntBot:
         return value
     
     def is_admin(self, user):
-        """Check if user is admin by nick only"""
+        """Check if user is admin with enhanced security checks"""
         if '!' not in user:
             return False
+        
         nick = user.split('!')[0].lower()
-        return nick in self.admins
+        
+        # Check admin configuration - support both nick-only (legacy) and hostmask patterns
+        admin_config = self.get_config('admins', [])
+        
+        # Ensure admin_config is a list
+        if not isinstance(admin_config, list):
+            admin_config = []
+        
+        for admin_entry in admin_config:
+            if isinstance(admin_entry, str):
+                # Simple nick-based check (less secure but compatible)
+                if admin_entry.lower() == nick:
+                    self.logger.warning(f"Admin access granted via nick-only authentication: {user}")
+                    return True
+            elif isinstance(admin_entry, dict):
+                # Enhanced hostmask-based authentication
+                if admin_entry.get('nick', '').lower() == nick:
+                    # Check hostmask pattern if provided
+                    required_pattern = admin_entry.get('hostmask')
+                    if required_pattern:
+                        import fnmatch
+                        if fnmatch.fnmatch(user.lower(), required_pattern.lower()):
+                            self.logger.info(f"Admin access granted via hostmask: {user}")
+                            return True
+                        else:
+                            self.logger.warning(f"Admin nick match but hostmask mismatch: {user} vs {required_pattern}")
+                            return False
+                    else:
+                        # Nick-only fallback
+                        self.logger.warning(f"Admin access granted via nick-only (no hostmask configured): {user}")
+                        return True
+        
+        return False
     
     def _handle_single_target_admin_command(self, args, usage_message_key, action_func, success_message_key, nick, channel):
         """Helper for admin commands that target a single player"""
@@ -307,6 +340,11 @@ class DuckHuntBot:
                 self.logger.error(f"Error getting player data for {nick}: {e}")
                 player = {}
             
+            # Track activity for channel membership validation
+            if channel.startswith('#'):  # Only track for channel messages
+                player['last_activity_channel'] = channel
+                player['last_activity_time'] = time.time()
+            
             # Check if player is ignored (unless it's an admin)
             try:
                 if player.get('ignored', False) and not self.is_admin(user):
@@ -360,6 +398,77 @@ class DuckHuntBot:
             except Exception as send_error:
                 self.logger.error(f"Error sending error message: {send_error}")
     
+    def validate_target_player(self, target_nick, channel):
+        """
+        Validate that a target player is a valid hunter
+        Returns (is_valid, player_data, error_message)
+        
+        TODO: Implement proper channel membership tracking to ensure 
+        the target is actually present in the channel
+        """
+        if not target_nick:
+            return False, None, "No target specified"
+        
+        # Normalize the nickname
+        target_nick = target_nick.lower().strip()
+        
+        # Check if target_nick is empty after normalization
+        if not target_nick:
+            return False, None, "Invalid target nickname"
+        
+        # Check if player exists in database
+        player = self.db.get_player(target_nick)
+        if not player:
+            return False, None, f"Player '{target_nick}' not found. They need to participate in the game first."
+        
+        # Check if player has any game activity (basic validation they're a hunter)
+        has_activity = (
+            player.get('xp', 0) > 0 or 
+            player.get('shots_fired', 0) > 0 or 
+            'current_ammo' in player or
+            'magazines' in player
+        )
+        
+        if not has_activity:
+            return False, None, f"Player '{target_nick}' has no hunting activity. They may not be an active hunter."
+        
+        # Check if player is currently in the channel (for channel messages only)
+        if channel.startswith('#'):
+            is_in_channel = self.is_user_in_channel_sync(target_nick, channel)
+            if not is_in_channel:
+                return False, None, f"Player '{target_nick}' is not currently in {channel}."
+        
+        return True, player, None
+    
+    def is_user_in_channel_sync(self, nick, channel):
+        """
+        Check if a user is likely in the channel based on recent activity (synchronous version)
+        
+        This is a practical approach that doesn't require complex IRC response parsing.
+        We assume if someone has been active recently, they're still in the channel.
+        """
+        try:
+            player = self.db.get_player(nick)
+            if not player:
+                return False
+            
+            # Check if they've been active in this channel recently
+            last_activity_channel = player.get('last_activity_channel')
+            last_activity_time = player.get('last_activity_time', 0)
+            current_time = time.time()
+            
+            # If they were active in this channel within the last 30 minutes, assume they're still here
+            if (last_activity_channel == channel and 
+                current_time - last_activity_time < 1800):  # 30 minutes
+                return True
+            
+            # If no recent activity in this channel, they might not be here
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error checking channel membership for {nick} in {channel}: {e}")
+            return True  # Default to allowing the command if we can't check
+    
     async def handle_bang(self, nick, channel, player):
         """Handle !bang command"""
         result = self.game.shoot_duck(nick, channel, player)
@@ -409,11 +518,12 @@ class DuckHuntBot:
         """Handle buying an item from the shop"""
         target_player = None
         
-        # Get target player if specified
+        # Get target player if specified and validate they're in channel
         if target_nick:
-            target_player = self.db.get_player(target_nick)
-            if not target_player:
-                message = f"{nick} > Target player '{target_nick}' not found"
+            # Use the same validation as other commands
+            is_valid, target_player, error_msg = self.validate_target_player(target_nick, channel)
+            if not is_valid:
+                message = f"{nick} > {error_msg}"
                 self.send_message(channel, message)
                 return
         
@@ -460,11 +570,15 @@ class DuckHuntBot:
         # Apply color formatting
         bold = self.messages.messages.get('colours', {}).get('bold', '')
         reset = self.messages.messages.get('colours', {}).get('reset', '')
+        green = self.messages.messages.get('colours', {}).get('green', '')
+        blue = self.messages.messages.get('colours', {}).get('blue', '')
+        yellow = self.messages.messages.get('colours', {}).get('yellow', '')
+        red = self.messages.messages.get('colours', {}).get('red', '')
         
         # Get player level info
         level_info = self.levels.get_player_level_info(player)
         level = level_info['level']
-        level_name = level_info['level_data']['name']
+        level_name = level_info['name']
         
         # Build stats message
         xp = player.get('xp', 0)
@@ -472,23 +586,40 @@ class DuckHuntBot:
         ducks_befriended = player.get('ducks_befriended', 0)
         accuracy = player.get('accuracy', self.get_config('player_defaults.accuracy', 75))
         
+        # Calculate additional stats
+        total_ducks_encountered = ducks_shot + ducks_befriended
+        shots_missed = player.get('shots_missed', 0)
+        total_shots = ducks_shot + shots_missed
+        hit_rate = round((ducks_shot / total_shots * 100) if total_shots > 0 else 0, 1)
+        
+        # Get level progression info
+        xp_needed = level_info.get('needed_for_next', 0)
+        next_level_name = level_info.get('next_level_name', 'Max Level')
+        if xp_needed > 0:
+            xp_progress = f" (Need {xp_needed} XP for {next_level_name})"
+        else:
+            xp_progress = " (Max level reached!)"
+        
         # Ammo info
         current_ammo = player.get('current_ammo', 0)
         magazines = player.get('magazines', 0)
         bullets_per_mag = player.get('bullets_per_magazine', 6)
+        jam_chance = player.get('jam_chance', 0)
         
         # Gun status
-        gun_status = "🔫 Armed" if not player.get('gun_confiscated', False) else "❌ Confiscated"
+        gun_status = "Armed" if not player.get('gun_confiscated', False) else "Confiscated"
         
-        stats_lines = [
-            f"📊 {bold}Duck Hunt Stats for {nick}{reset}",
-            f"🏆 Level {level}: {level_name}",
-            f"⭐ XP: {xp}",
-            f"🦆 Ducks Shot: {ducks_shot}",
-            f"💚 Ducks Befriended: {ducks_befriended}",
-            f"🎯 Accuracy: {accuracy}%",
-            f"🔫 Status: {gun_status}",
-            f"💀 Ammo: {current_ammo}/{bullets_per_mag} | Magazines: {magazines}"
+        # Build compact stats message with subtle colors
+        stats_parts = [
+            f"Lv{level} {level_name}",
+            f"{green}{xp}XP{reset}{xp_progress}",
+            f"{ducks_shot} shot",
+            f"{ducks_befriended} befriended",
+            f"{accuracy}% accuracy",
+            f"{hit_rate}% hit rate",
+            f"{green if gun_status == 'Armed' else red}{gun_status}{reset}",
+            f"{current_ammo}/{bullets_per_mag}|{magazines} mags",
+            f"{jam_chance}% jam chance"
         ]
         
         # Add inventory if player has items
@@ -500,11 +631,18 @@ class DuckHuntBot:
                 if item:
                     items.append(f"{item['name']} x{quantity}")
             if items:
-                stats_lines.append(f"🎒 Inventory: {', '.join(items)}")
+                stats_parts.append(f"Items: {', '.join(items)}")
         
-        # Send each line
-        for line in stats_lines:
-            self.send_message(channel, line)
+        # Add temporary effects if any
+        temp_effects = player.get('temporary_effects', [])
+        if temp_effects:
+            active_effects = [effect.get('name', 'Unknown Effect') for effect in temp_effects if isinstance(effect, dict)]
+            if active_effects:
+                stats_parts.append(f"Effects:{','.join(active_effects)}")
+        
+        # Send as one compact message
+        stats_message = f"{bold}{nick}{reset}: {' | '.join(stats_parts)}"
+        self.send_message(channel, stats_message)
     
     async def handle_topduck(self, nick, channel):
         """Handle !topduck command - show leaderboards"""
@@ -574,9 +712,9 @@ class DuckHuntBot:
             
             # Get target player if specified
             if target_nick:
-                target_player = self.db.get_player(target_nick)
-                if not target_player:
-                    message = f"{nick} > Target player '{target_nick}' not found"
+                is_valid, target_player, error_msg = self.validate_target_player(target_nick, channel)
+                if not is_valid:
+                    message = f"{nick} > {error_msg}"
                     self.send_message(channel, message)
                     return
             
@@ -597,8 +735,58 @@ class DuckHuntBot:
                         spawn_multiplier=effect.get('spawn_multiplier', 2.0),
                         duration=effect.get('duration', 10)
                     )
+                elif effect_type == 'insurance':
+                    # Use specific message for insurance
+                    message = self.messages.get('use_insurance',
+                        nick=nick,
+                        duration=effect.get('duration', 24)
+                    )
+                elif effect_type == 'buy_gun_back':
+                    # Use specific message for buying gun back
+                    if effect.get('restored', False):
+                        message = self.messages.get('use_buy_gun_back', nick=nick,
+                            ammo_restored=effect.get('ammo_restored', 0),
+                            magazines_restored=effect.get('magazines_restored', 0))
+                    else:
+                        message = self.messages.get('use_buy_gun_back_not_needed', nick=nick)
+                elif effect_type == 'splash_water':
+                    # Use specific message for water splash
+                    message = self.messages.get('use_splash_water', 
+                        nick=nick, 
+                        target_nick=target_nick,
+                        duration=effect.get('duration', 5))
+                elif effect_type == 'dry_clothes':
+                    # Use specific message for dry clothes
+                    if effect.get('was_wet', False):
+                        message = self.messages.get('use_dry_clothes', nick=nick)
+                    else:
+                        message = self.messages.get('use_dry_clothes_not_needed', nick=nick)
                 elif result.get("target_affected"):
-                    message = f"{nick} > Used {result['item_name']} on {target_nick}!"
+                    # Check if it's a gift (beneficial effect to target)
+                    if effect.get('is_gift', False):
+                        # Use specific gift messages based on item type
+                        if effect_type == 'ammo':
+                            message = self.messages.get('gift_ammo', 
+                                nick=nick, target_nick=target_nick, amount=effect.get('amount', 1))
+                        elif effect_type == 'magazine':
+                            message = self.messages.get('gift_magazine', 
+                                nick=nick, target_nick=target_nick)
+                        elif effect_type == 'clean_gun':
+                            message = self.messages.get('gift_gun_brush', 
+                                nick=nick, target_nick=target_nick)
+                        elif effect_type == 'insurance':
+                            message = self.messages.get('gift_insurance', 
+                                nick=nick, target_nick=target_nick)
+                        elif effect_type == 'dry_clothes':
+                            message = self.messages.get('gift_dry_clothes', 
+                                nick=nick, target_nick=target_nick)
+                        elif effect_type == 'buy_gun_back':
+                            message = self.messages.get('gift_buy_gun_back', 
+                                nick=nick, target_nick=target_nick)
+                        else:
+                            message = f"{nick} > Gave {result['item_name']} to {target_nick}!"
+                    else:
+                        message = f"{nick} > Used {result['item_name']} on {target_nick}!"
                 else:
                     message = f"{nick} > Used {result['item_name']}!"
                 
@@ -618,20 +806,48 @@ class DuckHuntBot:
         is_private_msg = not channel.startswith('#')
         
         if args:
-            target = args[0].lower()
-            player = self.db.get_player(target)
-            if player is None:
-                player = {}
-            player['gun_confiscated'] = False
+            target_nick = args[0]
             
-            # Update magazines based on player level
+        # Validate target player (only for channel messages, skip validation if targeting self)
+        player = None
+        if not is_private_msg:
+            # If targeting self, skip validation since the user is obviously in the channel
+            if target_nick.lower() == nick.lower():
+                target_nick = target_nick.lower()
+                player = self.db.get_player(target_nick)
+                if player is None:
+                    player = self.db.create_player(target_nick)
+                    self.db.players[target_nick] = player
+            else:
+                is_valid, player, error_msg = self.validate_target_player(target_nick, channel)
+                if not is_valid:
+                    message = f"{nick} > {error_msg}"
+                    self.send_message(channel, message)
+                    return
+                # Ensure player is properly stored in database
+                target_nick = target_nick.lower()
+                if target_nick not in self.db.players:
+                    self.db.players[target_nick] = player
+        else:
+            # For private messages, allow targeting any nick (admin override)
+            target_nick = target_nick.lower()
+            player = self.db.get_player(target_nick)
+            if player is None:
+                # Create new player data for the target
+                player = self.db.create_player(target_nick)
+                self.db.players[target_nick] = player
+        
+        # At this point player is guaranteed to be not None
+        if player is not None:
+            player['gun_confiscated'] = False            # Update magazines based on player level
             self.levels.update_player_magazines(player)
             player['current_ammo'] = player.get('bullets_per_magazine', 6)
+            # Player data is already modified in place and will be saved by save_database()
             
             if is_private_msg:
-                message = f"{nick} > Rearmed {target}"
+                message = f"{nick} > Rearmed {target_nick}"
             else:
-                message = self.messages.get('admin_rearm_player', target=target, admin=nick)
+                message = self.messages.get('admin_rearm_player', target=target_nick, admin=nick)
             self.send_message(channel, message)
         else:
             if is_private_msg:
@@ -665,16 +881,46 @@ class DuckHuntBot:
                 self.send_message(channel, message)
             return
         
-        target = args[0].lower()
-        player = self.db.get_player(target)
-        if player is None:
-            player = {}
-        player['gun_confiscated'] = True
+        target_nick = args[0]
+        
+        # Validate target player (only for channel messages, skip validation if targeting self)
+        player = None
+        if not is_private_msg:
+            # If targeting self, skip validation since the user is obviously in the channel
+            if target_nick.lower() == nick.lower():
+                target_nick = target_nick.lower()
+                player = self.db.get_player(target_nick)
+                if player is None:
+                    player = self.db.create_player(target_nick)
+                    self.db.players[target_nick] = player
+            else:
+                is_valid, player, error_msg = self.validate_target_player(target_nick, channel)
+                if not is_valid:
+                    message = f"{nick} > {error_msg}"
+                    self.send_message(channel, message)
+                    return
+                # Ensure player is properly stored in database
+                target_nick = target_nick.lower()
+                if target_nick not in self.db.players:
+                    self.db.players[target_nick] = player
+        else:
+            # For private messages, allow targeting any nick (admin override)
+            target_nick = target_nick.lower()
+            player = self.db.get_player(target_nick)
+            if player is None:
+                # Create new player data for the target
+                player = self.db.create_player(target_nick)
+                self.db.players[target_nick] = player
+        
+        # At this point player is guaranteed to be not None
+        if player is not None:
+            player['gun_confiscated'] = True
+        # Player data is already modified in place and will be saved by save_database()
         
         if is_private_msg:
-            message = f"{nick} > Disarmed {target}"
+            message = f"{nick} > Disarmed {target_nick}"
         else:
-            message = self.messages.get('admin_disarm', target=target, admin=nick)
+            message = self.messages.get('admin_disarm', target=target_nick, admin=nick)
         
         self.send_message(channel, message)
         self.db.save_database()

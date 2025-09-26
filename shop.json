@@ -19,8 +19,7 @@
       "price": 10,
       "description": "Throw sand in target's gun - increases jam chance by 15%",
       "type": "sabotage_jam",
-      "amount": 15,
-      "target_required": true
+      "amount": 15
     },
     "4": {
       "name": "Gun Brush",
@@ -36,6 +35,32 @@
       "type": "attract_ducks",
       "duration": 1200,
       "spawn_multiplier": 2.0
+    },
+    "6": {
+      "name": "Hunter's Insurance",
+      "price": 75,
+      "description": "Protects against friendly fire penalties for 24 hours - no XP loss or gun confiscation",
+      "type": "insurance",
+      "duration": 86400,
+      "protection": "friendly_fire"
+    },
+    "7": {
+      "name": "Buy Gun Back",
+      "price": 40,
+      "description": "Get your confiscated gun back with the same ammo it had when taken",
+      "type": "buy_gun_back"
+    },
+    "8": {
+      "name": "Bucket of Water",
+      "price": 25,
+      "description": "Splash another hunter with water - soaks their clothes and prevents shooting until they dry or buy new clothes",
+      "type": "splash_water"
+    },
+    "9": {
+      "name": "Dry Clothes",
+      "price": 30,
+      "description": "Change into dry clothes - allows shooting again after being soaked",
+      "type": "dry_clothes"
     }
   }
 }

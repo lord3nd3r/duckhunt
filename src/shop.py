@@ -105,10 +105,42 @@ class ShopManager:
         player['xp'] = player_xp - item['price']
         
         if store_in_inventory:
-            # Add to inventory
+            # Add to inventory with bounds checking
             inventory = player.get('inventory', {})
             item_id_str = str(item_id)
             current_count = inventory.get(item_id_str, 0)
+            
+            # Load inventory limits from config
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')
+            max_per_item = 99  # Default limit per item type
+            max_total_items = 20  # Default total items limit
+            try:
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                max_total_items = config.get('gameplay', {}).get('max_inventory_items', 20)
+                max_per_item = config.get('gameplay', {}).get('max_per_item_type', 99)
+            except:
+                pass  # Use defaults
+            
+            # Check individual item limit
+            if current_count >= max_per_item:
+                return {
+                    "success": False,
+                    "error": "item_limit_reached",
+                    "message": f"Cannot hold more than {max_per_item} {item['name']}s",
+                    "item_name": item['name']
+                }
+            
+            # Check total inventory size limit
+            total_items = sum(inventory.values())
+            if total_items >= max_total_items:
+                return {
+                    "success": False,
+                    "error": "inventory_full",
+                    "message": f"Inventory full! (max {max_total_items} items)",
+                    "item_name": item['name']
+                }
+            
             inventory[item_id_str] = current_count + 1
             player['inventory'] = inventory
             
@@ -190,11 +222,11 @@ class ShopManager:
         elif item_type == 'luck':
             # Store luck bonus (would be used in duck spawning logic)
             current_luck = player.get('luck_bonus', 0)
-            new_luck = current_luck + amount
+            new_luck = min(max(current_luck + amount, -50), 100)  # Bounded between -50 and +100
             player['luck_bonus'] = new_luck
             return {
                 "type": "luck",
-                "added": amount,
+                "added": new_luck - current_luck,
                 "new_total": new_luck
             }
         
@@ -316,7 +348,7 @@ class ShopManager:
         elif item_type == 'clean_gun':
             # Clean gun to reduce jamming chance (positive amount reduces jam chance)
             current_jam = player.get('jam_chance', 5)  # Default 5% jam chance
-            new_jam = max(current_jam + amount, 0)  # amount is negative for cleaning
+            new_jam = min(max(current_jam + amount, 0), 100)  # Bounded between 0% and 100%
             player['jam_chance'] = new_jam
             
             return {
@@ -346,9 +378,108 @@ class ShopManager:
                 "duration": duration // 60  # return duration in minutes
             }
         
+        elif item_type == 'insurance':
+            # Add insurance protection against friendly fire
+            if 'temporary_effects' not in player:
+                player['temporary_effects'] = []
+            
+            duration = item.get('duration', 86400)  # 24 hours default
+            protection_type = item.get('protection', 'friendly_fire')
+            
+            effect = {
+                'type': 'insurance',
+                'protection': protection_type,
+                'expires_at': time.time() + duration,
+                'name': 'Hunter\'s Insurance'
+            }
+            player['temporary_effects'].append(effect)
+            
+            return {
+                "type": "insurance",
+                "protection": protection_type,
+                "duration": duration // 3600  # return duration in hours
+            }
+        
+        elif item_type == 'buy_gun_back':
+            # Restore confiscated gun with original ammo
+            was_confiscated = player.get('gun_confiscated', False)
+            
+            if was_confiscated:
+                player['gun_confiscated'] = False
+                # Restore original ammo and magazines from when gun was confiscated
+                restored_ammo = player.get('confiscated_ammo', 0)
+                restored_magazines = player.get('confiscated_magazines', 1)
+                player['current_ammo'] = restored_ammo
+                player['magazines'] = restored_magazines
+                # Clean up the stored values
+                player.pop('confiscated_ammo', None)
+                player.pop('confiscated_magazines', None)
+                    
+                return {
+                    "type": "buy_gun_back",
+                    "restored": True,
+                    "ammo_restored": restored_ammo
+                }
+            else:
+                return {
+                    "type": "buy_gun_back", 
+                    "restored": False,
+                    "message": "Your gun is not confiscated"
+                }
+        
+
+        
+        elif item_type == 'dry_clothes':
+            # Remove wet clothes effect
+            
+            # Remove any wet clothes effects
+            if 'temporary_effects' in player:
+                original_count = len(player['temporary_effects'])
+                player['temporary_effects'] = [
+                    effect for effect in player['temporary_effects']
+                    if effect.get('type') != 'wet_clothes'
+                ]
+                new_count = len(player['temporary_effects'])
+                was_wet = original_count > new_count
+            else:
+                was_wet = False
+            
+            return {
+                "type": "dry_clothes",
+                "was_wet": was_wet,
+                "message": "You changed into dry clothes!" if was_wet else "You weren't wet!"
+            }
+        
         else:
             self.logger.warning(f"Unknown item type: {item_type}")
             return {"type": "unknown", "message": f"Unknown effect type: {item_type}"}
+    
+    def _apply_splash_water_effect(self, target_player: Dict[str, Any], item: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply splash water effect to target player"""
+        # Load config directly without import issues
+        config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            wet_duration = config.get('gameplay', {}).get('wet_clothes_duration', 300)  # 5 minutes default
+        except:
+            wet_duration = 300  # Default 5 minutes
+        
+        if 'temporary_effects' not in target_player:
+            target_player['temporary_effects'] = []
+            
+        # Add wet clothes effect
+        wet_effect = {
+            'type': 'wet_clothes',
+            'expires_at': time.time() + wet_duration
+        }
+        target_player['temporary_effects'].append(wet_effect)
+        
+        return {
+            "type": "splash_water",
+            "target_soaked": True,
+            "duration": wet_duration // 60  # return duration in minutes
+        }
     
     def use_inventory_item(self, player: Dict[str, Any], item_id: int, target_player: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -370,12 +501,22 @@ class ShopManager:
                 "item_name": item['name']
             }
         
-        # Check if item requires a target
-        if item.get('target_required', False) and not target_player:
+        # Special restrictions: Some items require targets, bread cannot have targets
+        if item['type'] == 'attract_ducks' and target_player:
+            return {
+                "success": False,
+                "error": "bread_no_target",
+                "message": "Bread affects everyone in the channel - you cannot target a specific player",
+                "item_name": item['name']
+            }
+        
+        # Items that must have targets when used (but can be stored in inventory)
+        target_required_items = ['sabotage_jam', 'splash_water']
+        if item['type'] in target_required_items and not target_player:
             return {
                 "success": False, 
                 "error": "target_required", 
-                "message": f"{item['name']} requires a target player",
+                "message": f"{item['name']} requires a target player to use",
                 "item_name": item['name']
             }
         
@@ -385,19 +526,31 @@ class ShopManager:
             del inventory[item_id_str]
         player['inventory'] = inventory
         
-        # Apply effect
-        if item.get('target_required', False) and target_player:
-            effect_result = self._apply_item_effect(target_player, item)
+        # Determine who gets the effect
+        if target_player:
+            # Special handling for harmful effects
+            if item['type'] == 'splash_water':
+                effect_result = self._apply_splash_water_effect(target_player, item)
+                target_affected = True
+            elif item['type'] == 'sabotage_jam':
+                effect_result = self._apply_item_effect(target_player, item)
+                target_affected = True
+            else:
+                # Beneficial items - give to target (gifting)
+                effect_result = self._apply_item_effect(target_player, item)
+                target_affected = True
+                # Mark as gift in the result
+                effect_result['is_gift'] = True
             
             return {
                 "success": True,
                 "item_name": item['name'],
                 "effect": effect_result,
-                "target_affected": True,
+                "target_affected": target_affected,
                 "remaining_in_inventory": inventory.get(item_id_str, 0)
             }
         else:
-            # Apply effect to user
+            # Apply effect to user (no target specified)
             effect_result = self._apply_item_effect(player, item)
             
             return {

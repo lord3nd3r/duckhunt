@@ -2,7 +2,7 @@
     "connection": {
         "server": "irc.rizon.net",
         "port": 6697,
-        "nick": "DuckHunt",
+        "nick": "DickHunt",
         "channels": [
             "#ct"
         ],
@@ -13,7 +13,7 @@
         "timeout": 30
     },
     "sasl": {
-        "enabled": true,
+        "enabled": false,
         "username": "duckhunt",
         "password": "duckhunt//789//"
     },
@@ -24,8 +24,8 @@
         "colby"
     ],
     "duck_spawning": {
-        "spawn_min": 10,
-        "spawn_max": 30,
+        "spawn_min": 1200,
+        "spawn_max": 3600,
         "timeout": 60,
         "rearm_on_duck_shot": true
     },
@@ -62,7 +62,8 @@
         "min_accuracy": 10,
         "max_accuracy": 100,
         "min_befriend_success_rate": 5,
-        "max_befriend_success_rate": 95
+        "max_befriend_success_rate": 95,
+        "wet_clothes_duration": 300
     },
     "features": {
         "shop_enabled": true,

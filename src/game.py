@@ -175,6 +175,14 @@ class DuckGame:
                 'message_args': {'nick': nick}
             }
         
+        # Check if clothes are wet
+        if self._is_player_wet(player):
+            return {
+                'success': False,
+                'message_key': 'bang_wet_clothes',
+                'message_args': {'nick': nick}
+            }
+        
         # Check ammo
         if player.get('current_ammo', 0) <= 0:
             return {
@@ -197,8 +205,14 @@ class DuckGame:
         
         # Check for duck
         if channel not in self.ducks or not self.ducks[channel]:
-            # Wild shot - gun confiscated
-            player['current_ammo'] = player.get('current_ammo', 1) - 1
+            # Wild shot - gun confiscated for unsafe shooting
+            player['shots_fired'] = player.get('shots_fired', 0) + 1  # Track wild shots too
+            player['shots_missed'] = player.get('shots_missed', 0) + 1  # Wild shots count as misses
+            # Use ammo for the shot, then store remaining ammo before confiscation
+            remaining_ammo = player.get('current_ammo', 1) - 1
+            player['confiscated_ammo'] = remaining_ammo
+            player['confiscated_magazines'] = player.get('magazines', 0)
+            player['current_ammo'] = 0  # No ammo while confiscated
             player['gun_confiscated'] = True
             self.db.save_database()
             return {
@@ -209,6 +223,7 @@ class DuckGame:
         
         # Shoot at duck
         player['current_ammo'] = player.get('current_ammo', 1) - 1
+        player['shots_fired'] = player.get('shots_fired', 0) + 1  # Track total shots fired
         # Calculate hit chance using level-modified accuracy
         modified_accuracy = self.bot.levels.get_modified_accuracy(player)
         hit_chance = modified_accuracy / 100.0
@@ -268,7 +283,7 @@ class DuckGame:
                 self.bot.levels.update_player_magazines(player)
             
             # If config option enabled, rearm all disarmed players when duck is shot
-            if self.bot.get_config('rearm_on_duck_shot', False):
+            if self.bot.get_config('duck_spawning.rearm_on_duck_shot', False):
                 self._rearm_all_disarmed_players()
             
             self.db.save_database()
@@ -284,9 +299,67 @@ class DuckGame:
             }
         else:
             # Miss! Duck stays in the channel
-            accuracy_loss = self.bot.get_config('accuracy_loss_on_miss', 2)
-            min_accuracy = self.bot.get_config('min_accuracy', 10)
-            player['accuracy'] = max(player.get('accuracy', self.bot.get_config('default_accuracy', 75)) - accuracy_loss, min_accuracy)
+            player['shots_missed'] = player.get('shots_missed', 0) + 1  # Track missed shots
+            accuracy_loss = self.bot.get_config('gameplay.accuracy_loss_on_miss', 2)
+            min_accuracy = self.bot.get_config('gameplay.min_accuracy', 10)
+            player['accuracy'] = max(player.get('accuracy', self.bot.get_config('player_defaults.accuracy', 75)) - accuracy_loss, min_accuracy)
+            
+            # Check for friendly fire (chance to hit another hunter)
+            friendly_fire_chance = 0.15  # 15% chance of hitting another hunter on miss
+            if random.random() < friendly_fire_chance:
+                # Get other armed players in the same channel
+                armed_players = []
+                for other_nick, other_player in self.db.players.items():
+                    if (other_nick.lower() != nick.lower() and 
+                        not other_player.get('gun_confiscated', False) and
+                        other_player.get('current_ammo', 0) > 0):
+                        armed_players.append((other_nick, other_player))
+                
+                if armed_players:
+                    # Hit a random armed hunter
+                    victim_nick, victim_player = random.choice(armed_players)
+                    
+                    # Check if shooter has insurance protection
+                    has_insurance = self._check_insurance_protection(player, 'friendly_fire')
+                    
+                    if has_insurance:
+                        # Protected by insurance - no penalties
+                        self.db.save_database()
+                        return {
+                            'success': True,
+                            'hit': False,
+                            'friendly_fire': True,
+                            'victim': victim_nick,
+                            'message_key': 'bang_friendly_fire_insured',
+                            'message_args': {
+                                'nick': nick,
+                                'victim': victim_nick
+                            }
+                        }
+                    else:
+                        # Apply friendly fire penalties - gun confiscated for unsafe shooting
+                        xp_loss = min(player.get('xp', 0) // 4, 25)  # Lose 25% XP or max 25 XP
+                        player['xp'] = max(0, player.get('xp', 0) - xp_loss)
+                        # Store current ammo state before confiscation (no shot fired yet in friendly fire)
+                        player['confiscated_ammo'] = player.get('current_ammo', 0)
+                        player['confiscated_magazines'] = player.get('magazines', 0)
+                        player['current_ammo'] = 0  # No ammo while confiscated
+                        player['gun_confiscated'] = True
+                        
+                        self.db.save_database()
+                        return {
+                            'success': True,
+                            'hit': False,
+                            'friendly_fire': True,
+                            'victim': victim_nick,
+                            'message_key': 'bang_friendly_fire_penalty',
+                            'message_args': {
+                                'nick': nick,
+                                'victim': victim_nick,
+                                'xp_lost': xp_loss
+                            }
+                        }
+            
             self.db.save_database()
             return {
                 'success': True,
@@ -442,6 +515,35 @@ class DuckGame:
         except Exception as e:
             self.logger.error(f"Error getting spawn multiplier: {e}")
             return 1.0
+    
+    def _is_player_wet(self, player):
+        """Check if player has wet clothes that prevent shooting"""
+        import time
+        current_time = time.time()
+        
+        effects = player.get('temporary_effects', [])
+        for effect in effects:
+            if (effect.get('type') == 'wet_clothes' and 
+                effect.get('expires_at', 0) > current_time):
+                return True
+        return False
+    
+    def _check_insurance_protection(self, player, protection_type):
+        """Check if player has active insurance protection"""
+        import time
+        current_time = time.time()
+        
+        try:
+            effects = player.get('temporary_effects', [])
+            for effect in effects:
+                if (effect.get('type') == 'insurance' and 
+                    effect.get('protection') == protection_type and
+                    effect.get('expires_at', 0) > current_time):
+                    return True
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking insurance protection: {e}")
+            return False
     
     def _clean_expired_effects(self):
         """Remove expired temporary effects from all players"""

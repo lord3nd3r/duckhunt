@@ -651,3 +651,78 @@
 2025-09-24 18:56:53,434 [INFO    ] DuckHuntBot.Shop - load_items:30: Loaded 5 shop items from /home/colby/duckhunt/shop.json
 2025-09-24 18:56:53,436 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
 2025-09-24 18:56:53,439 [INFO    ] DuckHuntBot.DB - load_database:47: Loaded 1 players from duckhunt.json
+2025-09-25 18:05:24,467 [INFO    ] DuckHuntBot - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-25 18:05:24,469 [INFO    ] DuckHuntBot.DB - load_database:48: Loaded 1 players from duckhunt.json
+2025-09-25 18:05:24,470 [INFO    ] SASL - setup_logger:61: Enhanced logging system initialized with file rotation
+2025-09-25 18:05:24,471 [INFO    ] DuckHuntBot.Shop - load_items:30: Loaded 5 shop items from /home/colby/duckhunt/shop.json
+2025-09-25 18:05:24,478 [INFO    ] DuckHuntBot.Levels - load_levels:28: Loaded 8 levels from /home/colby/duckhunt/levels.json
+2025-09-25 18:05:24,479 [INFO    ] DuckHuntBot - main:28: 🦆 Starting DuckHunt Bot...
+2025-09-25 18:05:24,568 [INFO    ] DuckHuntBot - connect:115: Attempting to connect to irc.rizon.net:6697 (attempt 1/3)
+2025-09-25 18:05:25,012 [INFO    ] DuckHuntBot - connect:126: ✅ Successfully connected to irc.rizon.net:6697
+2025-09-25 18:05:25,013 [INFO    ] SASL - start_negotiation:45: SASL authentication enabled
+2025-09-25 18:05:25,013 [INFO    ] DuckHuntBot - run:774: 🦆 Bot is now running! Press Ctrl+C to stop.
+2025-09-25 18:05:27,048 [INFO    ] SASL - handle_cap_response:59: Server capabilities: ['away-notify', 'chghost', 'invite-notify', 'multi-prefix', 'sasl', 'userhost-in-names']
+2025-09-25 18:05:27,048 [INFO    ] SASL - handle_cap_response:61: SASL capability available
+2025-09-25 18:05:27,098 [INFO    ] SASL - handle_cap_response:72: SASL capability acknowledged
+2025-09-25 18:05:27,098 [INFO    ] SASL - handle_cap_response:74: Authenticating via SASL as duckhunt
+2025-09-25 18:05:27,099 [INFO    ] SASL - handle_sasl:94: Sending AUTHENTICATE PLAIN
+2025-09-25 18:05:27,507 [INFO    ] SASL - handle_authenticate_response:103: Server ready for SASL authentication
+2025-09-25 18:05:27,508 [DEBUG   ] SASL - handle_authenticate_response:106: Auth string length: 33 chars
+2025-09-25 18:05:27,508 [DEBUG   ] SASL - handle_authenticate_response:107: Auth components: user='duckhunt', pass='duc...'
+2025-09-25 18:05:27,508 [DEBUG   ] SASL - handle_authenticate_response:110: Base64 encoded length: 44 chars
+2025-09-25 18:05:27,508 [DEBUG   ] SASL - handle_authenticate_response:111: Sending: AUTHENTICATE ZHVja2h1bnQAZHVja2h1...
+2025-09-25 18:05:27,918 [INFO    ] SASL - handle_sasl_result:123: SASL authentication successful!
+2025-09-25 18:05:28,019 [INFO    ] DuckHuntBot - handle_message:232: Successfully registered with IRC server
+2025-09-25 18:05:47,029 [INFO    ] DuckHuntBot.Game - spawn_duck:149: Fast duck (hidden) spawned in #ct
+2025-09-25 18:05:51,297 [DEBUG   ] DuckHuntBot.DB - save_database:134: Database saved successfully with 1 players
+2025-09-25 18:06:06,048 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:06:13,814 [DEBUG   ] DuckHuntBot.DB - save_database:134: Database saved successfully with 1 players
+2025-09-25 18:06:24,064 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:07:26,130 [INFO    ] DuckHuntBot.Game - spawn_duck:149: Fast duck (hidden) spawned in #ct
+2025-09-25 18:07:56,160 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 3 HP
+2025-09-25 18:09:17,234 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:10:24,298 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:11:42,412 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 4 HP
+2025-09-25 18:12:55,485 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:14:06,578 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 3 HP
+2025-09-25 18:15:14,722 [INFO    ] DuckHuntBot.Game - spawn_duck:149: Fast duck (hidden) spawned in #ct
+2025-09-25 18:15:54,792 [INFO    ] DuckHuntBot.Game - spawn_duck:149: Fast duck (hidden) spawned in #ct
+2025-09-25 18:16:15,812 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:17:22,878 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:18:31,953 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:19:49,029 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:20:57,099 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:22:04,175 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:23:19,252 [INFO    ] DuckHuntBot.Game - spawn_duck:149: Fast duck (hidden) spawned in #ct
+2025-09-25 18:23:46,278 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:24:57,354 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 3 HP
+2025-09-25 18:26:17,435 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:27:24,505 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:28:33,580 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:29:37,647 [INFO    ] DuckHuntBot.Game - spawn_duck:149: Fast duck (hidden) spawned in #ct
+2025-09-25 18:30:17,686 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:31:35,762 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:33:01,847 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:34:13,914 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:35:27,982 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:36:39,046 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:37:41,102 [INFO    ] DuckHuntBot.Game - spawn_duck:149: Fast duck (hidden) spawned in #ct
+2025-09-25 18:38:18,132 [INFO    ] DuckHuntBot.Game - spawn_duck:149: Fast duck (hidden) spawned in #ct
+2025-09-25 18:38:44,166 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:40:12,271 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:41:23,349 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 3 HP
+2025-09-25 18:42:28,415 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:43:52,494 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 4 HP
+2025-09-25 18:45:03,560 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 3 HP
+2025-09-25 18:46:04,620 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:47:20,702 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:48:29,761 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:49:35,827 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:50:48,894 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:51:51,944 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:52:58,006 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:53:59,056 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 4 HP
+2025-09-25 18:55:08,121 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:56:27,201 [INFO    ] DuckHuntBot.Game - spawn_duck:161: Normal duck spawned in #ct
+2025-09-25 18:57:44,273 [INFO    ] DuckHuntBot.Game - spawn_duck:137: Golden duck (hidden) spawned in #ct with 3 HP
+                                                                                                                    

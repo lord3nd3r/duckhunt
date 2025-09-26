@@ -68,6 +68,8 @@ class DuckDB:
             sanitized['xp'] = max(0, int(player_data.get('xp', 0)))  # Non-negative XP
             sanitized['ducks_shot'] = max(0, int(player_data.get('ducks_shot', 0)))
             sanitized['ducks_befriended'] = max(0, int(player_data.get('ducks_befriended', 0)))
+            sanitized['shots_fired'] = max(0, int(player_data.get('shots_fired', 0)))
+            sanitized['shots_missed'] = max(0, int(player_data.get('shots_missed', 0)))
             default_accuracy = self.bot.get_config('default_accuracy', 75) if self.bot else 75
             max_accuracy = self.bot.get_config('max_accuracy', 100) if self.bot else 100
             sanitized['accuracy'] = max(0, min(max_accuracy, int(player_data.get('accuracy', default_accuracy))))  # 0-max_accuracy range
@@ -76,6 +78,12 @@ class DuckDB:
             # Ammo system with validation
             sanitized['current_ammo'] = max(0, min(50, int(player_data.get('current_ammo', 6))))
             sanitized['magazines'] = max(0, min(20, int(player_data.get('magazines', 3))))
+            
+            # Confiscated ammo (optional fields)
+            if 'confiscated_ammo' in player_data:
+                sanitized['confiscated_ammo'] = max(0, min(50, int(player_data.get('confiscated_ammo', 0))))
+            if 'confiscated_magazines' in player_data:
+                sanitized['confiscated_magazines'] = max(0, min(20, int(player_data.get('confiscated_magazines', 0))))
             sanitized['bullets_per_magazine'] = max(1, min(50, int(player_data.get('bullets_per_magazine', 6))))
             sanitized['jam_chance'] = max(0, min(100, int(player_data.get('jam_chance', 5))))
             
@@ -237,6 +245,8 @@ class DuckDB:
                 'xp': xp,
                 'ducks_shot': 0,
                 'ducks_befriended': 0,
+                'shots_fired': 0,  # Total shots fired
+                'shots_missed': 0,  # Total shots that missed
                 'current_ammo': bullets_per_mag,  # Bullets in current magazine
                 'magazines': magazines,     # Total magazines (including current)  
                 'bullets_per_magazine': bullets_per_mag,  # Bullets per magazine
