@@ -311,6 +311,10 @@ class DuckGame:
         else:
             # Miss! Duck stays in the channel
             player['shots_missed'] = player.get('shots_missed', 0) + 1  # Track missed shots
+            
+            # Lose 1 XP for missing
+            player['xp'] = max(0, player.get('xp', 0) - 1)
+            
             accuracy_loss = self.bot.get_config('gameplay.accuracy_loss_on_miss', 2)
             min_accuracy = self.bot.get_config('gameplay.min_accuracy', 10)
             player['accuracy'] = max(player.get('accuracy', self.bot.get_config('player_defaults.accuracy', 75)) - accuracy_loss, min_accuracy)
@@ -390,7 +394,7 @@ class DuckGame:
             }
         
         # Check befriend success rate from config and level modifiers
-        base_rate = self.bot.get_config('befriend_success_rate', 75)
+        base_rate = self.bot.get_config('gameplay.befriend_success_rate', 75)
         try:
             if base_rate is not None:
                 base_rate = float(base_rate)
@@ -408,7 +412,7 @@ class DuckGame:
             duck = self.ducks[channel].pop(0)
             
             # Lower XP gain than shooting
-            xp_gained = self.bot.get_config('befriend_duck_xp', 5)
+            xp_gained = self.bot.get_config('gameplay.befriend_xp', 5)
             old_level = self.bot.levels.calculate_player_level(player)
             player['xp'] = player.get('xp', 0) + xp_gained
             player['ducks_befriended'] = player.get('ducks_befriended', 0) + 1
