@@ -1,6 +1,6 @@
 import asyncio
-import ssl
 import os
+import ssl
 import time
 import signal
 from typing import Optional
@@ -15,8 +15,6 @@ from .levels import LevelManager
 
 
 class DuckHuntBot:
-    """Simplified IRC Bot for DuckHunt game"""
-    
     def __init__(self, config):
         self.config = config
         self.logger = setup_logger("DuckHuntBot")
@@ -38,16 +36,13 @@ class DuckHuntBot:
         self.admins = [admin.lower() for admin in admins_list]
         self.logger.info(f"Configured {len(self.admins)} admin(s): {', '.join(self.admins)}")
         
-        # Initialize level manager first
         levels_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'levels.json')
         self.levels = LevelManager(levels_file)
         
-        # Initialize shop manager with levels reference
         shop_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shop.json')
         self.shop = ShopManager(shop_file, self.levels)
         
     def get_config(self, path, default=None):
-        """Get configuration value using dot notation"""
         keys = path.split('.')
         value = self.config
         for key in keys:
@@ -58,29 +53,22 @@ class DuckHuntBot:
         return value
     
     def is_admin(self, user):
-        """Check if user is admin with enhanced security checks"""
         if '!' not in user:
             return False
         
         nick = user.split('!')[0].lower()
         
-        # Check admin configuration - support both nick-only (legacy) and hostmask patterns
         admin_config = self.get_config('admins', [])
-        
-        # Ensure admin_config is a list
         if not isinstance(admin_config, list):
             admin_config = []
         
         for admin_entry in admin_config:
             if isinstance(admin_entry, str):
-                # Simple nick-based check (less secure but compatible)
                 if admin_entry.lower() == nick:
                     self.logger.warning(f"Admin access granted via nick-only authentication: {user}")
                     return True
             elif isinstance(admin_entry, dict):
-                # Enhanced hostmask-based authentication
                 if admin_entry.get('nick', '').lower() == nick:
-                    # Check hostmask pattern if provided
                     required_pattern = admin_entry.get('hostmask')
                     if required_pattern:
                         import fnmatch
@@ -91,7 +79,6 @@ class DuckHuntBot:
                             self.logger.warning(f"Admin nick match but hostmask mismatch: {user} vs {required_pattern}")
                             return False
                     else:
-                        # Nick-only fallback
                         self.logger.warning(f"Admin access granted via nick-only (no hostmask configured): {user}")
                         return True
         
@@ -106,12 +93,58 @@ class DuckHuntBot:
         
         target = args[0].lower()
         player = self.db.get_player(target)
+        if player is None:
+            player = self.db.create_player(target)
+            self.db.players[target] = player
         action_func(player)
         
         message = self.messages.get(success_message_key, target=target, admin=nick)
         self.send_message(channel, message)
         self.db.save_database()
         return True
+
+    def _get_admin_target_player(self, nick, channel, target_nick):
+        """
+        Helper method to get target player for admin commands with validation.
+        Returns (player, error_message) - if error_message is not None, command should return early.
+        """
+        is_private_msg = not channel.startswith('#')
+        
+        if not is_private_msg:
+            if target_nick.lower() == nick.lower():
+                target_nick = target_nick.lower()
+                player = self.db.get_player(target_nick)
+                if player is None:
+                    player = self.db.create_player(target_nick)
+                    self.db.players[target_nick] = player
+                return player, None
+            else:
+                is_valid, player, error_msg = self.validate_target_player(target_nick, channel)
+                if not is_valid:
+                    return None, error_msg
+                target_nick = target_nick.lower()
+                if target_nick not in self.db.players:
+                    self.db.players[target_nick] = player
+                return player, None
+        else:
+            target_nick = target_nick.lower()
+            player = self.db.get_player(target_nick)
+            if player is None:
+                player = self.db.create_player(target_nick)
+                self.db.players[target_nick] = player
+            return player, None
+
+    def _get_validated_target_player(self, nick, channel, target_nick):
+        """
+        Helper method to validate and get target player for regular commands.
+        Returns (player, None) on success or (None, error_message) on failure.
+        """
+        if target_nick:
+            is_valid, target_player, error_msg = self.validate_target_player(target_nick, channel)
+            if not is_valid:
+                return None, f"{nick} > {error_msg}"
+            return target_player, None
+        return None, None
     
     def setup_signal_handlers(self):
         """Setup signal handlers for immediate shutdown"""
@@ -120,7 +153,6 @@ class DuckHuntBot:
             self.logger.info(f"🛑 Received {signal_name} (Ctrl+C), shutting down immediately...")
             self.shutdown_requested = True
             try:
-                # Get the current event loop and cancel all tasks
                 loop = asyncio.get_running_loop()
                 tasks = [t for t in asyncio.all_tasks(loop) if not t.done()]
                 for task in tasks:
@@ -142,7 +174,6 @@ class DuckHuntBot:
                 ssl_context = None
                 if self.get_config('connection.ssl', False):
                     ssl_context = ssl.create_default_context()
-                    # Add SSL context configuration for better compatibility
                     ssl_context.check_hostname = False
                     ssl_context.verify_mode = ssl.CERT_NONE
                 
@@ -156,7 +187,7 @@ class DuckHuntBot:
                         port,
                         ssl=ssl_context
                     ),
-                    timeout=self.get_config('connection.timeout', 30) or 30.0  # Connection timeout from config
+                    timeout=self.get_config('connection.timeout', 30) or 30.0
                 )
                 
                 self.logger.info(f"Successfully connected to {server}:{port}")
@@ -174,9 +205,8 @@ class DuckHuntBot:
             if attempt < max_retries - 1:
                 self.logger.info(f"Retrying connection in {retry_delay} seconds...")
                 await asyncio.sleep(retry_delay)
-                retry_delay *= 2  # Exponential backoff
+                retry_delay *= 2
         
-        # If all attempts failed
         raise ConnectionError(f"Failed to connect after {max_retries} attempts")
     
     def send_raw(self, msg):
@@ -208,9 +238,7 @@ class DuckHuntBot:
             self.logger.warning(f"Invalid message parameters: target={type(target)}, msg={type(msg)}")
             return False
             
-        # Sanitize message to prevent IRC injection
         try:
-            # Remove potential IRC control characters
             sanitized_msg = msg.replace('\r', '').replace('\n', ' ').strip()
             if not sanitized_msg:
                 return False
@@ -238,7 +266,6 @@ class DuckHuntBot:
     async def handle_message(self, prefix, command, params, trailing):
         """Handle incoming IRC messages with comprehensive error handling"""
         try:
-            # Validate input parameters
             if not isinstance(command, str):
                 self.logger.warning(f"Invalid command type: {type(command)}")
                 return
@@ -255,7 +282,6 @@ class DuckHuntBot:
                 self.logger.warning(f"Invalid trailing type: {type(trailing)}")
                 trailing = str(trailing)
         
-            # Handle SASL-related messages
             if command == "CAP":
                 await self.sasl_handler.handle_cap_response(params, trailing)
                 return
@@ -268,11 +294,10 @@ class DuckHuntBot:
                 await self.sasl_handler.handle_sasl_result(command, params, trailing)
                 return
             
-            elif command == "001":  # Welcome message
+            elif command == "001":
                 self.registered = True
                 self.logger.info("Successfully registered with IRC server")
                 
-                # Join channels
                 channels = self.get_config('connection.channels', []) or []
                 for channel in channels:
                     try:
@@ -295,12 +320,10 @@ class DuckHuntBot:
                     
         except Exception as e:
             self.logger.error(f"Critical error in handle_message: {e}")
-            # Continue execution to prevent bot crashes
     
     async def handle_command(self, user, channel, message):
         """Handle bot commands with comprehensive error handling"""
         try:
-            # Validate inputs
             if not isinstance(message, str) or not message.startswith('!'):
                 return
             
@@ -308,7 +331,6 @@ class DuckHuntBot:
                 self.logger.warning(f"Invalid user/channel types: {type(user)}, {type(channel)}")
                 return
             
-            # Safely parse command
             try:
                 parts = message[1:].split()
             except Exception as e:
@@ -321,7 +343,6 @@ class DuckHuntBot:
             cmd = parts[0].lower()
             args = parts[1:] if len(parts) > 1 else []
             
-            # Safely extract nick
             try:
                 nick = user.split('!')[0] if '!' in user else user
                 if not nick:
@@ -331,7 +352,6 @@ class DuckHuntBot:
                 self.logger.error(f"Error extracting nick from '{user}': {e}")
                 return
             
-            # Get player data safely
             try:
                 player = self.db.get_player(nick)
                 if player is None:
@@ -340,14 +360,11 @@ class DuckHuntBot:
                 self.logger.error(f"Error getting player data for {nick}: {e}")
                 player = {}
             
-            # Track activity for channel membership validation
-            if channel.startswith('#'):  # Only track for channel messages
+            if channel.startswith('#'):
                 player['last_activity_channel'] = channel
                 player['last_activity_time'] = time.time()
-                # Save activity immediately to ensure validation works
                 self.db.players[nick.lower()] = player
             
-            # Check if player is ignored (unless it's an admin)
             try:
                 if player.get('ignored', False) and not self.is_admin(user):
                     return
@@ -355,12 +372,10 @@ class DuckHuntBot:
                 self.logger.error(f"Error checking admin/ignore status: {e}")
                 return
             
-            # Handle commands with individual error isolation
             await self._execute_command_safely(cmd, nick, channel, player, args, user)
             
         except Exception as e:
             self.logger.error(f"Critical error in handle_command: {e}")
-            # Continue execution to prevent bot crashes
     
     async def _execute_command_safely(self, cmd, nick, channel, player, args, user):
         """Execute individual commands with error isolation"""
@@ -379,6 +394,8 @@ class DuckHuntBot:
                 await self.handle_topduck(nick, channel)
             elif cmd == "use":
                 await self.handle_use(nick, channel, player, args)
+            elif cmd == "give":
+                await self.handle_give(nick, channel, player, args)
             elif cmd == "duckhelp":
                 await self.handle_duckhelp(nick, channel, player)
             elif cmd == "rearm" and self.is_admin(user):
@@ -393,7 +410,6 @@ class DuckHuntBot:
                 await self.handle_ducklaunch(nick, channel, args)
         except Exception as e:
             self.logger.error(f"Error executing command '{cmd}' for user {nick}: {e}")
-            # Send a generic error message to the user to indicate something went wrong
             try:
                 error_msg = f"{nick} > An error occurred processing your command. Please try again."
                 self.send_message(channel, error_msg)
@@ -411,19 +427,15 @@ class DuckHuntBot:
         if not target_nick:
             return False, None, "No target specified"
         
-        # Normalize the nickname
         target_nick = target_nick.lower().strip()
         
-        # Check if target_nick is empty after normalization
         if not target_nick:
             return False, None, "Invalid target nickname"
         
-        # Check if player exists in database
         player = self.db.get_player(target_nick)
         if not player:
             return False, None, f"Player '{target_nick}' not found. They need to participate in the game first."
         
-        # Check if player has any game activity (basic validation they're a hunter)
         has_activity = (
             player.get('xp', 0) > 0 or 
             player.get('shots_fired', 0) > 0 or 
@@ -433,10 +445,6 @@ class DuckHuntBot:
         
         if not has_activity:
             return False, None, f"Player '{target_nick}' has no hunting activity. They may not be an active hunter."
-        
-        # Skip channel membership check - it causes more problems than it solves
-        # If an admin is targeting someone, they probably have a good reason
-        # The activity check above is sufficient validation
         
         return True, player, None
     
@@ -452,22 +460,19 @@ class DuckHuntBot:
             if not player:
                 return False
             
-            # Check if they've been active in this channel recently
             last_activity_channel = player.get('last_activity_channel')
             last_activity_time = player.get('last_activity_time', 0)
             current_time = time.time()
             
-            # If they were active in this channel within the last 30 minutes, assume they're still here
             if (last_activity_channel == channel and 
-                current_time - last_activity_time < 1800):  # 30 minutes
+                current_time - last_activity_time < 1800):
                 return True
             
-            # If no recent activity in this channel, they might not be here
             return False
             
         except Exception as e:
             self.logger.error(f"Error checking channel membership for {nick} in {channel}: {e}")
-            return True  # Default to allowing the command if we can't check
+            return True
     
     async def handle_bang(self, nick, channel, player):
         """Handle !bang command"""
@@ -475,25 +480,15 @@ class DuckHuntBot:
         message = self.messages.get(result['message_key'], **result['message_args'])
         self.send_message(channel, message)
         
-        # Check if an item was dropped
         if result.get('success') and result.get('dropped_item'):
             dropped_item = result['dropped_item']
             duck_type = dropped_item['duck_type']
             item_name = dropped_item['item_name']
             
-            # Send drop notification message
             drop_message_key = f'duck_drop_{duck_type}'
             drop_message = self.messages.get(drop_message_key, 
                 nick=nick, 
                 item_name=item_name
-            )
-            self.send_message(channel, drop_message)
-            
-            # Send drop notification message
-            drop_message_key = f'duck_drop_{duck_type}'
-            drop_message = self.messages.get(drop_message_key, 
-                nick=nick, 
-                item_name=dropped_item['item_name']
             )
             self.send_message(channel, drop_message)
     
@@ -511,9 +506,7 @@ class DuckHuntBot:
     
     async def handle_shop(self, nick, channel, player, args=None):
         """Handle !shop command"""
-        # Handle buying: !shop buy <item_id> [target] or !shop <item_id> [target]
         if args and len(args) >= 1:
-            # Check for "buy" subcommand or direct item ID
             start_idx = 0
             if args[0].lower() == "buy":
                 start_idx = 1
@@ -523,7 +516,6 @@ class DuckHuntBot:
                     item_id = int(args[start_idx])
                     target_nick = args[start_idx + 1] if len(args) > start_idx + 1 else None
                     
-                    # If no target specified, store in inventory. If target specified, use immediately.
                     store_in_inventory = target_nick is None
                     await self.handle_shop_buy(nick, channel, player, item_id, target_nick, store_in_inventory)
                     return
@@ -532,7 +524,6 @@ class DuckHuntBot:
                     self.send_message(channel, message)
                     return
         
-        # Display shop items using ShopManager
         shop_text = self.shop.get_shop_display(player, self.messages)
         self.send_message(channel, shop_text)
     
@@ -540,20 +531,14 @@ class DuckHuntBot:
         """Handle buying an item from the shop"""
         target_player = None
         
-        # Get target player if specified and validate they're in channel
-        if target_nick:
-            # Use the same validation as other commands
-            is_valid, target_player, error_msg = self.validate_target_player(target_nick, channel)
-            if not is_valid:
-                message = f"{nick} > {error_msg}"
-                self.send_message(channel, message)
-                return
+        target_player, error_message = self._get_validated_target_player(nick, channel, target_nick)
+        if error_message:
+            self.send_message(channel, error_message)
+            return
         
-        # Use ShopManager to handle the purchase
         result = self.shop.purchase_item(player, item_id, target_player, store_in_inventory)
         
         if not result["success"]:
-            # Handle different error types
             if result["error"] == "invalid_id":
                 message = self.messages.get('shop_buy_invalid_id', nick=nick)
             elif result["error"] == "insufficient_xp":
@@ -572,7 +557,6 @@ class DuckHuntBot:
             self.send_message(channel, message)
             return
         
-        # Purchase successful
         if result.get("stored_in_inventory"):
             message = f"{nick} > Successfully purchased {result['item_name']} for {result['price']} XP! Stored in inventory (x{result['inventory_count']}). Remaining XP: {result['remaining_xp']}"
         elif result.get("target_affected"):
@@ -589,7 +573,6 @@ class DuckHuntBot:
     
     async def handle_duckstats(self, nick, channel, player, args=None):
         """Handle !duckstats command"""
-        # Check if targeting another player
         if args and len(args) > 0:
             target_nick = args[0]
             target_player = self.db.get_player(target_nick)
@@ -597,14 +580,11 @@ class DuckHuntBot:
                 message = f"{nick} > Player '{target_nick}' not found."
                 self.send_message(channel, message)
                 return
-            # Show target's stats
             display_nick = target_nick
             display_player = target_player
         else:
-            # Show own stats
             display_nick = nick
             display_player = player
-        # Apply color formatting
         bold = self.messages.messages.get('colours', {}).get('bold', '')
         reset = self.messages.messages.get('colours', {}).get('reset', '')
         green = self.messages.messages.get('colours', {}).get('green', '')
@@ -748,12 +728,10 @@ class DuckHuntBot:
             target_player = None
             
             # Get target player if specified
-            if target_nick:
-                is_valid, target_player, error_msg = self.validate_target_player(target_nick, channel)
-                if not is_valid:
-                    message = f"{nick} > {error_msg}"
-                    self.send_message(channel, message)
-                    return
+            target_player, error_message = self._get_validated_target_player(nick, channel, target_nick)
+            if error_message:
+                self.send_message(channel, error_message)
+                return
             
             # Use item from inventory
             result = self.shop.use_inventory_item(player, item_id, target_player)
@@ -838,6 +816,80 @@ class DuckHuntBot:
             message = f"{nick} > Invalid item ID. Use !duckstats to see your items."
             self.send_message(channel, message)
     
+    async def handle_give(self, nick, channel, player, args):
+        """Handle !give command - give inventory items to other players"""
+        if not args or len(args) < 2:
+            self.send_message(channel, f"{nick} > Usage: !give <item_id> <player>")
+            return
+        
+        try:
+            item_id = int(args[0])
+            target_nick = args[1]
+            
+            # Validate target player
+            target_player, error_message = self._get_validated_target_player(nick, channel, target_nick)
+            if error_message:
+                self.send_message(channel, f"{nick} > {error_message}")
+                return
+            
+            if not target_player:
+                self.send_message(channel, f"{nick} > Player {target_nick} not found.")
+                return
+            
+            # Check if player has the item in inventory
+            inventory = player.get('inventory', {})
+            if str(item_id) not in inventory or inventory[str(item_id)] <= 0:
+                self.send_message(channel, f"{nick} > You don't have that item. Use !duckstats to check your inventory.")
+                return
+            
+            # Get item info from shop
+            shop_items = self.shop.get_items()
+            if item_id not in shop_items:
+                self.send_message(channel, f"{nick} > Invalid item ID.")
+                return
+            
+            item = shop_items[item_id]
+            
+            # Remove from giver's inventory
+            inventory[str(item_id)] -= 1
+            if inventory[str(item_id)] <= 0:
+                del inventory[str(item_id)]
+            
+            # Add to receiver's inventory
+            target_inventory = target_player.get('inventory', {})
+            target_inventory[str(item_id)] = target_inventory.get(str(item_id), 0) + 1
+            target_player['inventory'] = target_inventory
+            
+            # Send appropriate gift message based on item type
+            item_type = item.get('type', '')
+            if item_type == 'ammo':
+                message = self.messages.get('gift_ammo', 
+                    nick=nick, target_nick=target_nick, amount=item.get('amount', 1))
+            elif item_type == 'magazine':
+                message = self.messages.get('gift_magazine', 
+                    nick=nick, target_nick=target_nick)
+            elif item_type == 'clean_gun':
+                message = self.messages.get('gift_gun_brush', 
+                    nick=nick, target_nick=target_nick)
+            elif item_type == 'insurance':
+                message = self.messages.get('gift_insurance', 
+                    nick=nick, target_nick=target_nick)
+            elif item_type == 'dry_clothes':
+                message = self.messages.get('gift_dry_clothes', 
+                    nick=nick, target_nick=target_nick)
+            elif item_type == 'buy_gun_back':
+                message = self.messages.get('gift_buy_gun_back', 
+                    nick=nick, target_nick=target_nick)
+            else:
+                # Generic gift message for other items
+                message = f"{nick} > Gave {item['name']} to {target_nick}!"
+            
+            self.send_message(channel, message)
+            self.db.save_database()
+            
+        except ValueError:
+            self.send_message(channel, f"{nick} > Usage: !give <item_id> <player>")
+    
     async def handle_rearm(self, nick, channel, args):
         """Handle !rearm command (admin only) - supports private messages"""
         is_private_msg = not channel.startswith('#')
@@ -845,41 +897,36 @@ class DuckHuntBot:
         if args:
             target_nick = args[0]
             
-        # Validate target player (only for channel messages, skip validation if targeting self)
-        player = None
-        if not is_private_msg:
-            # If targeting self, skip validation since the user is obviously in the channel
-            if target_nick.lower() == nick.lower():
-                target_nick = target_nick.lower()
-                player = self.db.get_player(target_nick)
-                if player is None:
-                    player = self.db.create_player(target_nick)
-                    self.db.players[target_nick] = player
-            else:
-                is_valid, player, error_msg = self.validate_target_player(target_nick, channel)
-                if not is_valid:
-                    message = f"{nick} > {error_msg}"
-                    self.send_message(channel, message)
-                    return
-                # Ensure player is properly stored in database
-                target_nick = target_nick.lower()
-                if target_nick not in self.db.players:
-                    self.db.players[target_nick] = player
-        else:
-            # For private messages, allow targeting any nick (admin override)
-            target_nick = target_nick.lower()
-            player = self.db.get_player(target_nick)
-            if player is None:
-                # Create new player data for the target
-                player = self.db.create_player(target_nick)
-                self.db.players[target_nick] = player
-        
-        # At this point player is guaranteed to be not None
-        if player is not None:
-            player['gun_confiscated'] = False            # Update magazines based on player level
-            self.levels.update_player_magazines(player)
-            player['current_ammo'] = player.get('bullets_per_magazine', 6)
-            # Player data is already modified in place and will be saved by save_database()
+            # Check if admin wants to rearm all players
+            if target_nick.lower() == 'all':
+                rearmed_count = 0
+                for player_nick, player in self.db.players.items():
+                    if player.get('gun_confiscated', False):
+                        player['gun_confiscated'] = False
+                        self.levels.update_player_magazines(player)
+                        player['current_ammo'] = player.get('bullets_per_magazine', 6)
+                        rearmed_count += 1
+                
+                if is_private_msg:
+                    message = f"{nick} > Rearmed all players ({rearmed_count} players)"
+                else:
+                    message = self.messages.get('admin_rearm_all', admin=nick)
+                self.send_message(channel, message)
+                self.db.save_database()
+                return
+            
+            player, error_msg = self._get_admin_target_player(nick, channel, target_nick)
+            
+            if error_msg:
+                message = f"{nick} > {error_msg}"
+                self.send_message(channel, message)
+                return
+            
+            # Rearm the target player
+            if player is not None:
+                player['gun_confiscated'] = False
+                self.levels.update_player_magazines(player)
+                player['current_ammo'] = player.get('bullets_per_magazine', 6)
             
             if is_private_msg:
                 message = f"{nick} > Rearmed {target_nick}"
@@ -888,13 +935,15 @@ class DuckHuntBot:
             self.send_message(channel, message)
         else:
             if is_private_msg:
-                self.send_message(channel, f"{nick} > Usage: !rearm <player>")
+                self.send_message(channel, f"{nick} > Usage: !rearm <player|all>")
                 return
             
             # Rearm the admin themselves (only in channels)
             player = self.db.get_player(nick)
             if player is None:
-                player = {}
+                player = self.db.create_player(nick)
+                self.db.players[nick.lower()] = player
+            
             player['gun_confiscated'] = False
             
             # Update magazines based on admin's level
@@ -919,40 +968,21 @@ class DuckHuntBot:
             return
         
         target_nick = args[0]
+        player, error_msg = self._get_admin_target_player(nick, channel, target_nick)
         
-        # Validate target player (only for channel messages, skip validation if targeting self)
-        player = None
-        if not is_private_msg:
-            # If targeting self, skip validation since the user is obviously in the channel
-            if target_nick.lower() == nick.lower():
-                target_nick = target_nick.lower()
-                player = self.db.get_player(target_nick)
-                if player is None:
-                    player = self.db.create_player(target_nick)
-                    self.db.players[target_nick] = player
-            else:
-                is_valid, player, error_msg = self.validate_target_player(target_nick, channel)
-                if not is_valid:
-                    message = f"{nick} > {error_msg}"
-                    self.send_message(channel, message)
-                    return
-                # Ensure player is properly stored in database
-                target_nick = target_nick.lower()
-                if target_nick not in self.db.players:
-                    self.db.players[target_nick] = player
-        else:
-            # For private messages, allow targeting any nick (admin override)
-            target_nick = target_nick.lower()
-            player = self.db.get_player(target_nick)
-            if player is None:
-                # Create new player data for the target
-                player = self.db.create_player(target_nick)
-                self.db.players[target_nick] = player
+        if error_msg:
+            message = f"{nick} > {error_msg}"
+            self.send_message(channel, message)
+            return
         
-        # At this point player is guaranteed to be not None
-        if player is not None:
-            player['gun_confiscated'] = True
-        # Player data is already modified in place and will be saved by save_database()
+        # Ensure player is not None before accessing it
+        if player is None:
+            message = f"{nick} > Failed to get player data for {target_nick}"
+            self.send_message(channel, message)
+            return
+        
+        # Disarm the target player
+        player['gun_confiscated'] = True
         
         if is_private_msg:
             message = f"{nick} > Disarmed {target_nick}"
@@ -962,57 +992,54 @@ class DuckHuntBot:
         self.send_message(channel, message)
         self.db.save_database()
     
-    async def handle_ignore(self, nick, channel, args):
-        """Handle !ignore command (admin only) - supports private messages"""
+    def _send_admin_usage_or_execute(self, nick, channel, args, usage_command, private_usage, message_key, action_func):
+        """Helper for simple admin commands that don't need complex validation"""
         is_private_msg = not channel.startswith('#')
         
         if not args:
             if is_private_msg:
-                self.send_message(channel, f"{nick} > Usage: !ignore <player>")
+                self.send_message(channel, f"{nick} > Usage: {private_usage}")
             else:
-                message = self.messages.get('usage_ignore')
+                message = self.messages.get(usage_command)
                 self.send_message(channel, message)
             return
         
         target = args[0].lower()
         player = self.db.get_player(target)
         if player is None:
-            player = {}
-        player['ignored'] = True
+            player = self.db.create_player(target)
+            self.db.players[target] = player
+        
+        action_func(player)
         
         if is_private_msg:
-            message = f"{nick} > Ignored {target}"
+            action_name = "Ignored" if message_key == 'admin_ignore' else "Unignored"
+            message = f"{nick} > {action_name} {target}"
         else:
-            message = self.messages.get('admin_ignore', target=target, admin=nick)
+            message = self.messages.get(message_key, target=target, admin=nick)
         
         self.send_message(channel, message)
         self.db.save_database()
+
+    async def handle_ignore(self, nick, channel, args):
+        """Handle !ignore command (admin only) - supports private messages"""
+        self._send_admin_usage_or_execute(
+            nick, channel, args,
+            usage_command='usage_ignore',
+            private_usage='!ignore <player>',
+            message_key='admin_ignore',
+            action_func=lambda player: player.update({'ignored': True})
+        )
     
     async def handle_unignore(self, nick, channel, args):
         """Handle !unignore command (admin only) - supports private messages"""
-        is_private_msg = not channel.startswith('#')
-        
-        if not args:
-            if is_private_msg:
-                self.send_message(channel, f"{nick} > Usage: !unignore <player>")
-            else:
-                message = self.messages.get('usage_unignore')
-                self.send_message(channel, message)
-            return
-        
-        target = args[0].lower()
-        player = self.db.get_player(target)
-        if player is None:
-            player = {}
-        player['ignored'] = False
-        
-        if is_private_msg:
-            message = f"{nick} > Unignored {target}"
-        else:
-            message = self.messages.get('admin_unignore', target=target, admin=nick)
-        
-        self.send_message(channel, message)
-        self.db.save_database()
+        self._send_admin_usage_or_execute(
+            nick, channel, args,
+            usage_command='usage_unignore',
+            private_usage='!unignore <player>',
+            message_key='admin_unignore',
+            action_func=lambda player: player.update({'ignored': False})
+        )
 
     async def handle_ducklaunch(self, nick, channel, args):
         """Handle !ducklaunch command (admin only) - supports duck type specification"""
@@ -1200,7 +1227,6 @@ class DuckHuntBot:
                 
                 # If any task completed, break out
                 if done:
-                    break
                     break
             
             self.logger.info("Shutdown initiated, cleaning up...")
