@@ -1251,7 +1251,7 @@ class DuckHuntBot:
                 except asyncio.TimeoutError:
                     self.logger.warning("Task cancellation timed out")
             
-            # Quick database save
+            # Final database save
             try:
                 self.db.save_database()
                 self.logger.info("Database saved")
@@ -1295,3 +1295,4 @@ class DuckHuntBot:
             # Ensure writer is cleared regardless of errors
             self.writer = None
             self.reader = None
+    

@@ -1,12 +1,36 @@
 {
   "duck_spawn": [
-    "・゜゜・。。・゜゜\\_O< QUACK!",
+    "・゜゜・。。・゜゜\\_O< {light_grey}QUACK!{reset}",
+    "{light_grey}・゜゜・。。・゜゜{reset}\\_O< {light_grey}QUACK!{reset}",
+    "・゜゜・。。・゜゜{black}\\_O< QUACK!{reset}",
     "・゜゜・。。・゜゜\\_o< quack~",
     "・゜゜・。。・゜゜\\_O> *flap flap*"
   ],
-  "duck_flies_away": "The duck flies away. ·°'`'°-.,¸¸.·°'`",
-  "fast_duck_flies_away": "The fast duck quickly flies away! ·°'`'°-.,¸¸.·°'`",
-  "golden_duck_flies_away": "The {gold}golden duck{reset} flies away majestically. ·°'`'°-.,¸¸.·°'`",
+  "duck_flies_away": [
+    "The duck flies away. ·°'`'°-.,¸¸.·°'`",
+    "The duck escapes into the sky! ·°'`'°-.,¸¸.·°'`",
+    "\\o< *quack* The duck waddles away safely.",
+    "The duck flaps away, living another day. ·°'`'°-.,¸¸.·°'`",
+    "\\o< The duck disappears into the distance.",
+    "The duck takes flight and vanishes! ·°'`'°-.,¸¸.·°'`",
+    "\\o< *flap* *flap* The duck has escaped!"
+  ],
+  "fast_duck_flies_away": [
+    "The fast duck quickly flies away! ·°'`'°-.,¸¸.·°'`",
+    "\\o< *ZOOM* The speedy duck vanishes in a flash!",
+    "The fast duck zips away at lightning speed! ·°'`'°-.,¸¸.·°'`",
+    "\\o< Too slow! The fast duck has already escaped!",
+    "The swift duck darts away before you can blink! ·°'`'°-.,¸¸.·°'`",
+    "\\o< *whoosh* The fast duck is gone!"
+  ],
+  "golden_duck_flies_away": [
+    "The {gold}golden duck{reset} flies away majestically. ·°'`'°-.,¸¸.·°'`",
+    "\\o< The {gold}golden duck{reset} glides away gracefully, its feathers shimmering.",
+    "The precious {gold}golden duck{reset} escapes to safety! ·°'`'°-.,¸¸.·°'`",
+    "\\o< The {gold}golden duck{reset} spreads its magnificent wings and soars away.",
+    "The valuable {gold}golden duck{reset} disappears into the sunset! ·°'`'°-.,¸¸.·°'`",
+    "\\o< *glimmer* The {gold}golden duck{reset} vanishes like a treasure in the wind."
+  ],
   "bang_hit": "{nick} > {red}*BANG*{reset} You shot the duck! \\_X<   *KWAK*  {green}[+{xp_gained} xp]{reset} [Total ducks: {ducks_shot}]",
   "bang_hit_golden": "{nick} > {red}*BANG*{reset} You shot a {gold}GOLDEN DUCK!{reset} [{hp_remaining} HP remaining] {green}[+{xp_gained} xp]{reset} [Total ducks: {ducks_shot}]",
   "bang_hit_golden_killed": "{nick} > {red}*BANG*{reset} You killed the GOLDEN DUCK! [+{xp_gained} xp] [Total ducks: {ducks_shot}]",
