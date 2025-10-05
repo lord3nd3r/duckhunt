@@ -12,6 +12,7 @@ from .game import DuckGame
 from .sasl import SASLHandler
 from .shop import ShopManager
 from .levels import LevelManager
+from .error_handling import ErrorRecovery, HealthChecker, sanitize_user_input, safe_format_message
 
 
 class DuckHuntBot:
@@ -26,11 +27,18 @@ class DuckHuntBot:
         
         self.logger.info("🤖 Initializing DuckHunt Bot components...")
         
+        # Initialize error recovery systems
+        self.error_recovery = ErrorRecovery()
+        self.health_checker = HealthChecker(check_interval=60.0)
+        
         self.db = DuckDB(bot=self)
         self.game = DuckGame(self, self.db)
         self.messages = MessageManager()
         
         self.sasl_handler = SASLHandler(self, config)
+        
+        # Set up health checks
+        self._setup_health_checks()
         
         admins_list = self.get_config('admins', ['colby']) or ['colby']
         self.admins = [admin.lower() for admin in admins_list]
@@ -41,6 +49,34 @@ class DuckHuntBot:
         
         shop_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'shop.json')
         self.shop = ShopManager(shop_file, self.levels)
+    
+    def _setup_health_checks(self):
+        """Set up health monitoring checks"""
+        try:
+            # Database health check
+            self.health_checker.add_check(
+                'database',
+                lambda: self.db is not None and len(self.db.players) >= 0,
+                critical=True
+            )
+            
+            # IRC connection health check
+            self.health_checker.add_check(
+                'irc_connection',
+                lambda: self.writer is not None and not self.writer.is_closing(),
+                critical=True
+            )
+            
+            # Message system health check
+            self.health_checker.add_check(
+                'messages',
+                lambda: self.messages is not None and len(self.messages.messages) > 0,
+                critical=False
+            )
+            
+            self.logger.debug("Health checks configured")
+        except Exception as e:
+            self.logger.error(f"Error setting up health checks: {e}")
         
     def get_config(self, path, default=None):
         keys = path.split('.')
@@ -233,15 +269,63 @@ class DuckHuntBot:
             return False
     
     def send_message(self, target, msg):
-        """Send message to target (channel or user) with error handling"""
+        """Send message to target (channel or user) with enhanced error handling"""
         if not isinstance(target, str) or not isinstance(msg, str):
             self.logger.warning(f"Invalid message parameters: target={type(target)}, msg={type(msg)}")
             return False
-            
+        
+        return self.error_recovery.safe_execute(
+            lambda: self._send_message_impl(target, msg),
+            fallback=False,
+            logger=self.logger
+        )
+    
+    def _send_message_impl(self, target, msg):
+        """Internal implementation of send_message"""
         try:
-            sanitized_msg = msg.replace('\r', '').replace('\n', ' ').strip()
-            if not sanitized_msg:
+            # Sanitize target and message
+            safe_target = sanitize_user_input(target, max_length=100, 
+                                            allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\')
+            safe_msg = sanitize_user_input(msg, max_length=400)
+            
+            if not safe_target or not safe_msg:
+                self.logger.warning(f"Empty target or message after sanitization")
                 return False
+            
+            # Split long messages to prevent IRC limits
+            max_msg_length = 400  # IRC message limit minus PRIVMSG overhead
+            
+            if len(safe_msg) <= max_msg_length:
+                messages = [safe_msg]
+            else:
+                # Split into chunks
+                messages = []
+                words = safe_msg.split(' ')
+                current_msg = ''
+                
+                for word in words:
+                    if len(current_msg + ' ' + word) <= max_msg_length:
+                        current_msg += (' ' if current_msg else '') + word
+                    else:
+                        if current_msg:
+                            messages.append(current_msg)
+                        current_msg = word[:max_msg_length]  # Truncate very long words
+                
+                if current_msg:
+                    messages.append(current_msg)
+            
+            # Send all message parts
+            success_count = 0
+            for i, message_part in enumerate(messages):
+                if i > 0:  # Small delay between messages to avoid flooding
+                    time.sleep(0.1)
+                
+                if self.send_raw(f"PRIVMSG {safe_target} :{message_part}"):
+                    success_count += 1
+                else:
+                    self.logger.error(f"Failed to send message part {i+1}/{len(messages)}")
+            
+            return success_count == len(messages)
                 
             return self.send_raw(f"PRIVMSG {target} :{sanitized_msg}")
         except Exception as e:
@@ -322,8 +406,9 @@ class DuckHuntBot:
             self.logger.error(f"Critical error in handle_message: {e}")
     
     async def handle_command(self, user, channel, message):
-        """Handle bot commands with comprehensive error handling"""
+        """Handle bot commands with enhanced error handling and input validation"""
         try:
+            # Validate input parameters
             if not isinstance(message, str) or not message.startswith('!'):
                 return
             
@@ -331,8 +416,16 @@ class DuckHuntBot:
                 self.logger.warning(f"Invalid user/channel types: {type(user)}, {type(channel)}")
                 return
             
+            # Sanitize inputs
+            safe_message = sanitize_user_input(message, max_length=500)
+            safe_user = sanitize_user_input(user, max_length=200) 
+            safe_channel = sanitize_user_input(channel, max_length=100)
+            
+            if not safe_message.startswith('!'):
+                return
+            
             try:
-                parts = message[1:].split()
+                parts = safe_message[1:].split()
             except Exception as e:
                 self.logger.warning(f"Error parsing command '{message}': {e}")
                 return
@@ -343,27 +436,39 @@ class DuckHuntBot:
             cmd = parts[0].lower()
             args = parts[1:] if len(parts) > 1 else []
             
-            try:
-                nick = user.split('!')[0] if '!' in user else user
-                if not nick:
-                    self.logger.warning(f"Empty nick from user string: {user}")
-                    return
-            except Exception as e:
-                self.logger.error(f"Error extracting nick from '{user}': {e}")
+            # Extract and validate nick with enhanced error handling
+            nick = self.error_recovery.safe_execute(
+                lambda: safe_user.split('!')[0] if '!' in safe_user else safe_user,
+                fallback='Unknown',
+                logger=self.logger
+            )
+            
+            if not nick or nick == 'Unknown':
+                self.logger.warning(f"Could not extract valid nick from user string: {user}")
                 return
             
-            try:
-                player = self.db.get_player(nick)
-                if player is None:
-                    player = {}
-            except Exception as e:
-                self.logger.error(f"Error getting player data for {nick}: {e}")
-                player = {}
+            # Sanitize nick further
+            nick = sanitize_user_input(nick, max_length=50, 
+                                     allowed_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\')
             
-            if channel.startswith('#'):
-                player['last_activity_channel'] = channel
-                player['last_activity_time'] = time.time()
-                self.db.players[nick.lower()] = player
+            # Get player data with error recovery
+            player = self.error_recovery.safe_execute(
+                lambda: self.db.get_player(nick),
+                fallback={'nick': nick, 'xp': 0, 'ducks_shot': 0, 'gun_confiscated': False},
+                logger=self.logger
+            )
+            
+            if player is None:
+                player = {'nick': nick, 'xp': 0, 'ducks_shot': 0, 'gun_confiscated': False}
+            
+            # Update activity tracking safely
+            if safe_channel.startswith('#'):
+                try:
+                    player['last_activity_channel'] = safe_channel
+                    player['last_activity_time'] = time.time()
+                    self.db.players[nick.lower()] = player
+                except Exception as e:
+                    self.logger.warning(f"Error updating player activity for {nick}: {e}")
             
             try:
                 if player.get('ignored', False) and not self.is_admin(user):
@@ -372,49 +477,142 @@ class DuckHuntBot:
                 self.logger.error(f"Error checking admin/ignore status: {e}")
                 return
             
-            await self._execute_command_safely(cmd, nick, channel, player, args, user)
+            await self._execute_command_safely(cmd, nick, safe_channel, player, args, safe_user)
             
         except Exception as e:
             self.logger.error(f"Critical error in handle_command: {e}")
     
     async def _execute_command_safely(self, cmd, nick, channel, player, args, user):
-        """Execute individual commands with error isolation"""
+        """Execute individual commands with enhanced error isolation and user feedback"""
         try:
+            # Sanitize command arguments
+            safe_args = []
+            for arg in args:
+                safe_arg = sanitize_user_input(str(arg), max_length=100)
+                if safe_arg:
+                    safe_args.append(safe_arg)
+            
+            # Execute command with error recovery
+            command_executed = False
+            
             if cmd == "bang":
-                await self.handle_bang(nick, channel, player)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_bang(nick, channel, player),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "bef" or cmd == "befriend":
-                await self.handle_bef(nick, channel, player)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_bef(nick, channel, player),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "reload":
-                await self.handle_reload(nick, channel, player)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_reload(nick, channel, player),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "shop":
-                await self.handle_shop(nick, channel, player, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_shop(nick, channel, player, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "duckstats":
-                await self.handle_duckstats(nick, channel, player, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_duckstats(nick, channel, player, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "topduck":
-                await self.handle_topduck(nick, channel)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_topduck(nick, channel),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "use":
-                await self.handle_use(nick, channel, player, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_use(nick, channel, player, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "give":
-                await self.handle_give(nick, channel, player, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_give(nick, channel, player, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "duckhelp":
-                await self.handle_duckhelp(nick, channel, player)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_duckhelp(nick, channel, player),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "rearm" and self.is_admin(user):
-                await self.handle_rearm(nick, channel, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_rearm(nick, channel, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "disarm" and self.is_admin(user):
-                await self.handle_disarm(nick, channel, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_disarm(nick, channel, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "ignore" and self.is_admin(user):
-                await self.handle_ignore(nick, channel, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_ignore(nick, channel, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "unignore" and self.is_admin(user):
-                await self.handle_unignore(nick, channel, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_unignore(nick, channel, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "ducklaunch" and self.is_admin(user):
-                await self.handle_ducklaunch(nick, channel, args)
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_ducklaunch(nick, channel, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
+            
+            # If no command was executed, it might be an unknown command
+            if not command_executed:
+                self.logger.debug(f"Unknown command '{cmd}' from {nick}")
+                
         except Exception as e:
-            self.logger.error(f"Error executing command '{cmd}' for user {nick}: {e}")
+            self.logger.error(f"Critical error executing command '{cmd}' for user {nick}: {e}")
+            
+            # Provide user-friendly error message
             try:
-                error_msg = f"{nick} > An error occurred processing your command. Please try again."
-                self.send_message(channel, error_msg)
+                if channel.startswith('#'):
+                    error_msg = safe_format_message(
+                        "{nick} > ⚠️ Something went wrong processing your command. Please try again in a moment.",
+                        nick=nick
+                    )
+                    self.send_message(channel, error_msg)
+                else:
+                    self.logger.debug("Skipping error message for private channel")
             except Exception as send_error:
-                self.logger.error(f"Error sending error message: {send_error}")
+                self.logger.error(f"Error sending user error message: {send_error}")
     
     def validate_target_player(self, target_nick, channel):
         """

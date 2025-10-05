@@ -71,35 +71,88 @@ class MessageManager:
         }
     
     def get(self, key: str, **kwargs) -> str:
-        """Get a formatted message by key with color placeholder replacement"""
-        if key not in self.messages:
-            return f"[Missing message: {key}]"
-        
-        message = self.messages[key]
-        
-        # If message is an array, randomly select one
-        if isinstance(message, list):
-            if not message:
-                return f"[Empty message array: {key}]"
-            message = random.choice(message)
-        
-        # Ensure message is a string
-        if not isinstance(message, str):
-            return f"[Invalid message type: {key}]"
-        
-        # Replace color placeholders with IRC codes
-        if "colours" in self.messages and isinstance(self.messages["colours"], dict):
-            for color_name, color_code in self.messages["colours"].items():
-                placeholder = "{" + color_name + "}"
-                message = message.replace(placeholder, color_code)
-        
-        # Format with provided variables
+        """Get a formatted message by key with enhanced error handling"""
         try:
-            return message.format(**kwargs)
-        except KeyError as e:
-            return f"[Message format error: {e}]"
+            if key not in self.messages:
+                return f"[Missing message: {key}]"
+            
+            message = self.messages[key]
+            
+            # If message is an array, randomly select one
+            if isinstance(message, list):
+                if not message:
+                    return f"[Empty message array: {key}]"
+                message = random.choice(message)
+            
+            # Ensure message is a string
+            if not isinstance(message, str):
+                return f"[Invalid message type: {key}]"
+            
+            # Replace color placeholders with IRC codes
+            if "colours" in self.messages and isinstance(self.messages["colours"], dict):
+                for color_name, color_code in self.messages["colours"].items():
+                    placeholder = "{" + color_name + "}"
+                    message = message.replace(placeholder, color_code)
+            
+            # Sanitize kwargs to prevent injection and ensure all values are safe
+            safe_kwargs = {}
+            for k, v in kwargs.items():
+                try:
+                    # Sanitize key and value
+                    safe_key = str(k)[:50] if k is not None else 'unknown'
+                    if isinstance(v, (int, float)):
+                        safe_kwargs[safe_key] = v
+                    elif v is None:
+                        safe_kwargs[safe_key] = ''
+                    else:
+                        # Sanitize string values
+                        safe_value = str(v)[:200]  # Limit length
+                        safe_value = safe_value.replace('\r', '').replace('\n', ' ')  # Remove newlines
+                        safe_kwargs[safe_key] = safe_value
+                except Exception:
+                    safe_kwargs[str(k)] = '[error]'
+            
+            # Format with provided variables using safe formatting
+            try:
+                return message.format(**safe_kwargs)
+            except KeyError as e:
+                # Try to identify missing keys and provide defaults
+                missing_key = str(e).strip("'\"")
+                
+                # Common defaults for missing keys
+                defaults = {
+                    'nick': 'Player',
+                    'xp_gained': 0,
+                    'ducks_shot': 0,
+                    'ducks_befriended': 0,
+                    'hp_remaining': 0,
+                    'ammo': 0,
+                    'max_ammo': 0,
+                    'magazines': 0,
+                    'target': 'Unknown',
+                    'victim': 'someone',
+                    'xp_lost': 0,
+                    'xp': 0
+                }
+                
+                # Add default for missing key
+                if missing_key in defaults:
+                    safe_kwargs[missing_key] = defaults[missing_key]
+                else:
+                    safe_kwargs[missing_key] = f'[{missing_key}]'
+                
+                try:
+                    return message.format(**safe_kwargs)
+                except Exception:
+                    return f"[Format error in {key}: missing {missing_key}]"
+                    
+            except ValueError as e:
+                return f"[Format error in {key}: {e}]"
+            except Exception as e:
+                return f"[Message error in {key}: {e}]"
+                
         except Exception as e:
-            return f"[Message error: {e}]"
+            return f"[Critical message error: {e}]"
     
     def reload(self):
         """Reload messages from file"""
