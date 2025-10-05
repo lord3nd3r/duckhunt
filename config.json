@@ -13,8 +13,8 @@
         "timeout": 30,
         "auto_rejoin": {
             "enabled": true,
-            "retry_interval": 30,
-            "max_rejoin_attempts": 10
+            "retry_interval": 20,
+            "max_rejoin_attempts": 100
         }
     },
     "sasl": {
