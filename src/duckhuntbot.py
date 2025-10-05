@@ -24,6 +24,8 @@ class DuckHuntBot:
         self.registered = False
         self.channels_joined = set()
         self.shutdown_requested = False
+        self.rejoin_attempts = {}  # Track rejoin attempts per channel
+        self.rejoin_tasks = {}     # Track active rejoin tasks
         
         self.logger.info("🤖 Initializing DuckHunt Bot components...")
         
@@ -268,6 +270,79 @@ class DuckHuntBot:
             self.logger.error(f"Unexpected error while sending message: {e}")
             return False
     
+    async def schedule_rejoin(self, channel):
+        """Schedule automatic rejoin attempts for a channel after being kicked"""
+        try:
+            # Cancel any existing rejoin task for this channel
+            if channel in self.rejoin_tasks:
+                self.rejoin_tasks[channel].cancel()
+            
+            # Initialize rejoin attempt counter
+            if channel not in self.rejoin_attempts:
+                self.rejoin_attempts[channel] = 0
+            
+            max_attempts = self.get_config('connection.auto_rejoin.max_rejoin_attempts', 10) or 10
+            retry_interval = self.get_config('connection.auto_rejoin.retry_interval', 30) or 30
+            
+            self.logger.info(f"Scheduling rejoin for {channel} in {retry_interval} seconds")
+            
+            # Create and store the rejoin task
+            self.rejoin_tasks[channel] = asyncio.create_task(
+                self._rejoin_channel_loop(channel, max_attempts, retry_interval)
+            )
+            
+        except Exception as e:
+            self.logger.error(f"Error scheduling rejoin for {channel}: {e}")
+    
+    async def _rejoin_channel_loop(self, channel, max_attempts, retry_interval):
+        """Internal loop for attempting to rejoin a channel"""
+        try:
+            while (self.rejoin_attempts[channel] < max_attempts and 
+                   not self.shutdown_requested and
+                   channel not in self.channels_joined):
+                
+                self.rejoin_attempts[channel] += 1
+                
+                self.logger.info(f"Rejoin attempt {self.rejoin_attempts[channel]}/{max_attempts} for {channel}")
+                
+                # Wait before attempting rejoin
+                await asyncio.sleep(retry_interval)
+                
+                # Check if we're still connected and registered
+                if not self.registered or not self.writer or self.writer.is_closing():
+                    self.logger.warning(f"Cannot rejoin {channel}: not connected to server")
+                    continue
+                
+                # Attempt to rejoin
+                if self.send_raw(f"JOIN {channel}"):
+                    self.channels_joined.add(channel)
+                    self.logger.info(f"Successfully rejoined {channel}")
+                    
+                    # Reset attempt counter and remove task
+                    self.rejoin_attempts[channel] = 0
+                    if channel in self.rejoin_tasks:
+                        del self.rejoin_tasks[channel]
+                    return
+                else:
+                    self.logger.warning(f"Failed to send JOIN command for {channel}")
+            
+            # If we've exceeded max attempts or channel was successfully joined
+            if self.rejoin_attempts[channel] >= max_attempts:
+                self.logger.error(f"Exhausted all {max_attempts} rejoin attempts for {channel}")
+            
+            # Clean up
+            if channel in self.rejoin_tasks:
+                del self.rejoin_tasks[channel]
+                
+        except asyncio.CancelledError:
+            self.logger.debug(f"Rejoin task for {channel} was cancelled")
+        except Exception as e:
+            self.logger.error(f"Error in rejoin loop for {channel}: {e}")
+        finally:
+            # Ensure cleanup
+            if channel in self.rejoin_tasks:
+                del self.rejoin_tasks[channel]
+    
     def send_message(self, target, msg):
         """Send message to target (channel or user) with enhanced error handling"""
         if not isinstance(target, str) or not isinstance(msg, str):
@@ -390,11 +465,50 @@ class DuckHuntBot:
                     except Exception as e:
                         self.logger.error(f"Error joining channel {channel}: {e}")
             
+            elif command == "JOIN":
+                if len(params) >= 1 and prefix:
+                    channel = params[0]
+                    joiner_nick = prefix.split('!')[0] if '!' in prefix else prefix
+                    our_nick = self.get_config('connection.nick', 'DuckHunt') or 'DuckHunt'
+                    
+                    # Check if we successfully joined (or rejoined) a channel
+                    if joiner_nick and joiner_nick.lower() == our_nick.lower():
+                        self.channels_joined.add(channel)
+                        self.logger.info(f"Successfully joined channel {channel}")
+                        
+                        # Cancel any pending rejoin attempts for this channel
+                        if channel in self.rejoin_tasks:
+                            self.rejoin_tasks[channel].cancel()
+                            del self.rejoin_tasks[channel]
+                        
+                        # Reset rejoin attempts counter
+                        if channel in self.rejoin_attempts:
+                            self.rejoin_attempts[channel] = 0
+            
             elif command == "PRIVMSG":
                 if len(params) >= 1:
                     target = params[0]
                     message = trailing or ""
                     await self.handle_command(prefix, target, message)
+            
+            elif command == "KICK":
+                if len(params) >= 2:
+                    channel = params[0]
+                    kicked_nick = params[1]
+                    kicker = prefix.split('!')[0] if prefix and '!' in prefix else prefix
+                    reason = trailing or "No reason given"
+                    
+                    # Check if we were the one kicked
+                    our_nick = self.get_config('connection.nick', 'DuckHunt') or 'DuckHunt'
+                    if kicked_nick and kicked_nick.lower() == our_nick.lower():
+                        self.logger.warning(f"Kicked from {channel} by {kicker}: {reason}")
+                        
+                        # Remove from joined channels
+                        self.channels_joined.discard(channel)
+                        
+                        # Schedule rejoin if auto-rejoin is enabled
+                        if self.get_config('connection.auto_rejoin.enabled', True):
+                            asyncio.create_task(self.schedule_rejoin(channel))
             
             elif command == "PING":
                 try:
@@ -1436,6 +1550,14 @@ class DuckHuntBot:
         finally:
             # Fast cleanup - cancel tasks immediately with short timeout
             tasks_to_cancel = [task for task in [game_task, message_task] if task and not task.done()]
+            
+            # Cancel all rejoin tasks
+            for channel, task in list(self.rejoin_tasks.items()):
+                if task and not task.done():
+                    task.cancel()
+                    tasks_to_cancel.append(task)
+                    self.logger.debug(f"Cancelled rejoin task for {channel}")
+            
             for task in tasks_to_cancel:
                 task.cancel()
             

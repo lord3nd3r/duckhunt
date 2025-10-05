@@ -10,7 +10,12 @@
         "password": "duckyhunt789",
         "max_retries": 3,
         "retry_delay": 5,
-        "timeout": 30
+        "timeout": 30,
+        "auto_rejoin": {
+            "enabled": true,
+            "retry_interval": 30,
+            "max_rejoin_attempts": 10
+        }
     },
     "sasl": {
         "enabled": false,
