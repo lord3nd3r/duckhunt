@@ -707,6 +707,20 @@ class DuckHuntBot:
                     fallback=None,
                     logger=self.logger
                 )
+            elif cmd == "join" and self.is_admin(user):
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_join_channel(nick, channel, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
+            elif cmd == "part" and self.is_admin(user):
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_part_channel(nick, channel, safe_args),
+                    fallback=None,
+                    logger=self.logger
+                )
             
             # If no command was executed, it might be an unknown command
             if not command_executed:
@@ -1434,7 +1448,60 @@ class DuckHuntBot:
             pass
     
     
+    async def handle_join_channel(self, nick, channel, args):
+        """Handle !join command (admin only) - join a channel"""
+        if not args:
+            self.send_message(channel, f"{nick} > Usage: !join <#channel>")
+            return
+        
+        target_channel = args[0]
+        
+        # Validate channel format
+        if not target_channel.startswith('#'):
+            self.send_message(channel, f"{nick} > Invalid channel format. Must start with #")
+            return
+        
+        # Check if already joined
+        if target_channel in self.channels_joined:
+            self.send_message(channel, f"{nick} > Already in {target_channel}")
+            return
+        
+        # Send JOIN command
+        if self.send_raw(f"JOIN {target_channel}"):
+            self.channels_joined.add(target_channel)
+            self.send_message(channel, f"{nick} > Joined {target_channel}")
+            self.logger.info(f"Admin {nick} made bot join {target_channel}")
+        else:
+            self.send_message(channel, f"{nick} > Failed to join {target_channel}")
+    
+    async def handle_part_channel(self, nick, channel, args):
+        """Handle !part command (admin only) - leave a channel"""
+        if not args:
+            self.send_message(channel, f"{nick} > Usage: !part <#channel>")
+            return
+        
+        target_channel = args[0]
+        
+        # Validate channel format
+        if not target_channel.startswith('#'):
+            self.send_message(channel, f"{nick} > Invalid channel format. Must start with #")
+            return
+        
+        # Check if in channel
+        if target_channel not in self.channels_joined:
+            self.send_message(channel, f"{nick} > Not in {target_channel}")
+            return
+        
+        # Send PART command
+        if self.send_raw(f"PART {target_channel}"):
+            self.channels_joined.discard(target_channel)
+            self.send_message(channel, f"{nick} > Left {target_channel}")
+            self.logger.info(f"Admin {nick} made bot leave {target_channel}")
+        else:
+            self.send_message(channel, f"{nick} > Failed to leave {target_channel}")
+    
     async def message_loop(self):
+
         """Main message processing loop with comprehensive error handling"""
         consecutive_errors = 0
         max_consecutive_errors = 10
