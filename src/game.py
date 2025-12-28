@@ -165,52 +165,6 @@ class DuckGame:
         self.ducks[channel].append(duck)
         self.bot.send_message(channel, message)
     
-    async def force_spawn_duck(self, channel, duck_type='normal'):
-        """Force spawn a specific duck type (admin command)"""
-        if channel not in self.ducks:
-            self.ducks[channel] = []
-        
-        # Validate duck type
-        duck_type = (duck_type or 'normal').lower()
-        if duck_type not in ['normal', 'golden', 'fast']:
-            duck_type = 'normal'
-        
-        # Create the specified duck type
-        if duck_type == 'golden':
-            min_hp = self.bot.get_config('golden_duck_min_hp', 3)
-            max_hp = self.bot.get_config('golden_duck_max_hp', 5)
-            hp = random.randint(min_hp, max_hp)
-            duck = {
-                'id': f"golden_duck_{int(time.time())}_{random.randint(1000, 9999)}",
-                'spawn_time': time.time(),
-                'channel': channel,
-                'duck_type': 'golden',
-                'max_hp': hp,
-                'current_hp': hp
-            }
-        elif duck_type == 'fast':
-            duck = {
-                'id': f"fast_duck_{int(time.time())}_{random.randint(1000, 9999)}",
-                'spawn_time': time.time(),
-                'channel': channel,
-                'duck_type': 'fast',
-                'max_hp': 1,
-                'current_hp': 1
-            }
-        else:  # normal
-            duck = {
-                'id': f"duck_{int(time.time())}_{random.randint(1000, 9999)}",
-                'spawn_time': time.time(),
-                'channel': channel,
-                'duck_type': 'normal',
-                'max_hp': 1,
-                'current_hp': 1
-            }
-        
-        self.ducks[channel].append(duck)
-        message = self.bot.messages.get('duck_spawn')
-        self.bot.send_message(channel, message)
-    
     def shoot_duck(self, nick, channel, player):
         """Handle shooting at a duck"""
         # Check if gun is confiscated
@@ -285,9 +239,6 @@ class DuckGame:
                 
                 if duck['current_hp'] > 0:
                     # Still alive, reveal it's golden but don't remove
-                    # Award XP for hitting (but not killing) the golden duck
-                    player['xp'] = player.get('xp', 0) + xp_gained
-                    
                     accuracy_gain = self.bot.get_config('accuracy_gain_on_hit', 1)
                     max_accuracy = self.bot.get_config('max_accuracy', 100)
                     player['accuracy'] = min(player.get('accuracy', self.bot.get_config('default_accuracy', 75)) + accuracy_gain, max_accuracy)

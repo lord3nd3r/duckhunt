@@ -23,9 +23,6 @@ class DuckHuntBot:
         self.writer: Optional[asyncio.StreamWriter] = None
         self.registered = False
         self.channels_joined = set()
-        # Track requested joins so we can report success/failure.
-        # channel -> requester nick (or None for startup/rejoin)
-        self.pending_joins = {}
         self.shutdown_requested = False
         self.rejoin_attempts = {}  # Track rejoin attempts per channel
         self.rejoin_tasks = {}     # Track active rejoin tasks
@@ -41,9 +38,6 @@ class DuckHuntBot:
         self.messages = MessageManager()
         
         self.sasl_handler = SASLHandler(self, config)
-
-        # Config file path for persisting runtime config changes (e.g., admin join/leave).
-        self.config_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
         
         # Set up health checks
         self._setup_health_checks()
@@ -64,7 +58,7 @@ class DuckHuntBot:
             # Database health check
             self.health_checker.add_check(
                 'database',
-                lambda: self.db is not None,
+                lambda: self.db is not None and len(self.db.players) >= 0,
                 critical=True
             )
             
@@ -95,15 +89,6 @@ class DuckHuntBot:
             else:
                 return default
         return value
-
-    def _channel_key(self, channel: str) -> str:
-        """Normalize channel names for internal comparisons (IRC channels are case-insensitive)."""
-        if not isinstance(channel, str):
-            return ""
-        channel = channel.strip()
-        if channel.startswith('#') or channel.startswith('&'):
-            return channel.lower()
-        return channel
     
     def is_admin(self, user):
         if '!' not in user:
@@ -137,6 +122,24 @@ class DuckHuntBot:
         
         return False
     
+    def _handle_single_target_admin_command(self, args, usage_message_key, action_func, success_message_key, nick, channel):
+        """Helper for admin commands that target a single player"""
+        if not args:
+            message = self.messages.get(usage_message_key)
+            self.send_message(channel, message)
+            return False
+        
+        target = args[0].lower()
+        player = self.db.get_player(target)
+        if player is None:
+            player = self.db.create_player(target)
+            self.db.players[target] = player
+        action_func(player)
+        
+        message = self.messages.get(success_message_key, target=target, admin=nick)
+        self.send_message(channel, message)
+        self.db.save_database()
+        return True
 
     def _get_admin_target_player(self, nick, channel, target_nick):
         """
@@ -144,21 +147,29 @@ class DuckHuntBot:
         Returns (player, error_message) - if error_message is not None, command should return early.
         """
         is_private_msg = not channel.startswith('#')
-        channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
         
         if not is_private_msg:
             if target_nick.lower() == nick.lower():
                 target_nick = target_nick.lower()
-                player = self.db.get_player(target_nick, channel_ctx)
+                player = self.db.get_player(target_nick)
+                if player is None:
+                    player = self.db.create_player(target_nick)
+                    self.db.players[target_nick] = player
                 return player, None
             else:
                 is_valid, player, error_msg = self.validate_target_player(target_nick, channel)
                 if not is_valid:
                     return None, error_msg
+                target_nick = target_nick.lower()
+                if target_nick not in self.db.players:
+                    self.db.players[target_nick] = player
                 return player, None
         else:
             target_nick = target_nick.lower()
-            player = self.db.get_player(target_nick, channel_ctx)
+            player = self.db.get_player(target_nick)
+            if player is None:
+                player = self.db.create_player(target_nick)
+                self.db.players[target_nick] = player
             return player, None
 
     def _get_validated_target_player(self, nick, channel, target_nick):
@@ -304,16 +315,19 @@ class DuckHuntBot:
                 
                 # Attempt to rejoin
                 if self.send_raw(f"JOIN {channel}"):
-                    self.pending_joins[channel] = None
-                    self.logger.info(f"Sent JOIN for {channel} (waiting for server confirmation)")
+                    self.channels_joined.add(channel)
+                    self.logger.info(f"Successfully rejoined {channel}")
+                    
+                    # Reset attempt counter and remove task
+                    self.rejoin_attempts[channel] = 0
+                    if channel in self.rejoin_tasks:
+                        del self.rejoin_tasks[channel]
+                    return
                 else:
                     self.logger.warning(f"Failed to send JOIN command for {channel}")
             
             # If we've exceeded max attempts or channel was successfully joined
-            if channel in self.channels_joined:
-                self.rejoin_attempts[channel] = 0
-                self.logger.info(f"Rejoin confirmed for {channel}")
-            elif self.rejoin_attempts[channel] >= max_attempts:
+            if self.rejoin_attempts[channel] >= max_attempts:
                 self.logger.error(f"Exhausted all {max_attempts} rejoin attempts for {channel}")
             
             # Clean up
@@ -347,9 +361,7 @@ class DuckHuntBot:
             # Sanitize target and message
             safe_target = sanitize_user_input(target, max_length=100, 
                                             allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\')
-            # Sanitize message (preserve IRC formatting codes - only remove CR/LF)
-            safe_msg = msg[:400] if isinstance(msg, str) else str(msg)[:400]
-            safe_msg = safe_msg.replace('\r', '').replace('\n', ' ').strip()
+            safe_msg = sanitize_user_input(msg, max_length=400)
             
             if not safe_target or not safe_msg:
                 self.logger.warning(f"Empty target or message after sanitization")
@@ -380,12 +392,17 @@ class DuckHuntBot:
             # Send all message parts
             success_count = 0
             for i, message_part in enumerate(messages):
+                if i > 0:  # Small delay between messages to avoid flooding
+                    time.sleep(0.1)
+                
                 if self.send_raw(f"PRIVMSG {safe_target} :{message_part}"):
                     success_count += 1
                 else:
                     self.logger.error(f"Failed to send message part {i+1}/{len(messages)}")
             
             return success_count == len(messages)
+                
+            return self.send_raw(f"PRIVMSG {target} :{sanitized_msg}")
         except Exception as e:
             self.logger.error(f"Error sanitizing/sending message: {e}")
             return False
@@ -444,75 +461,29 @@ class DuckHuntBot:
                 for channel in channels:
                     try:
                         self.send_raw(f"JOIN {channel}")
-                        self.pending_joins[self._channel_key(channel)] = None
+                        self.channels_joined.add(channel)
                     except Exception as e:
                         self.logger.error(f"Error joining channel {channel}: {e}")
-
-            # JOIN failures (numeric replies)
-            elif command in {"403", "405", "437", "471", "473", "474", "475", "477"}:
-                # Common formats:
-                # 471 <me> <#chan> :Cannot join channel (+l)
-                # 475 <me> <#chan> :Cannot join channel (+k)
-                # 477 <me> <#chan> :You need to be identified...
-                our_nick = self.get_config('connection.nick', 'DuckHunt') or 'DuckHunt'
-                if params and len(params) >= 2 and params[0].lower() == our_nick.lower():
-                    failed_channel = params[1]
-                    reason = trailing or "Join rejected"
-                    failed_key = self._channel_key(failed_channel)
-                    self.channels_joined.discard(failed_key)
-                    requester = self.pending_joins.pop(failed_key, None)
-                    self.logger.warning(f"Failed to join {failed_channel}: ({command}) {reason}")
-                    if requester:
-                        try:
-                            self.send_message(requester, f"{requester} > Failed to join {failed_channel}: {reason}")
-                        except Exception:
-                            pass
-                return
             
             elif command == "JOIN":
-                if prefix:
-                    # Some servers send: ":nick!user@host JOIN :#chan" (channel in trailing)
-                    channel = None
-                    if len(params) >= 1:
-                        channel = params[0]
-                    elif trailing and isinstance(trailing, str) and trailing.startswith('#'):
-                        channel = trailing
-
-                    if not channel:
-                        return
-
+                if len(params) >= 1 and prefix:
+                    channel = params[0]
                     joiner_nick = prefix.split('!')[0] if '!' in prefix else prefix
                     our_nick = self.get_config('connection.nick', 'DuckHunt') or 'DuckHunt'
                     
                     # Check if we successfully joined (or rejoined) a channel
                     if joiner_nick and joiner_nick.lower() == our_nick.lower():
-                        channel_key = self._channel_key(channel)
-                        self.channels_joined.add(channel_key)
+                        self.channels_joined.add(channel)
                         self.logger.info(f"Successfully joined channel {channel}")
-
-                        # If this was an admin-requested join, persist it now.
-                        requester = self.pending_joins.pop(channel_key, None)
-                        if requester:
-                            try:
-                                channels = self._config_channels_list()
-                                if not any(self._channel_key(c) == channel_key for c in channels if isinstance(c, str)):
-                                    channels.append(channel)
-                                    self._persist_config()
-                                self.send_message(requester, f"{requester} > Joined {channel}.")
-                            except Exception:
-                                pass
-                        else:
-                            # Startup/rejoin joins shouldn't change config here.
-                            self.pending_joins.pop(channel_key, None)
                         
                         # Cancel any pending rejoin attempts for this channel
-                        if channel_key in self.rejoin_tasks:
-                            self.rejoin_tasks[channel_key].cancel()
-                            del self.rejoin_tasks[channel_key]
+                        if channel in self.rejoin_tasks:
+                            self.rejoin_tasks[channel].cancel()
+                            del self.rejoin_tasks[channel]
                         
                         # Reset rejoin attempts counter
-                        if channel_key in self.rejoin_attempts:
-                            self.rejoin_attempts[channel_key] = 0
+                        if channel in self.rejoin_attempts:
+                            self.rejoin_attempts[channel] = 0
             
             elif command == "PRIVMSG":
                 if len(params) >= 1:
@@ -533,12 +504,11 @@ class DuckHuntBot:
                         self.logger.warning(f"Kicked from {channel} by {kicker}: {reason}")
                         
                         # Remove from joined channels
-                        channel_key = self._channel_key(channel)
-                        self.channels_joined.discard(channel_key)
+                        self.channels_joined.discard(channel)
                         
                         # Schedule rejoin if auto-rejoin is enabled
                         if self.get_config('connection.auto_rejoin.enabled', True):
-                            asyncio.create_task(self.schedule_rejoin(channel_key))
+                            asyncio.create_task(self.schedule_rejoin(channel))
             
             elif command == "PING":
                 try:
@@ -553,12 +523,7 @@ class DuckHuntBot:
         """Handle bot commands with enhanced error handling and input validation"""
         try:
             # Validate input parameters
-            if not isinstance(message, str):
-                return
-
-            # Some clients/users may prefix commands with whitespace (e.g. " !bang").
-            message = message.lstrip()
-            if not message.startswith('!'):
+            if not isinstance(message, str) or not message.startswith('!'):
                 return
             
             if not isinstance(user, str) or not isinstance(channel, str):
@@ -566,13 +531,9 @@ class DuckHuntBot:
                 return
             
             # Sanitize inputs
-            safe_message = sanitize_user_input(message, max_length=500).lstrip()
+            safe_message = sanitize_user_input(message, max_length=500)
             safe_user = sanitize_user_input(user, max_length=200) 
             safe_channel = sanitize_user_input(channel, max_length=100)
-
-            # Normalize channel casing for internal consistency.
-            if isinstance(safe_channel, str) and (safe_channel.startswith('#') or safe_channel.startswith('&')):
-                safe_channel = self._channel_key(safe_channel)
             
             if not safe_message.startswith('!'):
                 return
@@ -605,9 +566,8 @@ class DuckHuntBot:
                                      allowed_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\')
             
             # Get player data with error recovery
-            channel_ctx = safe_channel if isinstance(safe_channel, str) and safe_channel.startswith('#') else None
             player = self.error_recovery.safe_execute(
-                lambda: self.db.get_player(nick, channel_ctx),
+                lambda: self.db.get_player(nick),
                 fallback={'nick': nick, 'xp': 0, 'ducks_shot': 0, 'gun_confiscated': False},
                 logger=self.logger
             )
@@ -620,6 +580,7 @@ class DuckHuntBot:
                 try:
                     player['last_activity_channel'] = safe_channel
                     player['last_activity_time'] = time.time()
+                    self.db.players[nick.lower()] = player
                 except Exception as e:
                     self.logger.warning(f"Error updating player activity for {nick}: {e}")
             
@@ -650,28 +611,25 @@ class DuckHuntBot:
             
             if cmd == "bang":
                 command_executed = True
-                try:
-                    await self.handle_bang(nick, channel, player)
-                except Exception as e:
-                    self.logger.error(f"Error in handle_bang for {nick}: {e}")
-                    error_msg = f"{nick} > ⚠️ Error processing !bang command. Please try again."
-                    self.send_message(channel, error_msg)
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_bang(nick, channel, player),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "bef" or cmd == "befriend":
                 command_executed = True
-                try:
-                    await self.handle_bef(nick, channel, player)
-                except Exception as e:
-                    self.logger.error(f"Error in handle_bef for {nick}: {e}")
-                    error_msg = f"{nick} > ⚠️ Error processing !bef command. Please try again."
-                    self.send_message(channel, error_msg)
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_bef(nick, channel, player),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "reload":
                 command_executed = True
-                try:
-                    await self.handle_reload(nick, channel, player)
-                except Exception as e:
-                    self.logger.error(f"Error in handle_reload for {nick}: {e}")
-                    error_msg = f"{nick} > ⚠️ Error processing !reload command. Please try again."
-                    self.send_message(channel, error_msg)
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_reload(nick, channel, player),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "shop":
                 command_executed = True
                 await self.error_recovery.safe_execute_async(
@@ -714,13 +672,6 @@ class DuckHuntBot:
                     fallback=None,
                     logger=self.logger
                 )
-            elif cmd == "globalducks":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_globalducks(nick, channel, safe_args, user),
-                    fallback=None,
-                    logger=self.logger
-                )
             elif cmd == "rearm" and self.is_admin(user):
                 command_executed = True
                 await self.error_recovery.safe_execute_async(
@@ -753,20 +704,6 @@ class DuckHuntBot:
                 command_executed = True
                 await self.error_recovery.safe_execute_async(
                     lambda: self.handle_ducklaunch(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger
-                )
-            elif cmd == "join" and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_join_channel(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger
-                )
-            elif (cmd == "leave" or cmd == "part") and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_leave_channel(nick, channel, safe_args),
                     fallback=None,
                     logger=self.logger
                 )
@@ -806,9 +743,8 @@ class DuckHuntBot:
         
         if not target_nick:
             return False, None, "Invalid target nickname"
-
-        channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
-        player = self.db.get_player(target_nick, channel_ctx)
+        
+        player = self.db.get_player(target_nick)
         if not player:
             return False, None, f"Player '{target_nick}' not found. They need to participate in the game first."
         
@@ -832,8 +768,7 @@ class DuckHuntBot:
         We assume if someone has been active recently, they're still in the channel.
         """
         try:
-            channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
-            player = self.db.get_player(nick, channel_ctx)
+            player = self.db.get_player(nick)
             if not player:
                 return False
             
@@ -952,8 +887,7 @@ class DuckHuntBot:
         """Handle !duckstats command"""
         if args and len(args) > 0:
             target_nick = args[0]
-            channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
-            target_player = self.db.get_player(target_nick, channel_ctx)
+            target_player = self.db.get_player(target_nick)
             if not target_player:
                 message = f"{nick} > Player '{target_nick}' not found."
                 self.send_message(channel, message)
@@ -1046,13 +980,11 @@ class DuckHuntBot:
             bold = self.messages.messages.get('colours', {}).get('bold', '')
             reset = self.messages.messages.get('colours', {}).get('reset', '')
             
-            channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
-
-            # Get top 3 by XP (channel-scoped)
-            top_xp = self.db.get_leaderboard_for_channel(channel_ctx, 'xp', 3)
-
-            # Get top 3 by ducks shot (channel-scoped)
-            top_ducks = self.db.get_leaderboard_for_channel(channel_ctx, 'ducks_shot', 3)
+            # Get top 3 by XP
+            top_xp = self.db.get_leaderboard('xp', 3)
+            
+            # Get top 3 by ducks shot
+            top_ducks = self.db.get_leaderboard('ducks_shot', 3)
             
             # Format XP leaderboard as single line
             if top_xp:
@@ -1081,208 +1013,19 @@ class DuckHuntBot:
             self.send_message(channel, f"{nick} > Error retrieving leaderboard data.")
     
     async def handle_duckhelp(self, nick, channel, _player):
-        """Handle !duckhelp command
-
-        Sends help to the user via private message (PM/DM) with examples.
-        """
-
-        dm_target = nick  # PRIVMSG target for a PM is the nick
-
+        """Handle !duckhelp command"""
         help_lines = [
-            "DuckHunt Commands (sent via PM)",
-            "Player commands:",
-            "- !bang — shoot when a duck appears. Example: !bang",
-            "- !reload — reload your weapon. Example: !reload",
-            "- !shop — list shop items. Example: !shop",
-            "- !buy <item_id> — buy from shop. Example: !buy 3",
-            "- !use <item_id> [target] — use an inventory item. Example: !use 7 OR !use 9 SomeNick",
-            "- !duckstats [player] — view stats/inventory. Example: !duckstats OR !duckstats SomeNick",
-            "- !topduck — show leaderboards. Example: !topduck",
-            "- !give <item_id> <player> — gift an owned item. Example: !give 2 SomeNick",
-            "- !globalducks [player] — duck totals across all configured channels. Example: !globalducks OR !globalducks SomeNick",
-            "- !duckhelp — show this help. Example: !duckhelp",
+            self.messages.get('help_header'),
+            self.messages.get('help_user_commands'),
+            self.messages.get('help_help_command')
         ]
-
-        # Include admin commands only for admins.
-        # (Using nick list avoids relying on hostmask parsing.)
-        if nick.lower() in self.admins:
-            help_lines.extend([
-                "Admin commands:",
-                "- !rearm <player|all> — rearm a player. Example: !rearm SomeNick OR !rearm all",
-                "- !disarm <player> — confiscate gun. Example: !disarm SomeNick",
-                "- !ignore <player> — ignore a player. Example: !ignore SomeNick",
-                "- !unignore <player> — unignore a player. Example: !unignore SomeNick",
-                "- !ducklaunch [duck_type] — force spawn. Example: !ducklaunch golden",
-                "- (PM) !ducklaunch <#channel> [duck_type] — Example: !ducklaunch #ct fast",
-                "- !join <#channel> — make the bot join a channel. Example: !join #ct",
-                "- !leave <#channel> — make the bot leave a channel. Example: !leave #ct",
-            ])
-
+        
+        # Add admin commands if user is admin
+        if self.is_admin(f"{nick}!user@host"):
+            help_lines.append(self.messages.get('help_admin_commands'))
+        
         for line in help_lines:
-            self.send_message(dm_target, line)
-
-        # If invoked in a channel, add a brief confirmation to check PMs.
-        if isinstance(channel, str) and channel.startswith('#'):
-            self.send_message(channel, f"{nick} > I sent you a PM with commands and examples. Please check your PM window.")
-
-    async def handle_globalducks(self, nick, channel, args, user):
-        """User: !globalducks [player] — totals across all configured channels.
-
-        Non-admins can query themselves only. Admins can query other nicks.
-        """
-        try:
-            channels = self.get_config('connection.channels', []) or []
-            if not isinstance(channels, list):
-                channels = []
-
-            target_nick = nick
-            if args and len(args) >= 1:
-                requested = sanitize_user_input(
-                    str(args[0]),
-                    max_length=50,
-                    allowed_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\'
-                )
-                if requested:
-                    target_nick = requested
-
-            # Anyone can query anyone via !globalducks <player>
-
-            totals = self.db.get_global_duck_totals(target_nick, channels)
-            shot = totals.get('ducks_shot', 0)
-            bef = totals.get('ducks_befriended', 0)
-            total = totals.get('total_ducks', shot + bef)
-            counted = totals.get('channels_counted', 0)
-
-            if not channels:
-                self.send_message(channel, f"{nick} > No configured channels to total.")
-                return
-
-            self.send_message(
-                channel,
-                f"{nick} > Global totals for {target_nick} across configured channels: {shot} shot, {bef} befriended ({total} total) [{counted}/{len(channels)} channels have stats]."
-            )
-        except Exception as e:
-            self.logger.error(f"Error in handle_globalducks: {e}")
-            self.send_message(channel, f"{nick} > Error calculating global totals.")
-
-    def _sanitize_channel_name(self, channel_name: str) -> str:
-        """Validate/sanitize an IRC channel name."""
-        if not isinstance(channel_name, str):
-            return ""
-        safe = sanitize_user_input(
-            channel_name.strip(),
-            max_length=100,
-            allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\'
-        )
-        if not safe:
-            return ""
-        if not (safe.startswith('#') or safe.startswith('&')):
-            return ""
-        return safe
-
-    def _config_channels_list(self):
-        """Return the mutable in-memory config channel list, creating it if needed."""
-        if not isinstance(self.config, dict):
-            self.config = {}
-        connection = self.config.get('connection')
-        if not isinstance(connection, dict):
-            connection = {}
-            self.config['connection'] = connection
-        channels = connection.get('channels')
-        if not isinstance(channels, list):
-            channels = []
-            connection['channels'] = channels
-        return channels
-
-    def _persist_config(self) -> bool:
-        """Persist current config to disk (best-effort, atomic write)."""
-        try:
-            config_dir = os.path.dirname(self.config_file_path)
-            os.makedirs(config_dir, exist_ok=True)
-
-            tmp_path = f"{self.config_file_path}.tmp"
-            with open(tmp_path, 'w', encoding='utf-8') as f:
-                # Keep it stable/human-readable.
-                import json
-                json.dump(self.config, f, indent=4, ensure_ascii=False)
-                f.write("\n")
-                f.flush()
-                os.fsync(f.fileno())
-
-            os.replace(tmp_path, self.config_file_path)
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to persist config to disk: {e}")
-            return False
-
-    async def handle_join_channel(self, nick, channel, args):
-        """Admin: !join <#channel> (supports PM and channel invocation)."""
-        if not args:
-            self.send_message(channel, f"{nick} > Usage: !join <#channel>")
-            return
-
-        target_channel = self._sanitize_channel_name(args[0])
-        if not target_channel:
-            self.send_message(channel, f"{nick} > Invalid channel. Usage: !join <#channel>")
-            return
-
-        target_key = self._channel_key(target_channel)
-
-        if target_key in self.channels_joined:
-            self.send_message(channel, f"{nick} > I'm already in {target_channel}.")
-            return
-
-        if not self.send_raw(f"JOIN {target_channel}"):
-            self.send_message(channel, f"{nick} > Couldn't send JOIN (not connected?).")
-            return
-
-        # Wait for server JOIN confirmation before marking joined/persisting.
-        self.pending_joins[target_key] = nick
-        self.send_message(channel, f"{nick} > Attempting to join {target_channel}...")
-
-    async def handle_leave_channel(self, nick, channel, args):
-        """Admin: !leave <#channel> / !part <#channel> (supports PM and channel invocation)."""
-        if not args:
-            self.send_message(channel, f"{nick} > Usage: !leave <#channel>")
-            return
-
-        target_channel = self._sanitize_channel_name(args[0])
-        if not target_channel:
-            self.send_message(channel, f"{nick} > Invalid channel. Usage: !leave <#channel>")
-            return
-
-        target_key = self._channel_key(target_channel)
-
-        # Cancel any pending rejoin attempts and forget state.
-        if target_key in self.rejoin_tasks:
-            try:
-                self.rejoin_tasks[target_key].cancel()
-            except Exception:
-                pass
-            del self.rejoin_tasks[target_key]
-        if target_key in self.rejoin_attempts:
-            del self.rejoin_attempts[target_key]
-
-        self.channels_joined.discard(target_key)
-
-        # Update in-memory config so reconnects do not rejoin the channel.
-        channels = self._config_channels_list()
-        try:
-            channels[:] = [c for c in channels if not (isinstance(c, str) and self._channel_key(c) == target_key)]
-        except Exception:
-            pass
-
-        # Persist across restarts
-        if not self._persist_config():
-            self.send_message(channel, f"{nick} > Removed {target_channel} from my channel list, but failed to write config.json (check permissions).")
-            # Continue attempting PART anyway.
-
-        # Send PART even if we don't think we're in it (server will ignore or error).
-        if not self.send_raw(f"PART {target_channel} :Requested by {nick}"):
-            self.send_message(channel, f"{nick} > Couldn't send PART (not connected?).")
-            return
-
-        self.send_message(channel, f"{nick} > Leaving {target_channel}.")
+            self.send_message(channel, line)
     
     async def handle_use(self, nick, channel, player, args):
         """Handle !use command"""
@@ -1345,72 +1088,6 @@ class DuckHuntBot:
                         message = self.messages.get('use_dry_clothes', nick=nick)
                     else:
                         message = self.messages.get('use_dry_clothes_not_needed', nick=nick)
-                elif effect_type == 'perfect_aim':
-                    duration_seconds = int(effect.get('duration', 1800))
-                    minutes = max(1, duration_seconds // 60)
-                    message = self.messages.get('use_perfect_aim', nick=nick, duration_minutes=minutes)
-                elif effect_type == 'duck_radar':
-                    duration_seconds = int(effect.get('duration', 21600))
-                    hours = max(1, duration_seconds // 3600)
-                    message = self.messages.get('use_duck_radar', nick=nick, duration_hours=hours)
-                elif effect_type == 'summon_duck':
-                    # Summoning needs a channel context. If used in PM, pick the first configured channel.
-                    delay = int(effect.get('delay', 0))
-                    target_channel = channel
-                    is_private_msg = not isinstance(target_channel, str) or not target_channel.startswith('#')
-                    if is_private_msg:
-                        channels = self.get_config('connection.channels', []) or []
-                        target_channel = channels[0] if channels else None
-
-                    if not target_channel:
-                        message = f"{nick} > I don't know which channel to summon a duck in. Use this in a channel."
-                    else:
-                        # PM commands should only spawn normal/fast/golden.
-                        spawn_type = None
-                        if is_private_msg:
-                            import random
-                            golden_chance = self.get_config('duck_types.golden.chance', self.get_config('golden_duck_chance', 0.15))
-                            fast_chance = self.get_config('duck_types.fast.chance', self.get_config('fast_duck_chance', 0.25))
-                            try:
-                                golden_chance = float(golden_chance)
-                            except (TypeError, ValueError):
-                                golden_chance = 0.15
-                            try:
-                                fast_chance = float(fast_chance)
-                            except (TypeError, ValueError):
-                                fast_chance = 0.25
-
-                            r = random.random()
-                            if r < max(0.0, golden_chance):
-                                spawn_type = 'golden'
-                            elif r < max(0.0, golden_chance) + max(0.0, fast_chance):
-                                spawn_type = 'fast'
-                            else:
-                                spawn_type = 'normal'
-
-                        if delay <= 0:
-                            if spawn_type:
-                                await self.game.force_spawn_duck(target_channel, spawn_type)
-                            else:
-                                await self.game.spawn_duck(target_channel)
-                            message = self.messages.get('use_summon_duck', nick=nick, channel=target_channel)
-                        else:
-                            async def delayed_summon():
-                                try:
-                                    await asyncio.sleep(delay)
-                                    if target_channel in self.channels_joined:
-                                        if spawn_type:
-                                            await self.game.force_spawn_duck(target_channel, spawn_type)
-                                        else:
-                                            await self.game.spawn_duck(target_channel)
-                                except asyncio.CancelledError:
-                                    return
-                                except Exception:
-                                    return
-
-                            asyncio.create_task(delayed_summon())
-                            minutes = max(1, delay // 60)
-                            message = self.messages.get('use_summon_duck_delayed', nick=nick, channel=target_channel, delay_minutes=minutes)
                 elif result.get("target_affected"):
                     # Check if it's a gift (beneficial effect to target)
                     if effect.get('is_gift', False):
@@ -1535,8 +1212,7 @@ class DuckHuntBot:
             # Check if admin wants to rearm all players
             if target_nick.lower() == 'all':
                 rearmed_count = 0
-                channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
-                for player_nick, player in self.db.get_players_for_channel(channel_ctx).items():
+                for player_nick, player in self.db.players.items():
                     if player.get('gun_confiscated', False):
                         player['gun_confiscated'] = False
                         self.levels.update_player_magazines(player)
@@ -1575,8 +1251,10 @@ class DuckHuntBot:
                 return
             
             # Rearm the admin themselves (only in channels)
-            channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
-            player = self.db.get_player(nick, channel_ctx)
+            player = self.db.get_player(nick)
+            if player is None:
+                player = self.db.create_player(nick)
+                self.db.players[nick.lower()] = player
             
             player['gun_confiscated'] = False
             
@@ -1639,8 +1317,10 @@ class DuckHuntBot:
             return
         
         target = args[0].lower()
-        channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
-        player = self.db.get_player(target, channel_ctx)
+        player = self.db.get_player(target)
+        if player is None:
+            player = self.db.create_player(target)
+            self.db.players[target] = player
         
         action_func(player)
         
@@ -1681,17 +1361,15 @@ class DuckHuntBot:
         
         if is_private_msg:
             if not args:
-                self.send_message(channel, f"{nick} > Usage: !ducklaunch [channel] [duck_type]")
+                self.send_message(channel, f"{nick} > Usage: !ducklaunch [channel] [duck_type] - duck_type can be: normal, golden, fast")
                 return
             target_channel = args[0]
             duck_type_arg = args[1] if len(args) > 1 else "normal"
         else:
             duck_type_arg = args[0] if args else "normal"
-
-        target_key = self._channel_key(target_channel)
         
         # Validate target channel
-        if target_key not in self.channels_joined:
+        if target_channel not in self.channels_joined:
             if is_private_msg:
                 self.send_message(channel, f"{nick} > Channel {target_channel} is not available for duckhunt")
             else:
@@ -1701,21 +1379,52 @@ class DuckHuntBot:
         
         # Validate duck type
         duck_type_arg = duck_type_arg.lower()
-        if is_private_msg:
-            valid_types = {'normal', 'fast', 'golden'}
-        else:
-            duck_types_cfg = self.get_config('duck_types', {}) or {}
-            if not isinstance(duck_types_cfg, dict):
-                duck_types_cfg = {}
-            valid_types = set(['normal']) | set(duck_types_cfg.keys())
-
+        valid_types = ["normal", "golden", "fast"]
         if duck_type_arg not in valid_types:
-            valid_list = ', '.join(sorted(valid_types))
-            self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {valid_list}")
+            self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {', '.join(valid_types)}")
             return
-
-        # Force spawn the specified duck type (supports multi-spawn types like couple/family)
-        await self.game.force_spawn_duck(target_key, duck_type_arg)
+        
+        # Force spawn the specified duck type
+        import time
+        import random
+        
+        if target_channel not in self.game.ducks:
+            self.game.ducks[target_channel] = []
+        
+        # Create duck based on specified type
+        current_time = time.time()
+        duck_id = f"{duck_type_arg}_duck_{int(current_time)}_{random.randint(1000, 9999)}"
+        
+        if duck_type_arg == "golden":
+            min_hp_val = self.get_config('duck_types.golden.min_hp', 3)
+            max_hp_val = self.get_config('duck_types.golden.max_hp', 5)
+            min_hp = int(min_hp_val) if min_hp_val is not None else 3
+            max_hp = int(max_hp_val) if max_hp_val is not None else 5
+            hp = random.randint(min_hp, max_hp)
+            duck = {
+                'id': duck_id,
+                'spawn_time': current_time,
+                'channel': target_channel,
+                'duck_type': 'golden',
+                'max_hp': hp,
+                'current_hp': hp
+            }
+        else:
+            # Both normal and fast ducks have 1 HP
+            duck = {
+                'id': duck_id,
+                'spawn_time': current_time,
+                'channel': target_channel,
+                'duck_type': duck_type_arg,
+                'max_hp': 1,
+                'current_hp': 1
+            }
+        
+        self.game.ducks[target_channel].append(duck)
+        duck_message = self.messages.get('duck_spawn')
+        
+        # Send duck spawn message to target channel
+        self.send_message(target_channel, duck_message)
         
         # Send confirmation to admin (either in channel or private message)
         if is_private_msg:
