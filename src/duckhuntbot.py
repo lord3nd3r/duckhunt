@@ -23,6 +23,9 @@ class DuckHuntBot:
         self.writer: Optional[asyncio.StreamWriter] = None
         self.registered = False
         self.channels_joined = set()
+        # Track requested joins so we can report success/failure.
+        # channel -> requester nick (or None for startup/rejoin)
+        self.pending_joins = {}
         self.shutdown_requested = False
         self.rejoin_attempts = {}  # Track rejoin attempts per channel
         self.rejoin_tasks = {}     # Track active rejoin tasks
@@ -308,14 +311,8 @@ class DuckHuntBot:
                 
                 # Attempt to rejoin
                 if self.send_raw(f"JOIN {channel}"):
-                    self.channels_joined.add(channel)
-                    self.logger.info(f"Successfully rejoined {channel}")
-                    
-                    # Reset attempt counter and remove task
-                    self.rejoin_attempts[channel] = 0
-                    if channel in self.rejoin_tasks:
-                        del self.rejoin_tasks[channel]
-                    return
+                    self.pending_joins[channel] = None
+                    self.logger.info(f"Sent JOIN for {channel} (waiting for server confirmation)")
                 else:
                     self.logger.warning(f"Failed to send JOIN command for {channel}")
             
@@ -454,9 +451,29 @@ class DuckHuntBot:
                 for channel in channels:
                     try:
                         self.send_raw(f"JOIN {channel}")
-                        self.channels_joined.add(channel)
+                        self.pending_joins[channel] = None
                     except Exception as e:
                         self.logger.error(f"Error joining channel {channel}: {e}")
+
+            # JOIN failures (numeric replies)
+            elif command in {"403", "405", "437", "471", "473", "474", "475", "477"}:
+                # Common formats:
+                # 471 <me> <#chan> :Cannot join channel (+l)
+                # 475 <me> <#chan> :Cannot join channel (+k)
+                # 477 <me> <#chan> :You need to be identified...
+                our_nick = self.get_config('connection.nick', 'DuckHunt') or 'DuckHunt'
+                if params and len(params) >= 2 and params[0].lower() == our_nick.lower():
+                    failed_channel = params[1]
+                    reason = trailing or "Join rejected"
+                    self.channels_joined.discard(failed_channel)
+                    requester = self.pending_joins.pop(failed_channel, None)
+                    self.logger.warning(f"Failed to join {failed_channel}: ({command}) {reason}")
+                    if requester:
+                        try:
+                            self.send_message(requester, f"{requester} > Failed to join {failed_channel}: {reason}")
+                        except Exception:
+                            pass
+                return
             
             elif command == "JOIN":
                 if len(params) >= 1 and prefix:
@@ -468,6 +485,21 @@ class DuckHuntBot:
                     if joiner_nick and joiner_nick.lower() == our_nick.lower():
                         self.channels_joined.add(channel)
                         self.logger.info(f"Successfully joined channel {channel}")
+
+                        # If this was an admin-requested join, persist it now.
+                        requester = self.pending_joins.pop(channel, None)
+                        if requester:
+                            try:
+                                channels = self._config_channels_list()
+                                if channel not in channels:
+                                    channels.append(channel)
+                                    self._persist_config()
+                                self.send_message(requester, f"{requester} > Joined {channel}.")
+                            except Exception:
+                                pass
+                        else:
+                            # Startup/rejoin joins shouldn't change config here.
+                            self.pending_joins.pop(channel, None)
                         
                         # Cancel any pending rejoin attempts for this channel
                         if channel in self.rejoin_tasks:
@@ -1185,20 +1217,9 @@ class DuckHuntBot:
             self.send_message(channel, f"{nick} > Couldn't send JOIN (not connected?).")
             return
 
-        # Track it immediately (we also reconcile on actual JOIN server message).
-        self.channels_joined.add(target_channel)
-
-        # Update in-memory config so reconnects keep the new channel.
-        channels = self._config_channels_list()
-        if target_channel not in channels:
-            channels.append(target_channel)
-
-        # Persist across restarts
-        if not self._persist_config():
-            self.send_message(channel, f"{nick} > Joined {target_channel}, but failed to write config.json (check permissions).")
-            return
-
-        self.send_message(channel, f"{nick} > Joining {target_channel}.")
+        # Wait for server JOIN confirmation before marking joined/persisting.
+        self.pending_joins[target_channel] = nick
+        self.send_message(channel, f"{nick} > Attempting to join {target_channel}...")
 
     async def handle_leave_channel(self, nick, channel, args):
         """Admin: !leave <#channel> / !part <#channel> (supports PM and channel invocation)."""
