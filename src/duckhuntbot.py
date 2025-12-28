@@ -648,25 +648,28 @@ class DuckHuntBot:
             
             if cmd == "bang":
                 command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_bang(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger
-                )
+                try:
+                    await self.handle_bang(nick, channel, player)
+                except Exception as e:
+                    self.logger.error(f"Error in handle_bang for {nick}: {e}")
+                    error_msg = f"{nick} > ⚠️ Error processing !bang command. Please try again."
+                    self.send_message(channel, error_msg)
             elif cmd == "bef" or cmd == "befriend":
                 command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_bef(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger
-                )
+                try:
+                    await self.handle_bef(nick, channel, player)
+                except Exception as e:
+                    self.logger.error(f"Error in handle_bef for {nick}: {e}")
+                    error_msg = f"{nick} > ⚠️ Error processing !bef command. Please try again."
+                    self.send_message(channel, error_msg)
             elif cmd == "reload":
                 command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_reload(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger
-                )
+                try:
+                    await self.handle_reload(nick, channel, player)
+                except Exception as e:
+                    self.logger.error(f"Error in handle_reload for {nick}: {e}")
+                    error_msg = f"{nick} > ⚠️ Error processing !reload command. Please try again."
+                    self.send_message(channel, error_msg)
             elif cmd == "shop":
                 command_executed = True
                 await self.error_recovery.safe_execute_async(
