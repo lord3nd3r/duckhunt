@@ -359,17 +359,21 @@ class DuckGame:
                 per_hit_xp = self._get_duck_xp_per_hit(duck_type)
 
                 if duck['current_hp'] > 0:
+                    # Award XP for hitting (but not killing) the duck
+                    player['xp'] = player.get('xp', 0) + per_hit_xp
+                    
                     accuracy_gain = self.bot.get_config('gameplay.accuracy_gain_on_hit', self.bot.get_config('accuracy_gain_on_hit', 1))
                     max_accuracy = self.bot.get_config('gameplay.max_accuracy', self.bot.get_config('max_accuracy', 100))
                     player['accuracy'] = min(player.get('accuracy', self.bot.get_config('player_defaults.accuracy', 75)) + accuracy_gain, max_accuracy)
                     self.db.save_database()
 
+                    # Choose appropriate message for multi-HP duck types
                     message_key = {
                         'golden': 'bang_hit_golden',
                         'concrete': 'bang_hit_concrete',
                         'holy_grail': 'bang_hit_holy_grail',
                         'diamond': 'bang_hit_diamond'
-                    }.get(duck_type, 'bang_hit_golden')
+                    }.get(duck_type, 'bang_hit_golden')  # Default to golden format for unknown types
 
                     return {
                         'success': True,
