@@ -1027,19 +1027,69 @@ class DuckHuntBot:
             self.send_message(channel, f"{nick} > Error retrieving leaderboard data.")
     
     async def handle_duckhelp(self, nick, channel, _player):
-        """Handle !duckhelp command"""
+        """Handle !duckhelp command - sends detailed help via PM"""
+        
+        # Send notification to channel
+        if channel.startswith('#'):
+            self.send_message(channel, f"{nick} > Please check your PM for the duckhunt command list.")
+        
+        # Build detailed help message
         help_lines = [
-            self.messages.get('help_header'),
-            self.messages.get('help_user_commands'),
-            self.messages.get('help_help_command')
+            "=== DuckHunt Commands ===",
+            "",
+            "BASIC COMMANDS:",
+            "  !bang - Shoot at a duck",
+            "  !bef or !befriend - Try to befriend a duck",
+            "  !reload - Reload your gun",
+            "",
+            "INFO COMMANDS:",
+            "  !duckstats [player] - View duck hunting statistics",
+            "  !topduck - View leaderboard (top hunters)",
+            "",
+            "SHOP COMMANDS:",
+            "  !shop - View available items",
+            "  !shop buy <item_id> - Purchase an item from the shop",
+            "",
+            "EXAMPLES:",
+            "  When a duck appears, type: !bang",
+            "  To reload: !reload",
+            "  Check your stats: !duckstats",
+            "  Buy item #2 from shop: !shop buy 2",
         ]
         
         # Add admin commands if user is admin
-        if self.is_admin(f"{nick}!user@host"):
-            help_lines.append(self.messages.get('help_admin_commands'))
+        # We need to construct a proper user string for is_admin check
+        user_string = f"{nick}!user@host"  # Simplified check
+        if hasattr(self, 'is_admin') and self.is_admin(user_string):
+            help_lines.extend([
+                "",
+                "=== ADMIN COMMANDS ===",
+                "  !rearm <player|all> - Give player a gun",
+                "  !disarm <player> - Confiscate player's gun",
+                "  !ignore <player> - Ignore player's commands",
+                "  !unignore <player> - Unignore player",
+                "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast)",
+                "  !join #channel - Make bot join a channel",
+                "  !part #channel - Make bot leave a channel",
+                "",
+                "Admin commands work in PM or in-channel."
+            ])
         
+        help_lines.extend([
+            "",
+            "=== TIPS ===",
+            "- Ducks spawn randomly. Watch for them!",
+            "- Golden ducks have multiple HP and give more XP",
+            "- Fast ducks fly away quickly",
+            "- Buy items from !shop to improve your hunting",
+            "",
+            "Good luck hunting! 🦆"
+        ])
+        
+        # Send all help lines as PM
         for line in help_lines:
-            self.send_message(channel, line)
+            self.send_message(nick, line)
+    
     
     async def handle_use(self, nick, channel, player, args):
         """Handle !use command"""
