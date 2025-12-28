@@ -151,6 +151,30 @@ class DuckGame:
         message = self.bot.messages.get('duck_spawn')
         self.bot.send_message(channel, message)
 
+    async def force_spawn_duck(self, channel, duck_type):
+        """Force spawn a specific duck type in a channel (admin/items), even if ducks already exist."""
+        if channel not in self.ducks:
+            self.ducks[channel] = []
+
+        duck_type = (duck_type or 'normal').lower()
+
+        if duck_type in ('couple', 'family'):
+            count = 2 if duck_type == 'couple' else random.randint(3, 4)
+            for _ in range(count):
+                self.ducks[channel].append(self._create_duck(channel, 'normal'))
+        else:
+            self.ducks[channel].append(self._create_duck(channel, duck_type))
+
+        # Notify players with Duck Radar
+        try:
+            for player_name, player_data in self.db.get_players_for_channel(channel).items():
+                if self._has_active_effect(player_data, 'duck_radar'):
+                    self.bot.send_message(player_name, self.bot.messages.get('radar_alert', channel=channel))
+        except Exception:
+            pass
+
+        self.bot.send_message(channel, self.bot.messages.get('duck_spawn'))
+
     def _choose_duck_type(self):
         """Choose a duck type using duck_types.*.chance (with legacy fallbacks)."""
         try:

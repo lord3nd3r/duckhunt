@@ -1610,7 +1610,7 @@ class DuckHuntBot:
         
         if is_private_msg:
             if not args:
-                self.send_message(channel, f"{nick} > Usage: !ducklaunch [channel] [duck_type] - duck_type can be: normal, golden, fast")
+                self.send_message(channel, f"{nick} > Usage: !ducklaunch [channel] [duck_type]")
                 return
             target_channel = args[0]
             duck_type_arg = args[1] if len(args) > 1 else "normal"
@@ -1628,52 +1628,18 @@ class DuckHuntBot:
         
         # Validate duck type
         duck_type_arg = duck_type_arg.lower()
-        valid_types = ["normal", "golden", "fast"]
+        duck_types_cfg = self.get_config('duck_types', {}) or {}
+        if not isinstance(duck_types_cfg, dict):
+            duck_types_cfg = {}
+
+        valid_types = set(['normal']) | set(duck_types_cfg.keys())
         if duck_type_arg not in valid_types:
-            self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {', '.join(valid_types)}")
+            valid_list = ', '.join(sorted(valid_types))
+            self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {valid_list}")
             return
-        
-        # Force spawn the specified duck type
-        import time
-        import random
-        
-        if target_channel not in self.game.ducks:
-            self.game.ducks[target_channel] = []
-        
-        # Create duck based on specified type
-        current_time = time.time()
-        duck_id = f"{duck_type_arg}_duck_{int(current_time)}_{random.randint(1000, 9999)}"
-        
-        if duck_type_arg == "golden":
-            min_hp_val = self.get_config('duck_types.golden.min_hp', 3)
-            max_hp_val = self.get_config('duck_types.golden.max_hp', 5)
-            min_hp = int(min_hp_val) if min_hp_val is not None else 3
-            max_hp = int(max_hp_val) if max_hp_val is not None else 5
-            hp = random.randint(min_hp, max_hp)
-            duck = {
-                'id': duck_id,
-                'spawn_time': current_time,
-                'channel': target_channel,
-                'duck_type': 'golden',
-                'max_hp': hp,
-                'current_hp': hp
-            }
-        else:
-            # Both normal and fast ducks have 1 HP
-            duck = {
-                'id': duck_id,
-                'spawn_time': current_time,
-                'channel': target_channel,
-                'duck_type': duck_type_arg,
-                'max_hp': 1,
-                'current_hp': 1
-            }
-        
-        self.game.ducks[target_channel].append(duck)
-        duck_message = self.messages.get('duck_spawn')
-        
-        # Send duck spawn message to target channel
-        self.send_message(target_channel, duck_message)
+
+        # Force spawn the specified duck type (supports multi-spawn types like couple/family)
+        await self.game.force_spawn_duck(target_channel, duck_type_arg)
         
         # Send confirmation to admin (either in channel or private message)
         if is_private_msg:
