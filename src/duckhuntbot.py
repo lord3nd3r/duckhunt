@@ -317,7 +317,10 @@ class DuckHuntBot:
                     self.logger.warning(f"Failed to send JOIN command for {channel}")
             
             # If we've exceeded max attempts or channel was successfully joined
-            if self.rejoin_attempts[channel] >= max_attempts:
+            if channel in self.channels_joined:
+                self.rejoin_attempts[channel] = 0
+                self.logger.info(f"Rejoin confirmed for {channel}")
+            elif self.rejoin_attempts[channel] >= max_attempts:
                 self.logger.error(f"Exhausted all {max_attempts} rejoin attempts for {channel}")
             
             # Clean up
@@ -476,8 +479,17 @@ class DuckHuntBot:
                 return
             
             elif command == "JOIN":
-                if len(params) >= 1 and prefix:
-                    channel = params[0]
+                if prefix:
+                    # Some servers send: ":nick!user@host JOIN :#chan" (channel in trailing)
+                    channel = None
+                    if len(params) >= 1:
+                        channel = params[0]
+                    elif trailing and isinstance(trailing, str) and trailing.startswith('#'):
+                        channel = trailing
+
+                    if not channel:
+                        return
+
                     joiner_nick = prefix.split('!')[0] if '!' in prefix else prefix
                     our_nick = self.get_config('connection.nick', 'DuckHunt') or 'DuckHunt'
                     
