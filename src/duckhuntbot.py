@@ -64,7 +64,7 @@ class DuckHuntBot:
             # Database health check
             self.health_checker.add_check(
                 'database',
-                lambda: self.db is not None and sum(1 for _ in self.db.iter_all_players()) >= 0,
+                lambda: self.db is not None,
                 critical=True
             )
             
@@ -137,22 +137,6 @@ class DuckHuntBot:
         
         return False
     
-    def _handle_single_target_admin_command(self, args, usage_message_key, action_func, success_message_key, nick, channel):
-        """Helper for admin commands that target a single player"""
-        if not args:
-            message = self.messages.get(usage_message_key)
-            self.send_message(channel, message)
-            return False
-        
-        target = args[0].lower()
-        channel_ctx = channel if isinstance(channel, str) and channel.startswith('#') else None
-        player = self.db.get_player(target, channel_ctx)
-        action_func(player)
-        
-        message = self.messages.get(success_message_key, target=target, admin=nick)
-        self.send_message(channel, message)
-        self.db.save_database()
-        return True
 
     def _get_admin_target_player(self, nick, channel, target_nick):
         """
@@ -394,17 +378,12 @@ class DuckHuntBot:
             # Send all message parts
             success_count = 0
             for i, message_part in enumerate(messages):
-                if i > 0:  # Small delay between messages to avoid flooding
-                    time.sleep(0.1)
-                
                 if self.send_raw(f"PRIVMSG {safe_target} :{message_part}"):
                     success_count += 1
                 else:
                     self.logger.error(f"Failed to send message part {i+1}/{len(messages)}")
             
             return success_count == len(messages)
-                
-            return self.send_raw(f"PRIVMSG {target} :{sanitized_msg}")
         except Exception as e:
             self.logger.error(f"Error sanitizing/sending message: {e}")
             return False
