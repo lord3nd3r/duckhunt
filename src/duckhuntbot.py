@@ -95,6 +95,15 @@ class DuckHuntBot:
             else:
                 return default
         return value
+
+    def _channel_key(self, channel: str) -> str:
+        """Normalize channel names for internal comparisons (IRC channels are case-insensitive)."""
+        if not isinstance(channel, str):
+            return ""
+        channel = channel.strip()
+        if channel.startswith('#') or channel.startswith('&'):
+            return channel.lower()
+        return channel
     
     def is_admin(self, user):
         if '!' not in user:
@@ -454,7 +463,7 @@ class DuckHuntBot:
                 for channel in channels:
                     try:
                         self.send_raw(f"JOIN {channel}")
-                        self.pending_joins[channel] = None
+                        self.pending_joins[self._channel_key(channel)] = None
                     except Exception as e:
                         self.logger.error(f"Error joining channel {channel}: {e}")
 
@@ -468,8 +477,9 @@ class DuckHuntBot:
                 if params and len(params) >= 2 and params[0].lower() == our_nick.lower():
                     failed_channel = params[1]
                     reason = trailing or "Join rejected"
-                    self.channels_joined.discard(failed_channel)
-                    requester = self.pending_joins.pop(failed_channel, None)
+                    failed_key = self._channel_key(failed_channel)
+                    self.channels_joined.discard(failed_key)
+                    requester = self.pending_joins.pop(failed_key, None)
                     self.logger.warning(f"Failed to join {failed_channel}: ({command}) {reason}")
                     if requester:
                         try:
@@ -495,15 +505,16 @@ class DuckHuntBot:
                     
                     # Check if we successfully joined (or rejoined) a channel
                     if joiner_nick and joiner_nick.lower() == our_nick.lower():
-                        self.channels_joined.add(channel)
+                        channel_key = self._channel_key(channel)
+                        self.channels_joined.add(channel_key)
                         self.logger.info(f"Successfully joined channel {channel}")
 
                         # If this was an admin-requested join, persist it now.
-                        requester = self.pending_joins.pop(channel, None)
+                        requester = self.pending_joins.pop(channel_key, None)
                         if requester:
                             try:
                                 channels = self._config_channels_list()
-                                if channel not in channels:
+                                if not any(self._channel_key(c) == channel_key for c in channels if isinstance(c, str)):
                                     channels.append(channel)
                                     self._persist_config()
                                 self.send_message(requester, f"{requester} > Joined {channel}.")
@@ -511,16 +522,16 @@ class DuckHuntBot:
                                 pass
                         else:
                             # Startup/rejoin joins shouldn't change config here.
-                            self.pending_joins.pop(channel, None)
+                            self.pending_joins.pop(channel_key, None)
                         
                         # Cancel any pending rejoin attempts for this channel
-                        if channel in self.rejoin_tasks:
-                            self.rejoin_tasks[channel].cancel()
-                            del self.rejoin_tasks[channel]
+                        if channel_key in self.rejoin_tasks:
+                            self.rejoin_tasks[channel_key].cancel()
+                            del self.rejoin_tasks[channel_key]
                         
                         # Reset rejoin attempts counter
-                        if channel in self.rejoin_attempts:
-                            self.rejoin_attempts[channel] = 0
+                        if channel_key in self.rejoin_attempts:
+                            self.rejoin_attempts[channel_key] = 0
             
             elif command == "PRIVMSG":
                 if len(params) >= 1:
@@ -541,11 +552,12 @@ class DuckHuntBot:
                         self.logger.warning(f"Kicked from {channel} by {kicker}: {reason}")
                         
                         # Remove from joined channels
-                        self.channels_joined.discard(channel)
+                        channel_key = self._channel_key(channel)
+                        self.channels_joined.discard(channel_key)
                         
                         # Schedule rejoin if auto-rejoin is enabled
                         if self.get_config('connection.auto_rejoin.enabled', True):
-                            asyncio.create_task(self.schedule_rejoin(channel))
+                            asyncio.create_task(self.schedule_rejoin(channel_key))
             
             elif command == "PING":
                 try:
@@ -571,6 +583,10 @@ class DuckHuntBot:
             safe_message = sanitize_user_input(message, max_length=500)
             safe_user = sanitize_user_input(user, max_length=200) 
             safe_channel = sanitize_user_input(channel, max_length=100)
+
+            # Normalize channel casing for internal consistency.
+            if isinstance(safe_channel, str) and (safe_channel.startswith('#') or safe_channel.startswith('&')):
+                safe_channel = self._channel_key(safe_channel)
             
             if not safe_message.startswith('!'):
                 return
@@ -1221,7 +1237,9 @@ class DuckHuntBot:
             self.send_message(channel, f"{nick} > Invalid channel. Usage: !join <#channel>")
             return
 
-        if target_channel in self.channels_joined:
+        target_key = self._channel_key(target_channel)
+
+        if target_key in self.channels_joined:
             self.send_message(channel, f"{nick} > I'm already in {target_channel}.")
             return
 
@@ -1230,7 +1248,7 @@ class DuckHuntBot:
             return
 
         # Wait for server JOIN confirmation before marking joined/persisting.
-        self.pending_joins[target_channel] = nick
+        self.pending_joins[target_key] = nick
         self.send_message(channel, f"{nick} > Attempting to join {target_channel}...")
 
     async def handle_leave_channel(self, nick, channel, args):
@@ -1244,23 +1262,24 @@ class DuckHuntBot:
             self.send_message(channel, f"{nick} > Invalid channel. Usage: !leave <#channel>")
             return
 
+        target_key = self._channel_key(target_channel)
+
         # Cancel any pending rejoin attempts and forget state.
-        if target_channel in self.rejoin_tasks:
+        if target_key in self.rejoin_tasks:
             try:
-                self.rejoin_tasks[target_channel].cancel()
+                self.rejoin_tasks[target_key].cancel()
             except Exception:
                 pass
-            del self.rejoin_tasks[target_channel]
-        if target_channel in self.rejoin_attempts:
-            del self.rejoin_attempts[target_channel]
+            del self.rejoin_tasks[target_key]
+        if target_key in self.rejoin_attempts:
+            del self.rejoin_attempts[target_key]
 
-        self.channels_joined.discard(target_channel)
+        self.channels_joined.discard(target_key)
 
         # Update in-memory config so reconnects do not rejoin the channel.
         channels = self._config_channels_list()
         try:
-            while target_channel in channels:
-                channels.remove(target_channel)
+            channels[:] = [c for c in channels if not (isinstance(c, str) and self._channel_key(c) == target_key)]
         except Exception:
             pass
 
@@ -1679,9 +1698,11 @@ class DuckHuntBot:
             duck_type_arg = args[1] if len(args) > 1 else "normal"
         else:
             duck_type_arg = args[0] if args else "normal"
+
+        target_key = self._channel_key(target_channel)
         
         # Validate target channel
-        if target_channel not in self.channels_joined:
+        if target_key not in self.channels_joined:
             if is_private_msg:
                 self.send_message(channel, f"{nick} > Channel {target_channel} is not available for duckhunt")
             else:
@@ -1705,7 +1726,7 @@ class DuckHuntBot:
             return
 
         # Force spawn the specified duck type (supports multi-spawn types like couple/family)
-        await self.game.force_spawn_duck(target_channel, duck_type_arg)
+        await self.game.force_spawn_duck(target_key, duck_type_arg)
         
         # Send confirmation to admin (either in channel or private message)
         if is_private_msg:
