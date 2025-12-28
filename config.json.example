@@ -50,6 +50,56 @@
       "timeout": 20,
       "xp": 12,
       "drop_chance": 0.25
+    },
+    "concrete": {
+      "chance": 0.08,
+      "hp": 3,
+      "xp": 3,
+      "timeout": 90,
+      "drop_chance": 0.15
+    },
+    "holy_grail": {
+      "chance": 0.03,
+      "hp": 8,
+      "xp": 10,
+      "timeout": 120,
+      "drop_chance": 0.35
+    },
+    "diamond": {
+      "chance": 0.01,
+      "hp": 10,
+      "xp": 15,
+      "timeout": 150,
+      "drop_chance": 0.5
+    },
+    "explosive": {
+      "chance": 0.02,
+      "hp": 1,
+      "xp": 20,
+      "timeout": 60,
+      "drop_chance": 0.25
+    },
+    "poisonous": {
+      "chance": 0.02,
+      "hp": 1,
+      "xp": 8,
+      "timeout": 60,
+      "drop_chance": 0.25
+    },
+    "radioactive": {
+      "chance": 0.005,
+      "hp": 1,
+      "xp": 15,
+      "timeout": 60,
+      "drop_chance": 0.35
+    },
+    "couple": {
+      "chance": 0.03,
+      "timeout": 60
+    },
+    "family": {
+      "chance": 0.015,
+      "timeout": 60
     }
   },
   "item_drops": {

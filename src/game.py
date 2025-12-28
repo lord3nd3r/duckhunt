@@ -117,62 +117,138 @@ class DuckGame:
         if channel not in self.ducks:
             self.ducks[channel] = []
         
-        # Don't spawn if there's already a duck
+        # Don't spawn if there are already ducks present
         if self.ducks[channel]:
             return
-        
-        # Determine duck type randomly
-        golden_chance = self.bot.get_config('golden_duck_chance', 0.15)
-        fast_chance = self.bot.get_config('fast_duck_chance', 0.25)
-        
-        rand = random.random()
-        if rand < golden_chance:
-            # Golden duck - high HP, high XP
-            min_hp = self.bot.get_config('golden_duck_min_hp', 3)
-            max_hp = self.bot.get_config('golden_duck_max_hp', 5)
-            hp = random.randint(min_hp, max_hp)
-            duck_type = 'golden'
-            duck = {
-                'id': f"golden_duck_{int(time.time())}_{random.randint(1000, 9999)}",
-                'spawn_time': time.time(),
-                'channel': channel,
-                'duck_type': duck_type,
-                'max_hp': hp,
-                'current_hp': hp
-            }
-            self.logger.info(f"Golden duck (hidden) spawned in {channel} with {hp} HP")
-        elif rand < golden_chance + fast_chance:
-            # Fast duck - normal HP, flies away faster
-            duck_type = 'fast'
-            duck = {
-                'id': f"fast_duck_{int(time.time())}_{random.randint(1000, 9999)}",
-                'spawn_time': time.time(),
-                'channel': channel,
-                'duck_type': duck_type,
-                'max_hp': 1,
-                'current_hp': 1
-            }
-            self.logger.info(f"Fast duck (hidden) spawned in {channel}")
+
+        duck_type = self._choose_duck_type()
+
+        # Special spawns that create multiple normal ducks.
+        if duck_type in ('couple', 'family'):
+            count = 2 if duck_type == 'couple' else random.randint(3, 4)
+            for _ in range(count):
+                duck = self._create_duck(channel, 'normal')
+                self.ducks[channel].append(duck)
+            self.logger.info(f"{duck_type} spawned {count} ducks in {channel}")
         else:
-            # Normal duck
-            duck_type = 'normal'
-            duck = {
-                'id': f"duck_{int(time.time())}_{random.randint(1000, 9999)}",
-                'spawn_time': time.time(),
-                'channel': channel,
-                'duck_type': duck_type,
-                'max_hp': 1,
-                'current_hp': 1
-            }
-            self.logger.info(f"Normal duck spawned in {channel}")
+            duck = self._create_duck(channel, duck_type)
+            self.ducks[channel].append(duck)
+            hp = duck.get('max_hp', 1)
+            if duck_type != 'normal':
+                self.logger.info(f"{duck_type} duck (hidden) spawned in {channel} with {hp} HP")
+            else:
+                self.logger.info(f"Normal duck spawned in {channel}")
+
+        # Notify players with Duck Radar
+        try:
+            for player_name, player_data in self.db.get_players_for_channel(channel).items():
+                if self._has_active_effect(player_data, 'duck_radar'):
+                    self.bot.send_message(player_name, self.bot.messages.get('radar_alert', channel=channel))
+        except Exception:
+            pass
         
         # All duck types use the same spawn message - type is hidden!
         message = self.bot.messages.get('duck_spawn')
-        self.ducks[channel].append(duck)
         self.bot.send_message(channel, message)
+
+    def _choose_duck_type(self):
+        """Choose a duck type using duck_types.*.chance (with legacy fallbacks)."""
+        try:
+            duck_types = self.bot.get_config('duck_types', {}) or {}
+            if not isinstance(duck_types, dict):
+                duck_types = {}
+
+            weighted = []
+            total = 0.0
+
+            for dtype, cfg in duck_types.items():
+                if dtype == 'normal':
+                    continue
+                chance = None
+                if isinstance(cfg, dict):
+                    chance = cfg.get('chance')
+
+                # Legacy fallbacks
+                if chance is None and dtype == 'golden':
+                    chance = self.bot.get_config('golden_duck_chance', None)
+                if chance is None and dtype == 'fast':
+                    chance = self.bot.get_config('fast_duck_chance', None)
+
+                try:
+                    chance = float(chance)
+                except (TypeError, ValueError):
+                    chance = 0.0
+
+                if chance > 0:
+                    weighted.append((dtype, chance))
+                    total += chance
+
+            if total <= 0:
+                return 'normal'
+
+            r = random.random()
+            if r >= min(1.0, total):
+                return 'normal'
+
+            pick = random.random() * total
+            cumulative = 0.0
+            for dtype, weight in weighted:
+                cumulative += weight
+                if pick <= cumulative:
+                    return dtype
+            return weighted[-1][0]
+        except Exception:
+            return 'normal'
+
+    def _create_duck(self, channel, duck_type):
+        """Create a duck dict for a given type."""
+        cfg = self.bot.get_config(f'duck_types.{duck_type}', {}) or {}
+        if not isinstance(cfg, dict):
+            cfg = {}
+
+        # Legacy golden HP keys
+        if duck_type == 'golden' and ('min_hp' not in cfg and 'max_hp' not in cfg):
+            cfg = dict(cfg)
+            cfg['min_hp'] = self.bot.get_config('golden_duck_min_hp', 3)
+            cfg['max_hp'] = self.bot.get_config('golden_duck_max_hp', 5)
+
+        min_hp = cfg.get('min_hp', cfg.get('hp', 1))
+        max_hp = cfg.get('max_hp', cfg.get('hp', 1))
+        try:
+            min_hp = int(min_hp)
+            max_hp = int(max_hp)
+        except (TypeError, ValueError):
+            min_hp = 1
+            max_hp = 1
+        min_hp = max(1, min_hp)
+        max_hp = max(min_hp, max_hp)
+        hp = random.randint(min_hp, max_hp)
+
+        return {
+            'id': f"{duck_type}_duck_{int(time.time())}_{random.randint(1000, 9999)}",
+            'spawn_time': time.time(),
+            'channel': channel,
+            'duck_type': duck_type,
+            'max_hp': hp,
+            'current_hp': hp
+        }
     
     def shoot_duck(self, nick, channel, player):
         """Handle shooting at a duck"""
+        # Status effects
+        if self._has_active_effect(player, 'eliminated'):
+            return {
+                'success': False,
+                'message_key': 'player_eliminated',
+                'message_args': {'nick': nick}
+            }
+        if self._has_active_effect(player, 'poisoned'):
+            return {
+                'success': False,
+                'message_key': 'player_poisoned',
+                'message_args': {'nick': nick}
+            }
+
         # Check if gun is confiscated
         if player.get('gun_confiscated', False):
             return {
@@ -233,55 +309,72 @@ class DuckGame:
         # Calculate hit chance using level-modified accuracy
         modified_accuracy = self.bot.levels.get_modified_accuracy(player)
         hit_chance = modified_accuracy / 100.0
+        if self._has_active_effect(player, 'perfect_aim'):
+            hit_chance = 1.0
         if random.random() < hit_chance:
             # Hit! Get the duck and reveal its type
             duck = self.ducks[channel][0]
             duck_type = duck.get('duck_type', 'normal')
-            
-            if duck_type == 'golden':
-                # Golden duck - multi-hit with high XP
+
+            # Multi-HP ducks: treat as "boss" style.
+            if duck.get('max_hp', 1) > 1:
                 duck['current_hp'] -= 1
-                xp_gained = self.bot.get_config('golden_duck_xp', 15)
-                
+                per_hit_xp = self._get_duck_xp_per_hit(duck_type)
+
                 if duck['current_hp'] > 0:
-                    # Still alive, reveal it's golden but don't remove
-                    accuracy_gain = self.bot.get_config('accuracy_gain_on_hit', 1)
-                    max_accuracy = self.bot.get_config('max_accuracy', 100)
-                    player['accuracy'] = min(player.get('accuracy', self.bot.get_config('default_accuracy', 75)) + accuracy_gain, max_accuracy)
+                    accuracy_gain = self.bot.get_config('gameplay.accuracy_gain_on_hit', self.bot.get_config('accuracy_gain_on_hit', 1))
+                    max_accuracy = self.bot.get_config('gameplay.max_accuracy', self.bot.get_config('max_accuracy', 100))
+                    player['accuracy'] = min(player.get('accuracy', self.bot.get_config('player_defaults.accuracy', 75)) + accuracy_gain, max_accuracy)
                     self.db.save_database()
+
+                    message_key = {
+                        'golden': 'bang_hit_golden',
+                        'concrete': 'bang_hit_concrete',
+                        'holy_grail': 'bang_hit_holy_grail',
+                        'diamond': 'bang_hit_diamond'
+                    }.get(duck_type, 'bang_hit_golden')
+
                     return {
                         'success': True,
                         'hit': True,
-                        'message_key': 'bang_hit_golden',
+                        'message_key': message_key,
                         'message_args': {
                             'nick': nick,
                             'hp_remaining': duck['current_hp'],
-                            'xp_gained': xp_gained
+                            'xp_gained': per_hit_xp,
+                            'ducks_shot': player.get('ducks_shot', 0)
                         }
                     }
-                else:
-                    # Golden duck killed!
-                    self.ducks[channel].pop(0)
-                    xp_gained = xp_gained * duck['max_hp']  # Bonus XP for killing
-                    message_key = 'bang_hit_golden_killed'
-            elif duck_type == 'fast':
-                # Fast duck - normal HP but higher XP
+
+                # Killed!
                 self.ducks[channel].pop(0)
-                xp_gained = self.bot.get_config('fast_duck_xp', 12)
-                message_key = 'bang_hit_fast'
+                xp_gained = per_hit_xp * int(duck.get('max_hp', 1))
+                message_key = {
+                    'golden': 'bang_hit_golden_killed',
+                    'concrete': 'bang_hit_concrete_killed',
+                    'holy_grail': 'bang_hit_holy_grail_killed',
+                    'diamond': 'bang_hit_diamond_killed'
+                }.get(duck_type, 'bang_hit_golden_killed')
             else:
-                # Normal duck
+                # Single-HP ducks
                 self.ducks[channel].pop(0)
-                xp_gained = self.bot.get_config('normal_duck_xp', 10)
-                message_key = 'bang_hit'
+                xp_gained = self._get_duck_xp_per_hit(duck_type)
+                message_key = {
+                    'normal': 'bang_hit',
+                    'fast': 'bang_hit_fast',
+                    'explosive': 'bang_hit_explosive'
+                }.get(duck_type, 'bang_hit')
+
+                if duck_type == 'explosive':
+                    self._add_temporary_effect(player, 'eliminated', 2 * 3600)
             
             # Apply XP and level changes
             old_level = self.bot.levels.calculate_player_level(player)
             player['xp'] = player.get('xp', 0) + xp_gained
             player['ducks_shot'] = player.get('ducks_shot', 0) + 1
-            accuracy_gain = self.bot.get_config('accuracy_gain_on_hit', 1)
-            max_accuracy = self.bot.get_config('max_accuracy', 100)
-            player['accuracy'] = min(player.get('accuracy', self.bot.get_config('default_accuracy', 75)) + accuracy_gain, max_accuracy)
+            accuracy_gain = self.bot.get_config('gameplay.accuracy_gain_on_hit', self.bot.get_config('accuracy_gain_on_hit', 1))
+            max_accuracy = self.bot.get_config('gameplay.max_accuracy', self.bot.get_config('max_accuracy', 100))
+            player['accuracy'] = min(player.get('accuracy', self.bot.get_config('player_defaults.accuracy', 75)) + accuracy_gain, max_accuracy)
             
             # Check if player leveled up and update magazines if needed
             new_level = self.bot.levels.calculate_player_level(player)
@@ -391,6 +484,20 @@ class DuckGame:
     
     def befriend_duck(self, nick, channel, player):
         """Handle befriending a duck"""
+        # Status effects
+        if self._has_active_effect(player, 'eliminated'):
+            return {
+                'success': False,
+                'message_key': 'player_eliminated',
+                'message_args': {'nick': nick}
+            }
+        if self._has_active_effect(player, 'poisoned'):
+            return {
+                'success': False,
+                'message_key': 'player_poisoned',
+                'message_args': {'nick': nick}
+            }
+
         # Check for duck
         if channel not in self.ducks or not self.ducks[channel]:
             return {
@@ -416,6 +523,34 @@ class DuckGame:
         if random.random() < success_rate:
             # Success - befriend the duck
             duck = self.ducks[channel].pop(0)
+
+            duck_type = duck.get('duck_type', 'normal')
+
+            # Poison effects
+            if duck_type == 'poisonous':
+                self._add_temporary_effect(player, 'poisoned', 2 * 3600)
+                self.db.save_database()
+                return {
+                    'success': True,
+                    'befriended': True,
+                    'message_key': 'bef_poisoned',
+                    'message_args': {
+                        'nick': nick,
+                        'duration_hours': 2
+                    }
+                }
+            if duck_type == 'radioactive':
+                self._add_temporary_effect(player, 'poisoned', 8 * 3600)
+                self.db.save_database()
+                return {
+                    'success': True,
+                    'befriended': True,
+                    'message_key': 'bef_poisoned',
+                    'message_args': {
+                        'nick': nick,
+                        'duration_hours': 8
+                    }
+                }
             
             # Lower XP gain than shooting
             xp_gained = self.bot.get_config('gameplay.befriend_xp', 5)
@@ -602,12 +737,13 @@ class DuckGame:
             if random.random() > drop_chance:
                 return None  # No drop
             
-            # Get drop table for this duck type
+            # Get drop table for this duck type (fallback to normal)
             drop_table_key = f'{duck_type}_duck_drops'
             drop_table = self.bot.get_config(f'item_drops.{drop_table_key}', [])
+            if not drop_table:
+                drop_table = self.bot.get_config('item_drops.normal_duck_drops', [])
             
             if not drop_table:
-                self.logger.warning(f"No drop table found for {duck_type} duck")
                 return None
             
             # Weighted random selection
@@ -647,3 +783,39 @@ class DuckGame:
         except Exception as e:
             self.logger.error(f"Error in _check_item_drop: {e}")
             return None
+
+    def _has_active_effect(self, player, effect_type):
+        import time
+        current_time = time.time()
+        effects = player.get('temporary_effects', [])
+        for effect in effects:
+            if effect.get('type') == effect_type and effect.get('expires_at', 0) > current_time:
+                return True
+        return False
+
+    def _add_temporary_effect(self, player, effect_type, duration_seconds):
+        import time
+        if 'temporary_effects' not in player:
+            player['temporary_effects'] = []
+        duration_seconds = int(duration_seconds)
+        duration_seconds = max(1, min(duration_seconds, 7 * 24 * 3600))  # cap 7 days
+        player['temporary_effects'].append({
+            'type': effect_type,
+            'expires_at': time.time() + duration_seconds
+        })
+
+    def _get_duck_xp_per_hit(self, duck_type):
+        """Get XP value for a duck type (supports duck_types.*.xp and legacy keys)."""
+        xp = self.bot.get_config(f'duck_types.{duck_type}.xp', None)
+        if xp is None:
+            # Legacy keys
+            if duck_type == 'golden':
+                xp = self.bot.get_config('golden_duck_xp', 15)
+            elif duck_type == 'fast':
+                xp = self.bot.get_config('fast_duck_xp', 12)
+            else:
+                xp = self.bot.get_config('normal_duck_xp', 10)
+        try:
+            return int(xp)
+        except (TypeError, ValueError):
+            return 10

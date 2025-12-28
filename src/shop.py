@@ -388,6 +388,49 @@ class ShopManager:
                 "spawn_multiplier": spawn_multiplier,
                 "duration": duration // 60  # return duration in minutes
             }
+
+        elif item_type == 'perfect_aim':
+            # Temporarily force shots to hit (bot/game enforces this)
+            if 'temporary_effects' not in player:
+                player['temporary_effects'] = []
+
+            duration = int(item.get('duration', 1800))  # seconds
+            effect = {
+                'type': 'perfect_aim',
+                'expires_at': time.time() + max(1, duration)
+            }
+            player['temporary_effects'].append(effect)
+
+            return {
+                "type": "perfect_aim",
+                "duration": duration
+            }
+
+        elif item_type == 'duck_radar':
+            # DM alert on duck spawns (game loop sends the DM)
+            if 'temporary_effects' not in player:
+                player['temporary_effects'] = []
+
+            duration = int(item.get('duration', 21600))  # seconds
+            effect = {
+                'type': 'duck_radar',
+                'expires_at': time.time() + max(1, duration)
+            }
+            player['temporary_effects'].append(effect)
+
+            return {
+                "type": "duck_radar",
+                "duration": duration
+            }
+
+        elif item_type == 'summon_duck':
+            # Actual spawning is handled by the bot (needs channel context)
+            delay = int(item.get('delay', 0))
+            delay = max(0, min(delay, 86400))  # cap to 24h
+            return {
+                "type": "summon_duck",
+                "delay": delay
+            }
         
         elif item_type == 'insurance':
             # Add insurance protection against friendly fire

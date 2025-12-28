@@ -1304,6 +1304,42 @@ class DuckHuntBot:
                         message = self.messages.get('use_dry_clothes', nick=nick)
                     else:
                         message = self.messages.get('use_dry_clothes_not_needed', nick=nick)
+                elif effect_type == 'perfect_aim':
+                    duration_seconds = int(effect.get('duration', 1800))
+                    minutes = max(1, duration_seconds // 60)
+                    message = self.messages.get('use_perfect_aim', nick=nick, duration_minutes=minutes)
+                elif effect_type == 'duck_radar':
+                    duration_seconds = int(effect.get('duration', 21600))
+                    hours = max(1, duration_seconds // 3600)
+                    message = self.messages.get('use_duck_radar', nick=nick, duration_hours=hours)
+                elif effect_type == 'summon_duck':
+                    # Summoning needs a channel context. If used in PM, pick the first configured channel.
+                    delay = int(effect.get('delay', 0))
+                    target_channel = channel
+                    if not isinstance(target_channel, str) or not target_channel.startswith('#'):
+                        channels = self.get_config('connection.channels', []) or []
+                        target_channel = channels[0] if channels else None
+
+                    if not target_channel:
+                        message = f"{nick} > I don't know which channel to summon a duck in. Use this in a channel."
+                    else:
+                        if delay <= 0:
+                            await self.game.spawn_duck(target_channel)
+                            message = self.messages.get('use_summon_duck', nick=nick, channel=target_channel)
+                        else:
+                            async def delayed_summon():
+                                try:
+                                    await asyncio.sleep(delay)
+                                    if target_channel in self.channels_joined:
+                                        await self.game.spawn_duck(target_channel)
+                                except asyncio.CancelledError:
+                                    return
+                                except Exception:
+                                    return
+
+                            asyncio.create_task(delayed_summon())
+                            minutes = max(1, delay // 60)
+                            message = self.messages.get('use_summon_duck_delayed', nick=nick, channel=target_channel, delay_minutes=minutes)
                 elif result.get("target_affected"):
                     # Check if it's a gift (beneficial effect to target)
                     if effect.get('is_gift', False):
