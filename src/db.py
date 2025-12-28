@@ -8,6 +8,7 @@ import logging
 import time
 import os
 from datetime import datetime
+from typing import Optional
 from .error_handling import with_retry, RetryConfig, ErrorRecovery, sanitize_user_input
 
 
@@ -15,8 +16,16 @@ class DuckDB:
     """Simplified database management"""
     
     def __init__(self, db_file="duckhunt.json", bot=None):
-        self.db_file = db_file
+        # Resolve relative paths against the project root (repo root), not the process CWD.
+        # This prevents "stats wiped" symptoms when the bot is launched from a different working dir.
+        if os.path.isabs(db_file):
+            self.db_file = db_file
+        else:
+            project_root = os.path.dirname(os.path.dirname(__file__))
+            self.db_file = os.path.join(project_root, db_file)
         self.bot = bot
+        # Channel-scoped player storage:
+        # {"#channel": {"nick": {player_data}}, ...}
         self.players = {}
         self.logger = logging.getLogger('DuckHuntBot.DB')
         
@@ -24,7 +33,63 @@ class DuckDB:
         self.error_recovery = ErrorRecovery()
         self.save_retry_config = RetryConfig(max_attempts=3, base_delay=0.5, max_delay=5.0)
         
-        self.load_database()
+        data = self.load_database()
+        self._hydrate_from_data(data)
+
+    def _default_channel(self) -> str:
+        """Pick a reasonable default channel context."""
+        if self.bot:
+            channels = self.bot.get_config('connection.channels', []) or []
+            if isinstance(channels, list) and channels:
+                first = channels[0]
+                if isinstance(first, str) and first.strip():
+                    return first.strip()
+        return "#duckhunt"
+
+    def _normalize_channel(self, channel: Optional[str]) -> str:
+        if isinstance(channel, str) and channel.strip().startswith(('#', '&')):
+            return channel.strip()
+        return self._default_channel()
+
+    def _hydrate_from_data(self, data: dict) -> None:
+        """Load in-memory channel->players structure from parsed JSON."""
+        try:
+            players_by_channel: dict = {}
+
+            if isinstance(data, dict) and isinstance(data.get('channels'), dict):
+                # New format
+                for ch, ch_data in data['channels'].items():
+                    if not isinstance(ch, str):
+                        continue
+                    if isinstance(ch_data, dict) and isinstance(ch_data.get('players'), dict):
+                        players = ch_data.get('players', {})
+                    elif isinstance(ch_data, dict):
+                        # Support legacy "channels: {"#c": {nick: {...}}}" shape
+                        players = ch_data
+                    else:
+                        continue
+
+                    # Keep only dict players
+                    clean_players = {}
+                    for nick, pdata in players.items():
+                        if isinstance(nick, str) and isinstance(pdata, dict):
+                            clean_players[nick.lower()] = pdata
+                    if clean_players:
+                        players_by_channel[ch] = clean_players
+
+            elif isinstance(data, dict) and isinstance(data.get('players'), dict):
+                # Old format: single global player dictionary
+                default_channel = self._default_channel()
+                migrated = {}
+                for nick, pdata in data['players'].items():
+                    if isinstance(nick, str) and isinstance(pdata, dict):
+                        migrated[nick.lower()] = pdata
+                players_by_channel[default_channel] = migrated
+
+            self.players = players_by_channel if isinstance(players_by_channel, dict) else {}
+        except Exception as e:
+            self.logger.error(f"Error hydrating database in-memory state: {e}")
+            self.players = {}
     
     def load_database(self) -> dict:
         """Load the database, creating it if it doesn't exist"""
@@ -54,14 +119,28 @@ class DuckDB:
                     'last_modified': datetime.now().isoformat()
                 }
             
-            # Initialize players section if missing
-            if 'players' not in data:
-                data['players'] = {}
+            # Initialize channels section if missing
+            if 'channels' not in data:
+                # If old format has players, keep it for migration.
+                data.setdefault('players', {})
+            else:
+                if not isinstance(data.get('channels'), dict):
+                    data['channels'] = {}
             
             # Update last_modified
             data['metadata']['last_modified'] = datetime.now().isoformat()
             
-            self.logger.info(f"Successfully loaded database with {len(data.get('players', {}))} players")
+            try:
+                if isinstance(data.get('channels'), dict):
+                    total_players = 0
+                    for ch_data in data['channels'].values():
+                        if isinstance(ch_data, dict) and isinstance(ch_data.get('players'), dict):
+                            total_players += len(ch_data.get('players', {}))
+                    self.logger.info(f"Successfully loaded database with {total_players} total players across {len(data.get('channels', {}))} channels")
+                else:
+                    self.logger.info(f"Successfully loaded database with {len(data.get('players', {}))} players")
+            except Exception:
+                self.logger.info("Successfully loaded database")
             return data
             
         except (json.JSONDecodeError, ValueError) as e:
@@ -75,9 +154,9 @@ class DuckDB:
         """Create a new default database file with proper structure"""
         try:
             default_data = {
-                "players": {},
+                "channels": {},
                 "last_save": str(time.time()),
-                "version": "1.0",
+                "version": "2.0",
                 "created": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "description": "DuckHunt Bot Player Database"
             }
@@ -92,9 +171,9 @@ class DuckDB:
             self.logger.error(f"Failed to create default database: {e}")
             # Return a minimal valid structure even if file creation fails
             return {
-                "players": {},
+                "channels": {},
                 "last_save": str(time.time()),
-                "version": "1.0",
+                "version": "2.0",
                 "created": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "description": "DuckHunt Bot Player Database"
             }
@@ -201,26 +280,40 @@ class DuckDB:
         try:
             # Prepare data with validation
             data = {
-                'players': {},
+                'channels': {},
                 'last_save': str(time.time()),
-                'version': '1.0'
+                'version': '2.0'
             }
             
             # Validate and clean player data before saving
             valid_count = 0
-            for nick, player_data in self.players.items():
-                if isinstance(nick, str) and isinstance(player_data, dict):
-                    try:
-                        sanitized_nick = sanitize_user_input(nick, max_length=50)
-                        data['players'][sanitized_nick] = self._sanitize_player_data(player_data)
-                        valid_count += 1
-                    except Exception as e:
-                        self.logger.warning(f"Error processing player {nick} during save: {e}")
-                else:
-                    self.logger.warning(f"Skipping invalid player data during save: {nick}")
-            
-            if valid_count == 0:
-                raise ValueError("No valid player data to save")
+            for channel_name, channel_players in self.players.items():
+                if not isinstance(channel_name, str) or not isinstance(channel_players, dict):
+                    continue
+
+                safe_channel = sanitize_user_input(
+                    channel_name,
+                    max_length=100,
+                    allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\'
+                )
+                if not safe_channel or not (safe_channel.startswith('#') or safe_channel.startswith('&')):
+                    continue
+
+                data['channels'].setdefault(safe_channel, {'players': {}})
+
+                for nick, player_data in channel_players.items():
+                    if isinstance(nick, str) and isinstance(player_data, dict):
+                        try:
+                            sanitized_nick = sanitize_user_input(nick, max_length=50)
+                            if not sanitized_nick:
+                                continue
+                            data['channels'][safe_channel]['players'][sanitized_nick.lower()] = self._sanitize_player_data(player_data)
+                            valid_count += 1
+                        except Exception as e:
+                            self.logger.warning(f"Error processing player {nick} in {safe_channel} during save: {e}")
+
+            # Saving an empty database is valid (e.g., first run or after admin wipes).
+            # Previously this raised and prevented the file from being written/updated.
             
             # Write to temporary file first (atomic write)
             with open(temp_file, 'w', encoding='utf-8') as f:
@@ -257,7 +350,79 @@ class DuckDB:
             except Exception:
                 pass
     
-    def get_player(self, nick):
+    def get_players_for_channel(self, channel: Optional[str]) -> dict:
+        """Get the mutable player dict for a channel, creating the channel bucket if needed."""
+        ch = self._normalize_channel(channel)
+        if ch not in self.players or not isinstance(self.players.get(ch), dict):
+            self.players[ch] = {}
+        return self.players[ch]
+
+    def get_player_if_exists(self, nick: str, channel: Optional[str]) -> Optional[dict]:
+        """Get an existing player record for a channel without creating one."""
+        try:
+            if not isinstance(nick, str) or not nick.strip():
+                return None
+            nick_clean = sanitize_user_input(
+                nick,
+                max_length=50,
+                allowed_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\'
+            )
+            nick_lower = (nick_clean or '').lower().strip()
+            if not nick_lower:
+                return None
+
+            ch = self._normalize_channel(channel)
+            channel_players = self.players.get(ch)
+            if not isinstance(channel_players, dict):
+                return None
+
+            player = channel_players.get(nick_lower)
+            if isinstance(player, dict):
+                return player
+            return None
+        except Exception:
+            return None
+
+    def get_global_duck_totals(self, nick: str, channels: list) -> dict:
+        """Sum ducks_shot/ducks_befriended for a user across the provided channels."""
+        total_shot = 0
+        total_bef = 0
+        channels_counted = 0
+
+        for ch in channels or []:
+            if not isinstance(ch, str):
+                continue
+            player = self.get_player_if_exists(nick, ch)
+            if not player:
+                continue
+            channels_counted += 1
+            try:
+                total_shot += int(player.get('ducks_shot', 0) or 0)
+            except Exception:
+                pass
+            try:
+                total_bef += int(player.get('ducks_befriended', 0) or 0)
+            except Exception:
+                pass
+
+        return {
+            'nick': nick,
+            'ducks_shot': total_shot,
+            'ducks_befriended': total_bef,
+            'total_ducks': total_shot + total_bef,
+            'channels_counted': channels_counted,
+        }
+
+    def iter_all_players(self):
+        """Yield (channel, nick, player_dict) for all players."""
+        for ch, players in (self.players or {}).items():
+            if not isinstance(players, dict):
+                continue
+            for nick, pdata in players.items():
+                if isinstance(nick, str) and isinstance(pdata, dict):
+                    yield ch, nick, pdata
+
+    def get_player(self, nick, channel: Optional[str] = None):
         """Get player data, creating if doesn't exist with comprehensive validation"""
         try:
             # Validate and sanitize nick
@@ -278,14 +443,16 @@ class DuckDB:
                 self.logger.warning(f"Empty nick after sanitization: {nick}")
                 return self.create_player('Unknown')
             
-            if nick_lower not in self.players:
-                self.players[nick_lower] = self.create_player(nick_clean)
+            channel_players = self.get_players_for_channel(channel)
+
+            if nick_lower not in channel_players:
+                channel_players[nick_lower] = self.create_player(nick_clean)
             else:
                 # Ensure existing players have all required fields
-                player = self.players[nick_lower]
+                player = channel_players[nick_lower]
                 if not isinstance(player, dict):
                     self.logger.warning(f"Invalid player data for {nick_lower}, recreating")
-                    self.players[nick_lower] = self.create_player(nick_clean)
+                    channel_players[nick_lower] = self.create_player(nick_clean)
                 else:
                     # Migrate and validate existing player data with error recovery
                     validated = self.error_recovery.safe_execute(
@@ -293,9 +460,9 @@ class DuckDB:
                         fallback=self.create_player(nick_clean),
                         logger=self.logger
                     )
-                    self.players[nick_lower] = validated
+                    channel_players[nick_lower] = validated
             
-            return self.players[nick_lower]
+            return channel_players[nick_lower]
             
         except Exception as e:
             self.logger.error(f"Critical error getting player {nick}: {e}")
@@ -409,11 +576,16 @@ class DuckDB:
             }
 
     def get_leaderboard(self, category='xp', limit=3):
-        """Get top players by specified category"""
+        """Get top players by specified category (default channel)."""
+        return self.get_leaderboard_for_channel(self._default_channel(), category=category, limit=limit)
+
+    def get_leaderboard_for_channel(self, channel: Optional[str], category='xp', limit=3):
+        """Get top players for a channel by specified category"""
         try:
             leaderboard = []
-            
-            for nick, player_data in self.players.items():
+
+            channel_players = self.get_players_for_channel(channel)
+            for nick, player_data in channel_players.items():
                 sanitized_data = self._sanitize_player_data(player_data)
                 
                 if category == 'xp':

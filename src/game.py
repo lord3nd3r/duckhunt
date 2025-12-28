@@ -34,12 +34,20 @@ class DuckGame:
         """Duck spawning loop with responsive shutdown"""
         try:
             while True:
+                # Pick a target channel first so spawn multipliers are per-channel
+                channels = list(self.bot.channels_joined)
+                if not channels:
+                    await asyncio.sleep(1)
+                    continue
+
+                channel = random.choice(channels)
+
                 # Wait random time between spawns, but in small chunks for responsiveness
                 min_wait = self.bot.get_config('duck_spawning.spawn_min', 300)  # 5 minutes
                 max_wait = self.bot.get_config('duck_spawning.spawn_max', 900)  # 15 minutes
                 
                 # Check for active bread effects to modify spawn timing
-                spawn_multiplier = self._get_active_spawn_multiplier()
+                spawn_multiplier = self._get_active_spawn_multiplier(channel)
                 if spawn_multiplier > 1.0:
                     # Reduce wait time when bread is active
                     min_wait = int(min_wait / spawn_multiplier)
@@ -51,10 +59,8 @@ class DuckGame:
                 for _ in range(wait_time):
                     await asyncio.sleep(1)
                 
-                # Spawn duck in random channel
-                channels = list(self.bot.channels_joined)
-                if channels:
-                    channel = random.choice(channels)
+                # Spawn duck in the chosen channel (if still joined)
+                if channel in self.bot.channels_joined:
                     await self.spawn_duck(channel)
         
         except asyncio.CancelledError:
@@ -284,7 +290,7 @@ class DuckGame:
             
             # If config option enabled, rearm all disarmed players when duck is shot
             if self.bot.get_config('duck_spawning.rearm_on_duck_shot', False):
-                self._rearm_all_disarmed_players()
+                self._rearm_all_disarmed_players(channel)
             
             # Check for item drops
             dropped_item = self._check_item_drop(player, duck_type)
@@ -324,7 +330,7 @@ class DuckGame:
             if random.random() < friendly_fire_chance:
                 # Get other armed players in the same channel
                 armed_players = []
-                for other_nick, other_player in self.db.players.items():
+                for other_nick, other_player in self.db.get_players_for_channel(channel).items():
                     if (other_nick.lower() != nick.lower() and 
                         not other_player.get('gun_confiscated', False) and
                         other_player.get('current_ammo', 0) > 0):
@@ -424,7 +430,7 @@ class DuckGame:
             
             # If config option enabled, rearm all disarmed players when duck is befriended
             if self.bot.get_config('rearm_on_duck_shot', False):
-                self._rearm_all_disarmed_players()
+                self._rearm_all_disarmed_players(channel)
             
             self.db.save_database()
             return {
@@ -494,11 +500,11 @@ class DuckGame:
             }
         }
     
-    def _rearm_all_disarmed_players(self):
-        """Rearm all players who have been disarmed (gun confiscated)"""
+    def _rearm_all_disarmed_players(self, channel):
+        """Rearm all players who have been disarmed (gun confiscated) in a channel"""
         try:
             rearmed_count = 0
-            for player_name, player_data in self.db.players.items():
+            for player_name, player_data in self.db.get_players_for_channel(channel).items():
                 if player_data.get('gun_confiscated', False):
                     player_data['gun_confiscated'] = False
                     # Update magazines based on player level
@@ -511,14 +517,14 @@ class DuckGame:
         except Exception as e:
             self.logger.error(f"Error in _rearm_all_disarmed_players: {e}")
     
-    def _get_active_spawn_multiplier(self):
-        """Get the current spawn rate multiplier from active bread effects"""
+    def _get_active_spawn_multiplier(self, channel):
+        """Get the current spawn rate multiplier from active bread effects in a channel"""
         import time
         max_multiplier = 1.0
         current_time = time.time()
         
         try:
-            for player_name, player_data in self.db.players.items():
+            for player_name, player_data in self.db.get_players_for_channel(channel).items():
                 effects = player_data.get('temporary_effects', [])
                 for effect in effects:
                     if (effect.get('type') == 'attract_ducks' and 
@@ -566,7 +572,7 @@ class DuckGame:
         current_time = time.time()
         
         try:
-            for player_name, player_data in self.db.players.items():
+            for _channel, player_name, player_data in self.db.iter_all_players():
                 effects = player_data.get('temporary_effects', [])
                 active_effects = []
                 

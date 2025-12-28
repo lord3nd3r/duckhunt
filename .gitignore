@@ -130,8 +130,9 @@ duckhunt.log*
 *.tmp
 *.backup
 
-# Database files (optional - uncomment if you want to ignore database)
-# duckhunt.json
+# Runtime files (do not commit)
+duckhunt.json
+config.json
 
 # IDE files
 .vscode/

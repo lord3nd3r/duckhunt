@@ -56,7 +56,7 @@ class MessageManager:
             "help_header": "DuckHunt Commands:",
             "help_user_commands": "!bang - Shoot at ducks | !reload - Reload your gun | !shop - View the shop",
             "help_help_command": "!duckhelp - Show this help",
-            "help_admin_commands": "Admin: !rearm <player> | !disarm <player> | !ignore <player> | !unignore <player> | !ducklaunch",
+            "help_admin_commands": "Admin: !rearm <player> | !disarm <player> | !ignore <player> | !unignore <player> | !ducklaunch | !join <#channel> | !leave <#channel>",
             "admin_rearm_player": "[ADMIN] {target} has been rearmed by {admin}",
             "admin_rearm_all": "[ADMIN] All players have been rearmed by {admin}",
             "admin_disarm": "[ADMIN] {target} has been disarmed by {admin}",
