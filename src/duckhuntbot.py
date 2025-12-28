@@ -1316,22 +1316,52 @@ class DuckHuntBot:
                     # Summoning needs a channel context. If used in PM, pick the first configured channel.
                     delay = int(effect.get('delay', 0))
                     target_channel = channel
-                    if not isinstance(target_channel, str) or not target_channel.startswith('#'):
+                    is_private_msg = not isinstance(target_channel, str) or not target_channel.startswith('#')
+                    if is_private_msg:
                         channels = self.get_config('connection.channels', []) or []
                         target_channel = channels[0] if channels else None
 
                     if not target_channel:
                         message = f"{nick} > I don't know which channel to summon a duck in. Use this in a channel."
                     else:
+                        # PM commands should only spawn normal/fast/golden.
+                        spawn_type = None
+                        if is_private_msg:
+                            import random
+                            golden_chance = self.get_config('duck_types.golden.chance', self.get_config('golden_duck_chance', 0.15))
+                            fast_chance = self.get_config('duck_types.fast.chance', self.get_config('fast_duck_chance', 0.25))
+                            try:
+                                golden_chance = float(golden_chance)
+                            except (TypeError, ValueError):
+                                golden_chance = 0.15
+                            try:
+                                fast_chance = float(fast_chance)
+                            except (TypeError, ValueError):
+                                fast_chance = 0.25
+
+                            r = random.random()
+                            if r < max(0.0, golden_chance):
+                                spawn_type = 'golden'
+                            elif r < max(0.0, golden_chance) + max(0.0, fast_chance):
+                                spawn_type = 'fast'
+                            else:
+                                spawn_type = 'normal'
+
                         if delay <= 0:
-                            await self.game.spawn_duck(target_channel)
+                            if spawn_type:
+                                await self.game.force_spawn_duck(target_channel, spawn_type)
+                            else:
+                                await self.game.spawn_duck(target_channel)
                             message = self.messages.get('use_summon_duck', nick=nick, channel=target_channel)
                         else:
                             async def delayed_summon():
                                 try:
                                     await asyncio.sleep(delay)
                                     if target_channel in self.channels_joined:
-                                        await self.game.spawn_duck(target_channel)
+                                        if spawn_type:
+                                            await self.game.force_spawn_duck(target_channel, spawn_type)
+                                        else:
+                                            await self.game.spawn_duck(target_channel)
                                 except asyncio.CancelledError:
                                     return
                                 except Exception:
@@ -1628,11 +1658,14 @@ class DuckHuntBot:
         
         # Validate duck type
         duck_type_arg = duck_type_arg.lower()
-        duck_types_cfg = self.get_config('duck_types', {}) or {}
-        if not isinstance(duck_types_cfg, dict):
-            duck_types_cfg = {}
+        if is_private_msg:
+            valid_types = {'normal', 'fast', 'golden'}
+        else:
+            duck_types_cfg = self.get_config('duck_types', {}) or {}
+            if not isinstance(duck_types_cfg, dict):
+                duck_types_cfg = {}
+            valid_types = set(['normal']) | set(duck_types_cfg.keys())
 
-        valid_types = set(['normal']) | set(duck_types_cfg.keys())
         if duck_type_arg not in valid_types:
             valid_list = ', '.join(sorted(valid_types))
             self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {valid_list}")
