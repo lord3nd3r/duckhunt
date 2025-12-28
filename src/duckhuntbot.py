@@ -572,7 +572,12 @@ class DuckHuntBot:
         """Handle bot commands with enhanced error handling and input validation"""
         try:
             # Validate input parameters
-            if not isinstance(message, str) or not message.startswith('!'):
+            if not isinstance(message, str):
+                return
+
+            # Some clients/users may prefix commands with whitespace (e.g. " !bang").
+            message = message.lstrip()
+            if not message.startswith('!'):
                 return
             
             if not isinstance(user, str) or not isinstance(channel, str):
@@ -580,7 +585,7 @@ class DuckHuntBot:
                 return
             
             # Sanitize inputs
-            safe_message = sanitize_user_input(message, max_length=500)
+            safe_message = sanitize_user_input(message, max_length=500).lstrip()
             safe_user = sanitize_user_input(user, max_length=200) 
             safe_channel = sanitize_user_input(channel, max_length=100)
 

@@ -160,7 +160,8 @@ class DuckGame:
         
         # All duck types use the same spawn message - type is hidden!
         message = self.bot.messages.get('duck_spawn')
-        self.bot.send_message(channel, message)
+        if not self.bot.send_message(channel, message):
+            self.logger.warning(f"Failed to send duck spawn message to {channel}")
 
     async def force_spawn_duck(self, channel, duck_type):
         """Force spawn a specific duck type in a channel (admin/items), even if ducks already exist."""
@@ -184,7 +185,8 @@ class DuckGame:
         except Exception:
             pass
 
-        self.bot.send_message(channel, self.bot.messages.get('duck_spawn'))
+        if not self.bot.send_message(channel, self.bot.messages.get('duck_spawn')):
+            self.logger.warning(f"Failed to send forced duck spawn message to {channel}")
 
     def _choose_duck_type(self):
         """Choose a duck type using duck_types.*.chance (with legacy fallbacks)."""
