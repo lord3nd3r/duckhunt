@@ -1,6 +1,6 @@
 # DuckHunt IRC Bot
 
-DuckHunt is an asyncio-based IRC bot that runs a classic “duck hunting” mini-game in IRC channels.
+DuckHunt is an asyncio-based IRC bot that runs a classic "duck hunting" mini-game in IRC channels.
 
 ## Credits
 
@@ -9,14 +9,16 @@ DuckHunt is an asyncio-based IRC bot that runs a classic “duck hunting” mini
 
 ## Features
 
-- Per-channel stats (same nick has separate stats per channel)
-- Multiple duck types (normal / golden / fast + special variants)
-- Shop + inventory items
-- Admin commands (rearm/disarm/ignore, spawn ducks, join/leave channels)
-- `!globalducks` totals across channels
-- JSON persistence to disk (`duckhunt.json`)
+- **Multi-channel support** - Bot can be in multiple channels
+- **Global player stats** - Same player stats across all channels
+- **Three duck types** - Normal, Golden (multi-HP), and Fast ducks
+- **Shop system** - Buy items to improve your hunting
+- **Leveling system** - Gain XP and increase your level
+- **Admin commands** - Join/leave channels, spawn ducks, manage players
+- **JSON persistence** - All stats saved to disk
+- **Auto-save** - Progress saved automatically after each action
 
-## Quick start
+## Quick Start
 
 ### Requirements
 
@@ -43,83 +45,120 @@ Then edit `config.json`:
 - `connection.server`, `connection.port`, `connection.nick`
 - `connection.channels` (list of channels to join on connect)
 - `connection.ssl` and optional password/SASL settings
+- `admins` (list of admin nicks or nick+hostmask patterns)
 
-Security note: `config.json` is ignored by git in this repo; don’t commit real IRC passwords/tokens.
+**Security note:** `config.json` is ignored by git - don't commit real IRC passwords/tokens.
 
-### Duck types
+### Duck Types
 
-Duck types are configured under `duck_types` in `config.json`.
+Three duck types with different behaviors:
 
-Built-in variants supported by the game logic:
+- **Normal** - Standard duck, 1 HP, base XP
+- **Golden** - Multi-HP duck (3-5 HP), high XP, awards XP per hit
+- **Fast** - Quick duck, 1 HP, flies away faster
 
-- `normal`, `fast`, `golden`
-- `concrete` (multi-HP)
-- `holy_grail` (multi-HP)
-- `diamond` (multi-HP)
-- `explosive` (on kill: eliminates the shooter for 2 hours)
-- `poisonous` (on befriend: poisons the befriender for 2 hours)
-- `radioactive` (on befriend: poisons the befriender for 8 hours)
-- `couple` (spawns 2 ducks at once)
-- `family` (spawns 3–4 ducks at once)
+Duck spawn rates configured in `config.json`:
+- `golden_duck_chance` - Probability of golden duck (default: 0.15)
+- `fast_duck_chance` - Probability of fast duck (default: 0.25)
 
 ## Persistence
 
-Player stats are saved to `duckhunt.json`.
+Player stats are saved to `duckhunt.json`:
 
-- Stats are stored per channel.
-- If you run `!join` / `!leave`, the bot updates `config.json` so channel changes persist across restarts.
+- **Global stats** - Players have one set of stats across all channels
+- **Auto-save** - Database saved after each action (shoot, reload, shop, etc.)
+- **Atomic writes** - Safe file handling prevents database corruption
+- **Retry logic** - Automatic retry on save failures
 
 ## Commands
 
-### Player commands
+### Player Commands
 
-- `!bang`
-- `!reload`
-- `!shop`
-- `!buy <item_id>`
-- `!use <item_id> [target]`
-- `!duckstats [player]`
-- `!topduck`
-- `!give <item_id> <player>`
-- `!globalducks [player]` (totals across all configured channels)
-- `!duckhelp` (sends a PM with examples)
+- `!bang` - Shoot at a duck
+- `!bef` or `!befriend` - Try to befriend a duck
+- `!reload` - Reload your gun
+- `!shop` - View available items
+- `!shop buy <item_id>` - Purchase an item from the shop
+- `!duckstats [player]` - View hunting statistics
+- `!topduck` - View leaderboard (top hunters)
+- `!duckhelp` - Get detailed command list via PM
 
-### Shop items (IDs)
+### Admin Commands
 
-Use `!shop` / `!buy <id>` / `!use <id>`.
+- `!rearm <player|all>` - Give player a gun
+- `!disarm <player>` - Confiscate player's gun
+- `!ignore <player>` / `!unignore <player>` - Ignore/unignore commands
+- `!ducklaunch [duck_type]` - Force spawn a duck (normal, golden, fast)
+- `!join <#channel>` - Make bot join a channel
+- `!part <#channel>` - Make bot leave a channel
 
-- `10` Sniper Rifle: perfect aim for 30 minutes
-- `11` Sniper Scope: perfect aim for 60 minutes
-- `12` Duck Whistle: instantly summons a duck (if none are present)
-- `13` Duck Caller: instantly summons a duck (if none are present)
-- `14` Duck Horn: instantly summons a duck (if none are present)
-- `15` Duck Decoy: summons a duck in ~1 hour (if none are present)
-- `16` Duck Radar: DM alert when a duck spawns in that channel (6 hours)
+Admin commands work in PM or in-channel.
 
-### Admin commands
+## Shop Items
 
-- `!rearm <player|all>`
-- `!disarm <player>`
-- `!ignore <player>` / `!unignore <player>`
-- `!ducklaunch [duck_type]` (in-channel)
-- `!ducklaunch <#channel> [duck_type]` (in PM)
-- `!join <#channel>` / `!leave <#channel>` (persists to `config.json`)
+Basic shop items available (use `!shop` to see current inventory):
 
-## Repo layout
+- **Bullets** - Ammunition refills
+- **Magazines** - Extra ammo capacity
+- **Gun Improvements** - Better accuracy, less jamming
+- **Gun License** - Buy back your confiscated gun
+- **Insurance** - Protection from penalties
+
+Use `!shop buy <id>` to purchase.
+
+## Gameplay
+
+### How to Play
+
+1. Wait for a duck to spawn (appears randomly in channel)
+2. Type `!bang` to shoot it
+3. Earn XP for successful hits
+4. Level up to improve your stats
+5. Buy items from `!shop` to enhance your hunting
+
+### Duck Behavior
+
+- **Normal ducks** - Standard targets, 1 shot to kill
+- **Golden ducks** - Tougher! Multiple HP, gives XP per hit
+- **Fast ducks** - Quick! They fly away faster than normal
+
+### Stats Tracked
+
+- XP (experience points)
+- Ducks shot
+- Ducks befriended
+- Shots fired
+- Accuracy percentage
+- Current level
+
+## Repo Layout
 
 ```
 duckhunt/
 ├── duckhunt.py          # Entry point
 ├── config.json          # Bot configuration (ignored by git)
 ├── config.json.example  # Safe template to copy
-├── duckhunt.json        # Player database (generated/updated at runtime)
+├── duckhunt.json        # Player database (auto-generated)
+├── levels.json          # Level definitions
+├── shop.json            # Shop item catalog
+├── messages.json        # Bot messages
 └── src/
     ├── duckhuntbot.py   # IRC bot + command routing
     ├── game.py          # Duck game logic
-    ├── db.py            # Persistence layer
-    ├── shop.py          # Shop/inventory
-    ├── levels.py        # Level system
-    └── ...
+    ├── db.py            # Database persistence
+    ├── shop.py          # Shop/inventory system
+    ├── levels.py        # Leveling system
+    ├── sasl.py          # SASL authentication
+    ├── error_handling.py # Error recovery
+    └── utils.py         # Utility functions
 ```
 
-**Happy Duck Hunting!**
+## Recent Updates
+
+- ✅ Fixed golden duck XP bug (now awards XP on each hit)
+- ✅ Added `!join` and `!part` admin commands
+- ✅ Improved `!duckhelp` with detailed PM
+- ✅ Simplified to 3 core duck types for stability
+- ✅ Enhanced database save reliability
+
+**Happy Duck Hunting!** 🦆
