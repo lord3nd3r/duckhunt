@@ -61,56 +61,6 @@
       "price": 30,
       "description": "Change into dry clothes - allows shooting again after being soaked",
       "type": "dry_clothes"
-    },
-
-    "10": {
-      "name": "Sniper Rifle",
-      "price": 200,
-      "description": "Perfect aim - your shots won't miss for 30 minutes",
-      "type": "perfect_aim",
-      "duration": 1800
-    },
-    "11": {
-      "name": "Sniper Scope",
-      "price": 350,
-      "description": "Perfect aim - your shots won't miss for 60 minutes",
-      "type": "perfect_aim",
-      "duration": 3600
-    },
-    "12": {
-      "name": "Duck Whistle",
-      "price": 120,
-      "description": "Instantly summons a duck (if none are present)",
-      "type": "summon_duck",
-      "delay": 0
-    },
-    "13": {
-      "name": "Duck Caller",
-      "price": 200,
-      "description": "Instantly summons a duck (if none are present)",
-      "type": "summon_duck",
-      "delay": 0
-    },
-    "14": {
-      "name": "Duck Horn",
-      "price": 300,
-      "description": "Instantly summons a duck (if none are present)",
-      "type": "summon_duck",
-      "delay": 0
-    },
-    "15": {
-      "name": "Duck Decoy",
-      "price": 80,
-      "description": "Summons a duck in 1 hour (if none are present)",
-      "type": "summon_duck",
-      "delay": 3600
-    },
-    "16": {
-      "name": "Duck Radar",
-      "price": 150,
-      "description": "DM alert when a duck spawns in this channel (lasts 6 hours)",
-      "type": "duck_radar",
-      "duration": 21600
     }
   }
 }
