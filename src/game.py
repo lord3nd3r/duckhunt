@@ -19,6 +19,17 @@ class DuckGame:
         self.logger = logging.getLogger('DuckHuntBot.Game')
         self.spawn_task = None
         self.timeout_task = None
+
+    def _get_effects_list(self, player: dict):
+        """Return a sanitized list of temporary effect dicts for a player."""
+        effects = player.get('temporary_effects', [])
+        if not isinstance(effects, list):
+            player['temporary_effects'] = []
+            return []
+        cleaned = [e for e in effects if isinstance(e, dict)]
+        if len(cleaned) != len(effects):
+            player['temporary_effects'] = cleaned
+        return cleaned
     
     async def start_game_loops(self):
         """Start the game loops"""
@@ -684,7 +695,7 @@ class DuckGame:
         
         try:
             for player_name, player_data in self.db.get_players_for_channel(channel).items():
-                effects = player_data.get('temporary_effects', [])
+                effects = self._get_effects_list(player_data)
                 for effect in effects:
                     if (effect.get('type') == 'attract_ducks' and 
                         effect.get('expires_at', 0) > current_time):
@@ -700,8 +711,8 @@ class DuckGame:
         """Check if player has wet clothes that prevent shooting"""
         import time
         current_time = time.time()
-        
-        effects = player.get('temporary_effects', [])
+
+        effects = self._get_effects_list(player)
         for effect in effects:
             if (effect.get('type') == 'wet_clothes' and 
                 effect.get('expires_at', 0) > current_time):
@@ -714,7 +725,7 @@ class DuckGame:
         current_time = time.time()
         
         try:
-            effects = player.get('temporary_effects', [])
+            effects = self._get_effects_list(player)
             for effect in effects:
                 if (effect.get('type') == 'insurance' and 
                     effect.get('protection') == protection_type and
@@ -732,7 +743,7 @@ class DuckGame:
         
         try:
             for _channel, player_name, player_data in self.db.iter_all_players():
-                effects = player_data.get('temporary_effects', [])
+                effects = self._get_effects_list(player_data)
                 active_effects = []
                 
                 for effect in effects:
@@ -811,7 +822,7 @@ class DuckGame:
     def _has_active_effect(self, player, effect_type):
         import time
         current_time = time.time()
-        effects = player.get('temporary_effects', [])
+        effects = self._get_effects_list(player)
         for effect in effects:
             if effect.get('type') == effect_type and effect.get('expires_at', 0) > current_time:
                 return True
@@ -819,8 +830,8 @@ class DuckGame:
 
     def _add_temporary_effect(self, player, effect_type, duration_seconds):
         import time
-        if 'temporary_effects' not in player:
-            player['temporary_effects'] = []
+        # Normalize effects storage in case legacy data stored it as a dict/string.
+        self._get_effects_list(player)
         duration_seconds = int(duration_seconds)
         duration_seconds = max(1, min(duration_seconds, 7 * 24 * 3600))  # cap 7 days
         player['temporary_effects'].append({
