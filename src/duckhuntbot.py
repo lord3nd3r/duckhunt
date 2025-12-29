@@ -23,6 +23,9 @@ class DuckHuntBot:
         self.writer: Optional[asyncio.StreamWriter] = None
         self.registered = False
         self.channels_joined = set()
+        # Track requested joins / pending server confirmation.
+        # Used by auto-rejoin and (in newer revisions) admin join/leave reporting.
+        self.pending_joins = {}
         self.shutdown_requested = False
         self.rejoin_attempts = {}  # Track rejoin attempts per channel
         self.rejoin_tasks = {}     # Track active rejoin tasks
@@ -273,6 +276,10 @@ class DuckHuntBot:
     async def schedule_rejoin(self, channel):
         """Schedule automatic rejoin attempts for a channel after being kicked"""
         try:
+            # Backward/forward compatibility: ensure attribute exists.
+            if not hasattr(self, 'pending_joins') or not isinstance(self.pending_joins, dict):
+                self.pending_joins = {}
+
             # Cancel any existing rejoin task for this channel
             if channel in self.rejoin_tasks:
                 self.rejoin_tasks[channel].cancel()
