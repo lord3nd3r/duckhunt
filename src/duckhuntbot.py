@@ -304,30 +304,28 @@ class DuckHuntBot:
                 self.rejoin_attempts[channel] += 1
                 
                 self.logger.info(f"Rejoin attempt {self.rejoin_attempts[channel]}/{max_attempts} for {channel}")
-                
-                # Wait before attempting rejoin
-                await asyncio.sleep(retry_interval)
-                
+
                 # Check if we're still connected and registered
                 if not self.registered or not self.writer or self.writer.is_closing():
                     self.logger.warning(f"Cannot rejoin {channel}: not connected to server")
+                    await asyncio.sleep(retry_interval)
                     continue
                 
                 # Attempt to rejoin
                 if self.send_raw(f"JOIN {channel}"):
-                    self.channels_joined.add(channel)
-                    self.logger.info(f"Successfully rejoined {channel}")
-                    
-                    # Reset attempt counter and remove task
-                    self.rejoin_attempts[channel] = 0
-                    if channel in self.rejoin_tasks:
-                        del self.rejoin_tasks[channel]
-                    return
+                    self.pending_joins[channel] = None
+                    self.logger.info(f"Sent JOIN for {channel} (waiting for server confirmation)")
                 else:
                     self.logger.warning(f"Failed to send JOIN command for {channel}")
+
+                # Wait before next attempt (if needed)
+                await asyncio.sleep(retry_interval)
             
             # If we've exceeded max attempts or channel was successfully joined
-            if self.rejoin_attempts[channel] >= max_attempts:
+            if channel in self.channels_joined:
+                self.rejoin_attempts[channel] = 0
+                self.logger.info(f"Rejoin confirmed for {channel}")
+            elif self.rejoin_attempts[channel] >= max_attempts:
                 self.logger.error(f"Exhausted all {max_attempts} rejoin attempts for {channel}")
             
             # Clean up
