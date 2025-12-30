@@ -38,7 +38,8 @@ class DuckHuntBot:
         
         self.db = DuckDB(bot=self)
         self.game = DuckGame(self, self.db)
-        self.messages = MessageManager()
+        messages_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'messages.json')
+        self.messages = MessageManager(messages_file)
         
         self.sasl_handler = SASLHandler(self, config)
         
