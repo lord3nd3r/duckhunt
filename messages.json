@@ -4,7 +4,15 @@
     "{light_grey}・゜゜・。。・゜゜{reset}\\_O< {light_grey}QUACK!{reset}",
     "・゜゜・。。・゜゜{black}\\_O< QUACK!{reset}",
     "・゜゜・。。・゜゜\\_o< quack~",
-    "・゜゜・。。・゜゜\\_O> *flap flap*"
+    "・゜゜・。。・゜゜\\_O> *flap flap*",
+    "-.,¸¸.-·°'`'°·-.,¸¸.-·°'`'°·\u000f \u0002\\_O<\u0002   \u000314QUACK\u000f",
+    "{light_grey}·.¸¸.·´¯`·.¸¸.·´¯`·.{reset} {bold}\\_O<{reset}  {light_grey}QUACK!{reset}",
+    "{cyan}≋≋≋{reset} {bold}\\_O<{reset} {cyan}≋≋≋{reset}  {light_grey}QUACK!{reset}",
+    "{yellow}⟦{reset}{bold}\\_O<{reset}{yellow}⟧{reset}  {light_grey}Q U A C K{reset}",
+    "{bold}\\_O<{reset}  {light_grey}*q u a c k*{reset}  {grey}(respawned){reset}",
+    "{light_grey}..:::{reset} {bold}\\_O<{reset} {light_grey}:::..{reset}  {light_grey}QUACK!{reset}",
+    "{bold}\\_O<{reset} {light_grey}≫{reset} {green}Q U A C K{reset} {light_grey}≪{reset}",
+    "{light_grey}~{reset}{bold}\\_O<{reset}{light_grey}~{reset}  {light_grey}QUACK!{reset}  {light_grey}~{reset}"
   ],
   "duck_flies_away": [
     "The duck flies away. ·°'`'°-.,¸¸.·°'`",
