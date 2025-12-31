@@ -284,7 +284,7 @@ class DuckGame:
             
             # If config option enabled, rearm all disarmed players when duck is shot
             if self.bot.get_config('duck_spawning.rearm_on_duck_shot', False):
-                self._rearm_all_disarmed_players()
+                self._rearm_all_disarmed_players(channel)
             
             # Check for item drops
             dropped_item = self._check_item_drop(player, duck_type)
@@ -324,8 +324,8 @@ class DuckGame:
             if random.random() < friendly_fire_chance:
                 # Get other armed players in the same channel
                 armed_players = []
-                for other_nick, other_player in self.db.players.items():
-                    if (other_nick.lower() != nick.lower() and 
+                for other_nick, other_player in self.db.get_players_for_channel(channel).items():
+                    if (str(other_nick).lower() != nick.lower() and 
                         not other_player.get('gun_confiscated', False) and
                         other_player.get('current_ammo', 0) > 0):
                         armed_players.append((other_nick, other_player))
@@ -424,7 +424,7 @@ class DuckGame:
             
             # If config option enabled, rearm all disarmed players when duck is befriended
             if self.bot.get_config('rearm_on_duck_shot', False):
-                self._rearm_all_disarmed_players()
+                self._rearm_all_disarmed_players(channel)
             
             self.db.save_database()
             return {
@@ -494,11 +494,11 @@ class DuckGame:
             }
         }
     
-    def _rearm_all_disarmed_players(self):
-        """Rearm all players who have been disarmed (gun confiscated)"""
+    def _rearm_all_disarmed_players(self, channel):
+        """Rearm all players who have been disarmed (gun confiscated) in the given channel"""
         try:
             rearmed_count = 0
-            for player_name, player_data in self.db.players.items():
+            for _player_name, player_data in self.db.get_players_for_channel(channel).items():
                 if player_data.get('gun_confiscated', False):
                     player_data['gun_confiscated'] = False
                     # Update magazines based on player level
@@ -518,7 +518,7 @@ class DuckGame:
         current_time = time.time()
         
         try:
-            for player_name, player_data in self.db.players.items():
+            for _ch, _player_name, player_data in self.db.iter_all_players():
                 effects = player_data.get('temporary_effects', [])
                 for effect in effects:
                     if (effect.get('type') == 'attract_ducks' and 
@@ -566,7 +566,7 @@ class DuckGame:
         current_time = time.time()
         
         try:
-            for player_name, player_data in self.db.players.items():
+            for _ch, player_name, player_data in self.db.iter_all_players():
                 effects = player_data.get('temporary_effects', [])
                 active_effects = []
                 

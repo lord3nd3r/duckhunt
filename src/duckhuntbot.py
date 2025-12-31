@@ -62,7 +62,7 @@ class DuckHuntBot:
             # Database health check
             self.health_checker.add_check(
                 'database',
-                lambda: self.db is not None and len(self.db.players) >= 0,
+                lambda: self.db is not None and hasattr(self.db, 'channels'),
                 critical=True
             )
             
@@ -142,11 +142,8 @@ class DuckHuntBot:
             self.send_message(channel, message)
             return False
         
-        target = args[0].lower()
-        player = self.db.get_player(target)
-        if player is None:
-            player = self.db.create_player(target)
-            self.db.players[target] = player
+        target = args[0]
+        player = self.db.get_player(target, channel)
         action_func(player)
         
         message = self.messages.get(success_message_key, target=target, admin=nick)
@@ -164,25 +161,16 @@ class DuckHuntBot:
         if not is_private_msg:
             if target_nick.lower() == nick.lower():
                 target_nick = target_nick.lower()
-                player = self.db.get_player(target_nick)
-                if player is None:
-                    player = self.db.create_player(target_nick)
-                    self.db.players[target_nick] = player
+                player = self.db.get_player(target_nick, channel)
                 return player, None
             else:
                 is_valid, player, error_msg = self.validate_target_player(target_nick, channel)
                 if not is_valid:
                     return None, error_msg
-                target_nick = target_nick.lower()
-                if target_nick not in self.db.players:
-                    self.db.players[target_nick] = player
                 return player, None
         else:
             target_nick = target_nick.lower()
-            player = self.db.get_player(target_nick)
-            if player is None:
-                player = self.db.create_player(target_nick)
-                self.db.players[target_nick] = player
+            player = self.db.get_player(target_nick, channel)
             return player, None
 
     def _get_validated_target_player(self, nick, channel, target_nick):
@@ -620,7 +608,7 @@ class DuckHuntBot:
             
             # Get player data with error recovery
             player = self.error_recovery.safe_execute(
-                lambda: self.db.get_player(nick),
+                lambda: self.db.get_player(nick, safe_channel),
                 fallback={'nick': nick, 'xp': 0, 'ducks_shot': 0, 'gun_confiscated': False},
                 logger=self.logger
             )
@@ -633,7 +621,6 @@ class DuckHuntBot:
                 try:
                     player['last_activity_channel'] = safe_channel
                     player['last_activity_time'] = time.time()
-                    self.db.players[nick.lower()] = player
                 except Exception as e:
                     self.logger.warning(f"Error updating player activity for {nick}: {e}")
             
@@ -811,9 +798,9 @@ class DuckHuntBot:
         if not target_nick:
             return False, None, "Invalid target nickname"
         
-        player = self.db.get_player(target_nick)
+        player = self.db.get_player_if_exists(target_nick, channel)
         if not player:
-            return False, None, f"Player '{target_nick}' not found. They need to participate in the game first."
+            return False, None, f"Player '{target_nick}' not found in {channel}. They need to participate in this channel first."
         
         has_activity = (
             player.get('xp', 0) > 0 or 
@@ -835,7 +822,7 @@ class DuckHuntBot:
         We assume if someone has been active recently, they're still in the channel.
         """
         try:
-            player = self.db.get_player(nick)
+            player = self.db.get_player_if_exists(nick, channel)
             if not player:
                 return False
             
@@ -954,9 +941,9 @@ class DuckHuntBot:
         """Handle !duckstats command"""
         if args and len(args) > 0:
             target_nick = args[0]
-            target_player = self.db.get_player(target_nick)
+            target_player = self.db.get_player_if_exists(target_nick, channel)
             if not target_player:
-                message = f"{nick} > Player '{target_nick}' not found."
+                message = f"{nick} > Player '{target_nick}' not found in {channel}."
                 self.send_message(channel, message)
                 return
             display_nick = target_nick
@@ -1048,10 +1035,10 @@ class DuckHuntBot:
             reset = self.messages.messages.get('colours', {}).get('reset', '')
             
             # Get top 3 by XP
-            top_xp = self.db.get_leaderboard('xp', 3)
+            top_xp = self.db.get_leaderboard(channel, 'xp', 3)
             
             # Get top 3 by ducks shot
-            top_ducks = self.db.get_leaderboard('ducks_shot', 3)
+            top_ducks = self.db.get_leaderboard(channel, 'ducks_shot', 3)
             
             # Format XP leaderboard as single line
             if top_xp:
@@ -1329,12 +1316,20 @@ class DuckHuntBot:
             # Check if admin wants to rearm all players
             if target_nick.lower() == 'all':
                 rearmed_count = 0
-                for player_nick, player in self.db.players.items():
-                    if player.get('gun_confiscated', False):
-                        player['gun_confiscated'] = False
-                        self.levels.update_player_magazines(player)
-                        player['current_ammo'] = player.get('bullets_per_magazine', 6)
-                        rearmed_count += 1
+                if is_private_msg:
+                    for _ch, _pn, p in self.db.iter_all_players():
+                        if p.get('gun_confiscated', False):
+                            p['gun_confiscated'] = False
+                            self.levels.update_player_magazines(p)
+                            p['current_ammo'] = p.get('bullets_per_magazine', 6)
+                            rearmed_count += 1
+                else:
+                    for _pn, p in self.db.get_players_for_channel(channel).items():
+                        if p.get('gun_confiscated', False):
+                            p['gun_confiscated'] = False
+                            self.levels.update_player_magazines(p)
+                            p['current_ammo'] = p.get('bullets_per_magazine', 6)
+                            rearmed_count += 1
                 
                 if is_private_msg:
                     message = f"{nick} > Rearmed all players ({rearmed_count} players)"
@@ -1368,10 +1363,7 @@ class DuckHuntBot:
                 return
             
             # Rearm the admin themselves (only in channels)
-            player = self.db.get_player(nick)
-            if player is None:
-                player = self.db.create_player(nick)
-                self.db.players[nick.lower()] = player
+            player = self.db.get_player(nick, channel)
             
             player['gun_confiscated'] = False
             
@@ -1434,10 +1426,7 @@ class DuckHuntBot:
             return
         
         target = args[0].lower()
-        player = self.db.get_player(target)
-        if player is None:
-            player = self.db.create_player(target)
-            self.db.players[target] = player
+        player = self.db.get_player(target, channel)
         
         action_func(player)
         
