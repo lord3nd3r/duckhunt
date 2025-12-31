@@ -1079,6 +1079,20 @@ class DuckHuntBot:
             bold = self.messages.messages.get('colours', {}).get('bold', '')
             reset = self.messages.messages.get('colours', {}).get('reset', '')
 
+            def _display_channel_key(channel_key: str) -> str:
+                """Convert internal channel keys to a user-friendly label."""
+                if not isinstance(channel_key, str) or not channel_key:
+                    return "unknown"
+                if channel_key.startswith('#') or channel_key.startswith('&'):
+                    return channel_key
+                if channel_key == '__global__':
+                    return "global"
+                if channel_key == '__pm__':
+                    return "pm"
+                if channel_key == '__unknown__':
+                    return "unknown"
+                return channel_key
+
             entries = []  # (xp, player_nick, channel_key)
             for channel_key, player_nick, player_data in self.db.iter_all_players():
                 if not isinstance(player_data, dict):
@@ -1102,9 +1116,10 @@ class DuckHuntBot:
             medals = {1: "🥇", 2: "🥈", 3: "🥉"}
             for idx, (xp, player_nick, channel_key) in enumerate(top5, 1):
                 prefix = medals.get(idx, f"#{idx}")
-                parts.append(f"{prefix} {player_nick} ({channel_key}) {xp}XP")
+                channel_label = _display_channel_key(channel_key)
+                parts.append(f"{prefix} {player_nick} in {channel_label}: {xp}XP")
 
-            line = f"Global Top XP: {bold}{reset} " + " | ".join(parts)
+            line = f"Top XP (all channels): {bold}{reset} " + " | ".join(parts)
             self.send_message(channel, line)
         except Exception as e:
             self.logger.error(f"Error in handle_globaltop: {e}")
