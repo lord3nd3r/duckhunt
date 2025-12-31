@@ -1117,9 +1117,9 @@ class DuckHuntBot:
             for idx, (xp, player_nick, channel_key) in enumerate(top5, 1):
                 prefix = medals.get(idx, f"#{idx}")
                 channel_label = _display_channel_key(channel_key)
-                parts.append(f"{prefix} {player_nick} in {channel_label}: {xp}XP")
+                parts.append(f"{prefix} {player_nick} {xp}XP {channel_label}")
 
-            line = f"Top XP (all channels): {bold}{reset} " + " | ".join(parts)
+            line = f"Top XP: {bold}{reset} " + " | ".join(parts)
             self.send_message(channel, line)
         except Exception as e:
             self.logger.error(f"Error in handle_globaltop: {e}")
