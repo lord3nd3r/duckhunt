@@ -691,6 +691,13 @@ class DuckHuntBot:
                     fallback=None,
                     logger=self.logger
                 )
+            elif cmd == "globaltop":
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_globaltop(nick, channel),
+                    fallback=None,
+                    logger=self.logger
+                )
             elif cmd == "use":
                 command_executed = True
                 await self.error_recovery.safe_execute_async(
@@ -1065,6 +1072,43 @@ class DuckHuntBot:
         except Exception as e:
             self.logger.error(f"Error in handle_topduck: {e}")
             self.send_message(channel, f"{nick} > Error retrieving leaderboard data.")
+
+    async def handle_globaltop(self, nick, channel):
+        """Handle !globaltop command - show top players across all channels (by XP)."""
+        try:
+            bold = self.messages.messages.get('colours', {}).get('bold', '')
+            reset = self.messages.messages.get('colours', {}).get('reset', '')
+
+            entries = []  # (xp, player_nick, channel_key)
+            for channel_key, player_nick, player_data in self.db.iter_all_players():
+                if not isinstance(player_data, dict):
+                    continue
+                try:
+                    xp = int(player_data.get('xp', 0) or 0)
+                except (ValueError, TypeError):
+                    xp = 0
+                if xp <= 0:
+                    continue
+                entries.append((xp, str(player_nick), str(channel_key)))
+
+            if not entries:
+                self.send_message(channel, f"{nick} > No global XP data available yet!")
+                return
+
+            entries.sort(key=lambda t: t[0], reverse=True)
+            top5 = entries[:5]
+
+            parts = []
+            medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+            for idx, (xp, player_nick, channel_key) in enumerate(top5, 1):
+                prefix = medals.get(idx, f"#{idx}")
+                parts.append(f"{prefix} {player_nick} ({channel_key}) {xp}XP")
+
+            line = f"Global Top XP: {bold}{reset} " + " | ".join(parts)
+            self.send_message(channel, line)
+        except Exception as e:
+            self.logger.error(f"Error in handle_globaltop: {e}")
+            self.send_message(channel, f"{nick} > Error retrieving global leaderboard data.")
     
     async def handle_duckhelp(self, nick, channel, _player):
         """Handle !duckhelp command - sends detailed help via PM"""
@@ -1085,6 +1129,7 @@ class DuckHuntBot:
             "INFO COMMANDS:",
             "  !duckstats [player] - View duck hunting statistics",
             "  !topduck - View leaderboard (top hunters)",
+            "  !globaltop - View global leaderboard (top 5 across all channels)",
             "",
             "SHOP COMMANDS:",
             "  !shop - View available items",
