@@ -64,7 +64,7 @@
     },
     "10": {
       "name": "4-Leaf Clover",
-      "price": 100,
+      "price": 250,
       "description": "Crazy luck for 10 minutes - greatly boosts hit & befriend success",
       "type": "clover_luck",
       "duration": 600,

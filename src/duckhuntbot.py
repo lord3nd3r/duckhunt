@@ -650,6 +650,19 @@ class DuckHuntBot:
             
             # Execute command with error recovery
             command_executed = False
+
+            # Special case: admin PM-only bot restart uses !reload.
+            # In channels, !reload remains the gameplay reload command.
+            if cmd == "reload" and not channel.startswith('#') and self.is_admin(user):
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_reloadbot(nick, channel),
+                    fallback=None,
+                    logger=self.logger
+                )
+
+            if command_executed:
+                return
             
             if cmd == "bang":
                 command_executed = True
@@ -771,13 +784,6 @@ class DuckHuntBot:
                     logger=self.logger
                 )
 
-            elif cmd in ("reloadbot", "restartbot") and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_reloadbot(nick, channel),
-                    fallback=None,
-                    logger=self.logger
-                )
             
             # If no command was executed, it might be an unknown command
             if not command_executed:
@@ -1201,7 +1207,7 @@ class DuckHuntBot:
             self.send_message(nick, line)
 
     async def handle_reloadbot(self, nick, channel):
-        """Admin-only: restart the bot process via PM to apply code changes."""
+        """Admin-only: restart the bot process via PM (!reload) to apply code changes."""
         # PM-only to avoid accidental public restarts
         if channel.startswith('#'):
             self.send_message(channel, f"{nick} > Use this command in PM only.")
