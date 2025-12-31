@@ -388,6 +388,62 @@ class ShopManager:
                 "spawn_multiplier": spawn_multiplier,
                 "duration": duration // 60  # return duration in minutes
             }
+
+        elif item_type == 'clover_luck':
+            # Temporarily boost hit + befriend success rates
+            if 'temporary_effects' not in player or not isinstance(player.get('temporary_effects'), list):
+                player['temporary_effects'] = []
+
+            duration = item.get('duration', 600)  # seconds
+            try:
+                duration = int(duration)
+            except (ValueError, TypeError):
+                duration = 600
+            duration = max(30, min(duration, 86400))
+
+            try:
+                min_hit = float(item.get('min_hit_chance', 0.95))
+            except (ValueError, TypeError):
+                min_hit = 0.95
+            try:
+                min_bef = float(item.get('min_befriend_chance', 0.95))
+            except (ValueError, TypeError):
+                min_bef = 0.95
+            min_hit = max(0.0, min(min_hit, 1.0))
+            min_bef = max(0.0, min(min_bef, 1.0))
+
+            now = time.time()
+            expires_at = now + duration
+
+            # If an existing clover effect is active, extend it instead of stacking.
+            for effect in player['temporary_effects']:
+                if isinstance(effect, dict) and effect.get('type') == 'clover_luck' and effect.get('expires_at', 0) > now:
+                    effect['expires_at'] = max(effect.get('expires_at', now), now) + duration
+                    effect['min_hit_chance'] = max(float(effect.get('min_hit_chance', 0.0) or 0.0), min_hit)
+                    effect['min_befriend_chance'] = max(float(effect.get('min_befriend_chance', 0.0) or 0.0), min_bef)
+                    return {
+                        "type": "clover_luck",
+                        "duration": duration // 60,
+                        "min_hit_chance": min_hit,
+                        "min_befriend_chance": min_bef,
+                        "extended": True
+                    }
+
+            effect = {
+                'type': 'clover_luck',
+                'min_hit_chance': min_hit,
+                'min_befriend_chance': min_bef,
+                'expires_at': expires_at
+            }
+            player['temporary_effects'].append(effect)
+
+            return {
+                "type": "clover_luck",
+                "duration": duration // 60,
+                "min_hit_chance": min_hit,
+                "min_befriend_chance": min_bef,
+                "extended": False
+            }
         
         elif item_type == 'insurance':
             # Add insurance protection against friendly fire

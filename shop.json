@@ -61,6 +61,15 @@
       "price": 30,
       "description": "Change into dry clothes - allows shooting again after being soaked",
       "type": "dry_clothes"
+    },
+    "10": {
+      "name": "4-Leaf Clover",
+      "price": 100,
+      "description": "Crazy luck for 10 minutes - greatly boosts hit & befriend success",
+      "type": "clover_luck",
+      "duration": 600,
+      "min_hit_chance": 0.95,
+      "min_befriend_chance": 0.95
     }
   }
 }

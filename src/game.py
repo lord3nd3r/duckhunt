@@ -227,6 +227,16 @@ class DuckGame:
         # Calculate hit chance using level-modified accuracy
         modified_accuracy = self.bot.levels.get_modified_accuracy(player)
         hit_chance = modified_accuracy / 100.0
+
+        # Apply clover luck effect (temporary boost to minimum hit chance)
+        clover = self._get_active_effect(player, 'clover_luck')
+        if clover:
+            try:
+                min_hit = float(clover.get('min_hit_chance', 0.0) or 0.0)
+            except (ValueError, TypeError):
+                min_hit = 0.0
+            hit_chance = max(hit_chance, max(0.0, min(min_hit, 1.0)))
+
         if random.random() < hit_chance:
             # Hit! Get the duck and reveal its type
             duck = self.ducks[channel][0]
@@ -406,6 +416,15 @@ class DuckGame:
         # Apply level-based modification to befriend rate
         level_modified_rate = self.bot.levels.get_modified_befriend_rate(player, base_rate)
         success_rate = level_modified_rate / 100.0
+
+        # Apply clover luck effect (temporary boost to minimum befriend chance)
+        clover = self._get_active_effect(player, 'clover_luck')
+        if clover:
+            try:
+                min_bef = float(clover.get('min_befriend_chance', 0.0) or 0.0)
+            except (ValueError, TypeError):
+                min_bef = 0.0
+            success_rate = max(success_rate, max(0.0, min(min_bef, 1.0)))
         
         if random.random() < success_rate:
             # Success - befriend the duck
@@ -580,6 +599,21 @@ class DuckGame:
                     
         except Exception as e:
             self.logger.error(f"Error cleaning expired effects: {e}")
+
+    def _get_active_effect(self, player, effect_type: str):
+        """Return the first active temporary effect dict matching type, or None."""
+        try:
+            current_time = time.time()
+            effects = player.get('temporary_effects', [])
+            if not isinstance(effects, list):
+                return None
+            for effect in effects:
+                if (isinstance(effect, dict) and effect.get('type') == effect_type and
+                        effect.get('expires_at', 0) > current_time):
+                    return effect
+            return None
+        except Exception:
+            return None
     
     def _check_item_drop(self, player, duck_type):
         """

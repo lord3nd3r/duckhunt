@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import ssl
 import time
 import signal
@@ -27,6 +28,7 @@ class DuckHuntBot:
         # Used by auto-rejoin and (in newer revisions) admin join/leave reporting.
         self.pending_joins = {}
         self.shutdown_requested = False
+        self.restart_requested = False
         self.rejoin_attempts = {}  # Track rejoin attempts per channel
         self.rejoin_tasks = {}     # Track active rejoin tasks
         
@@ -768,6 +770,14 @@ class DuckHuntBot:
                     fallback=None,
                     logger=self.logger
                 )
+
+            elif cmd in ("reloadbot", "restartbot") and self.is_admin(user):
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_reloadbot(nick, channel),
+                    fallback=None,
+                    logger=self.logger
+                )
             
             # If no command was executed, it might be an unknown command
             if not command_executed:
@@ -1189,6 +1199,22 @@ class DuckHuntBot:
         # Send all help lines as PM
         for line in help_lines:
             self.send_message(nick, line)
+
+    async def handle_reloadbot(self, nick, channel):
+        """Admin-only: restart the bot process via PM to apply code changes."""
+        # PM-only to avoid accidental public restarts
+        if channel.startswith('#'):
+            self.send_message(channel, f"{nick} > Use this command in PM only.")
+            return
+
+        self.send_message(nick, "Restarting bot now...")
+        try:
+            self.db.save_database()
+        except Exception:
+            pass
+
+        self.restart_requested = True
+        self.shutdown_requested = True
     
     
     async def handle_use(self, nick, channel, player, args):
@@ -1801,6 +1827,11 @@ class DuckHuntBot:
             await self._close_connection()
             
             self.logger.info("Bot shutdown complete")
+
+            # If restart was requested (admin command), re-exec the process.
+            if self.restart_requested:
+                self.logger.warning("Restart requested; re-executing process...")
+                os.execv(sys.executable, [sys.executable] + sys.argv)
     
     async def _close_connection(self):
         """Close IRC connection with comprehensive error handling"""
