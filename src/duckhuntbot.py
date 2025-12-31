@@ -1086,7 +1086,7 @@ class DuckHuntBot:
                 if channel_key.startswith('#') or channel_key.startswith('&'):
                     return channel_key
                 if channel_key == '__global__':
-                    return "global"
+                    return "legacy"
                 if channel_key == '__pm__':
                     return "pm"
                 if channel_key == '__unknown__':
