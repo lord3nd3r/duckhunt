@@ -133,6 +133,7 @@ duckhunt.log*
 # Runtime files (do not commit)
 duckhunt.json
 config.json
+duckhunt.json.bak
 
 # IDE files
 .vscode/
