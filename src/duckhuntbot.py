@@ -627,7 +627,7 @@ class DuckHuntBot:
                     self.logger.warning(f"Error updating player activity for {nick}: {e}")
             
             try:
-                if player.get('ignored', False) and not self.is_admin(user):
+                if self.db.is_ignored(nick, safe_channel) and not self.is_admin(user):
                     return
             except Exception as e:
                 self.logger.error(f"Error checking admin/ignore status: {e}")
@@ -1519,8 +1519,8 @@ class DuckHuntBot:
         
         target = args[0].lower()
         player = self.db.get_player(target, channel)
-        
-        action_func(player)
+
+        action_func(player, target)
         
         if is_private_msg:
             action_name = "Ignored" if message_key == 'admin_ignore' else "Unignored"
@@ -1538,7 +1538,7 @@ class DuckHuntBot:
             usage_command='usage_ignore',
             private_usage='!ignore <player>',
             message_key='admin_ignore',
-            action_func=lambda player: player.update({'ignored': True})
+            action_func=lambda player, target: (player.update({'ignored': True}), self.db.set_global_ignored(target, True))
         )
     
     async def handle_unignore(self, nick, channel, args):
@@ -1548,7 +1548,7 @@ class DuckHuntBot:
             usage_command='usage_unignore',
             private_usage='!unignore <player>',
             message_key='admin_unignore',
-            action_func=lambda player: player.update({'ignored': False})
+            action_func=lambda player, target: (player.update({'ignored': False}), self.db.set_global_ignored(target, False))
         )
 
     async def handle_ducklaunch(self, nick, channel, args):

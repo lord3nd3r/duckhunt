@@ -46,9 +46,49 @@ class DuckDB:
         channel = channel.strip()
         if not channel:
             return '__unknown__'
+        # Preserve internal buckets used by the bot/database.
+        # This allows explicit references like '__global__' without being remapped to '__pm__'.
+        if channel.startswith('__') and channel.endswith('__'):
+            return channel
         if channel.startswith('#') or channel.startswith('&'):
             return channel.lower()
         return '__pm__'
+
+    def is_ignored(self, nick: str, channel: str) -> bool:
+        """Return True if nick is ignored for this channel or globally."""
+        try:
+            if not isinstance(nick, str) or not nick.strip():
+                return False
+            nick_clean = sanitize_user_input(
+                nick,
+                max_length=50,
+                allowed_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\'
+            )
+            nick_lower = nick_clean.lower().strip()
+            if not nick_lower:
+                return False
+
+            # Channel-scoped ignore
+            player = self.get_player_if_exists(nick_lower, channel)
+            if isinstance(player, dict) and bool(player.get('ignored', False)):
+                return True
+
+            # Global ignore bucket
+            global_player = self.get_player_if_exists(nick_lower, '__global__')
+            return bool(global_player and global_player.get('ignored', False))
+        except Exception:
+            return False
+
+    def set_global_ignored(self, nick: str, ignored: bool) -> bool:
+        """Set global ignored flag for nick (persisted)."""
+        try:
+            player = self.get_player(nick, '__global__')
+            if not isinstance(player, dict):
+                return False
+            player['ignored'] = bool(ignored)
+            return True
+        except Exception:
+            return False
 
     @property
     def players(self):
