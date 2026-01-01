@@ -19,6 +19,16 @@ class DuckGame:
         self.logger = logging.getLogger('DuckHuntBot.Game')
         self.spawn_task = None
         self.timeout_task = None
+
+    @staticmethod
+    def _channel_key(channel: str) -> str:
+        """Normalize channel keys for internal dict lookups (IRC channels are case-insensitive)."""
+        if not isinstance(channel, str):
+            return ""
+        channel = channel.strip()
+        if channel.startswith('#') or channel.startswith('&'):
+            return channel.lower()
+        return channel
     
     async def start_game_loops(self):
         """Start the game loops"""
@@ -108,11 +118,12 @@ class DuckGame:
     
     async def spawn_duck(self, channel):
         """Spawn a duck in the channel"""
-        if channel not in self.ducks:
-            self.ducks[channel] = []
+        channel_key = self._channel_key(channel)
+        if channel_key not in self.ducks:
+            self.ducks[channel_key] = []
         
         # Don't spawn if there's already a duck
-        if self.ducks[channel]:
+        if self.ducks[channel_key]:
             return
         
         # Determine duck type randomly.
@@ -147,7 +158,7 @@ class DuckGame:
                 'max_hp': hp,
                 'current_hp': hp
             }
-            self.logger.info(f"Golden duck (hidden) spawned in {channel} with {hp} HP")
+            self.logger.info(f"Golden duck (hidden) spawned in {channel_key} with {hp} HP")
         elif rand < golden_chance + fast_chance:
             # Fast duck - normal HP, flies away faster
             duck_type = 'fast'
@@ -159,7 +170,7 @@ class DuckGame:
                 'max_hp': 1,
                 'current_hp': 1
             }
-            self.logger.info(f"Fast duck (hidden) spawned in {channel}")
+            self.logger.info(f"Fast duck (hidden) spawned in {channel_key}")
         else:
             # Normal duck
             duck_type = 'normal'
@@ -171,15 +182,16 @@ class DuckGame:
                 'max_hp': 1,
                 'current_hp': 1
             }
-            self.logger.info(f"Normal duck spawned in {channel}")
+            self.logger.info(f"Normal duck spawned in {channel_key}")
         
         # All duck types use the same spawn message - type is hidden!
         message = self.bot.messages.get('duck_spawn')
-        self.ducks[channel].append(duck)
+        self.ducks[channel_key].append(duck)
         self.bot.send_message(channel, message)
     
     def shoot_duck(self, nick, channel, player):
         """Handle shooting at a duck"""
+        channel_key = self._channel_key(channel)
         # Check if gun is confiscated
         if player.get('gun_confiscated', False):
             return {
@@ -217,7 +229,7 @@ class DuckGame:
             }
         
         # Check for duck
-        if channel not in self.ducks or not self.ducks[channel]:
+        if channel_key not in self.ducks or not self.ducks[channel_key]:
             # Wild shot - gun confiscated for unsafe shooting
             player['shots_fired'] = player.get('shots_fired', 0) + 1  # Track wild shots too
             player['shots_missed'] = player.get('shots_missed', 0) + 1  # Wild shots count as misses
@@ -252,7 +264,7 @@ class DuckGame:
 
         if random.random() < hit_chance:
             # Hit! Get the duck and reveal its type
-            duck = self.ducks[channel][0]
+            duck = self.ducks[channel_key][0]
             duck_type = duck.get('duck_type', 'normal')
             
             if duck_type == 'golden':
@@ -278,17 +290,17 @@ class DuckGame:
                     }
                 else:
                     # Golden duck killed!
-                    self.ducks[channel].pop(0)
+                    self.ducks[channel_key].pop(0)
                     xp_gained = xp_gained * duck['max_hp']  # Bonus XP for killing
                     message_key = 'bang_hit_golden_killed'
             elif duck_type == 'fast':
                 # Fast duck - normal HP but higher XP
-                self.ducks[channel].pop(0)
+                self.ducks[channel_key].pop(0)
                 xp_gained = self.bot.get_config('fast_duck_xp', 12)
                 message_key = 'bang_hit_fast'
             else:
                 # Normal duck
-                self.ducks[channel].pop(0)
+                self.ducks[channel_key].pop(0)
                 xp_gained = self.bot.get_config('normal_duck_xp', 10)
                 message_key = 'bang_hit'
             
@@ -408,8 +420,9 @@ class DuckGame:
     
     def befriend_duck(self, nick, channel, player):
         """Handle befriending a duck"""
+        channel_key = self._channel_key(channel)
         # Check for duck
-        if channel not in self.ducks or not self.ducks[channel]:
+        if channel_key not in self.ducks or not self.ducks[channel_key]:
             return {
                 'success': False,
                 'message_key': 'bef_no_duck',
@@ -441,7 +454,7 @@ class DuckGame:
         
         if random.random() < success_rate:
             # Success - befriend the duck
-            duck = self.ducks[channel].pop(0)
+            duck = self.ducks[channel_key].pop(0)
             
             # Lower XP gain than shooting
             xp_gained = self.bot.get_config('gameplay.befriend_xp', 5)
@@ -471,7 +484,7 @@ class DuckGame:
             }
         else:
             # Failure - duck flies away, remove from channel
-            duck = self.ducks[channel].pop(0)
+            duck = self.ducks[channel_key].pop(0)
             
             self.db.save_database()
             return {
