@@ -10,7 +10,8 @@ DuckHunt is an asyncio-based IRC bot that runs a classic "duck hunting" mini-gam
 ## Features
 
 - **Multi-channel support** - Bot can be in multiple channels
-- **Global player stats** - Same player stats across all channels
+- **Per-channel player stats** - Stats are tracked separately per channel
+- **Global leaderboard** - View the global top 5 across all channels
 - **Three duck types** - Normal, Golden (multi-HP), and Fast ducks
 - **Shop system** - Buy items to improve your hunting
 - **Leveling system** - Gain XP and increase your level
@@ -57,15 +58,18 @@ Three duck types with different behaviors:
 - **Golden** - Multi-HP duck (3-5 HP), high XP, awards XP per hit
 - **Fast** - Quick duck, 1 HP, flies away faster
 
-Duck spawn rates configured in `config.json`:
-- `golden_duck_chance` - Probability of golden duck (default: 0.15)
-- `fast_duck_chance` - Probability of fast duck (default: 0.25)
+Duck spawn behavior is configured in `config.json` under `duck_types`:
+
+- `duck_types.golden.chance` - Probability of a golden duck (default: 0.15)
+- `duck_types.fast.chance` - Probability of a fast duck (default: 0.25)
+- `duck_types.golden.min_hp` / `duck_types.golden.max_hp` - Golden duck HP range
 
 ## Persistence
 
 Player stats are saved to `duckhunt.json`:
 
-- **Global stats** - Players have one set of stats across all channels
+- **Per-channel stats** - Players have separate stats per channel (stored under `channels`)
+- **Global top 5** - `!globaltop` aggregates XP across all channels
 - **Auto-save** - Database saved after each action (shoot, reload, shop, etc.)
 - **Atomic writes** - Safe file handling prevents database corruption
 - **Retry logic** - Automatic retry on save failures
@@ -79,8 +83,9 @@ Player stats are saved to `duckhunt.json`:
 - `!reload` - Reload your gun
 - `!shop` - View available items
 - `!shop buy <item_id>` - Purchase an item from the shop
-- `!duckstats [player]` - View hunting statistics
+- `!duckstats [player]` - View hunting statistics for the current channel
 - `!topduck` - View leaderboard (top hunters)
+- `!globaltop` - View global leaderboard (top 5 across all channels)
 - `!duckhelp` - Get detailed command list via PM
 
 ### Admin Commands
@@ -130,6 +135,8 @@ Use `!shop buy <id>` to purchase.
 - Shots fired
 - Accuracy percentage
 - Current level
+
+Note: stats are tracked per-channel; use `!globaltop` for an across-channels view.
 
 ## Repo Layout
 

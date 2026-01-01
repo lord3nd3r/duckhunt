@@ -115,15 +115,28 @@ class DuckGame:
         if self.ducks[channel]:
             return
         
-        # Determine duck type randomly
-        golden_chance = self.bot.get_config('golden_duck_chance', 0.15)
-        fast_chance = self.bot.get_config('fast_duck_chance', 0.25)
+        # Determine duck type randomly.
+        # Prefer the newer config structure (duck_types.*) but keep legacy keys for compatibility.
+        golden_chance = self.bot.get_config(
+            'duck_types.golden.chance',
+            self.bot.get_config('golden_duck_chance', 0.15)
+        )
+        fast_chance = self.bot.get_config(
+            'duck_types.fast.chance',
+            self.bot.get_config('fast_duck_chance', 0.25)
+        )
         
         rand = random.random()
         if rand < golden_chance:
             # Golden duck - high HP, high XP
-            min_hp = self.bot.get_config('golden_duck_min_hp', 3)
-            max_hp = self.bot.get_config('golden_duck_max_hp', 5)
+            min_hp = self.bot.get_config(
+                'duck_types.golden.min_hp',
+                self.bot.get_config('golden_duck_min_hp', 3)
+            )
+            max_hp = self.bot.get_config(
+                'duck_types.golden.max_hp',
+                self.bot.get_config('golden_duck_max_hp', 5)
+            )
             hp = random.randint(min_hp, max_hp)
             duck_type = 'golden'
             duck = {
