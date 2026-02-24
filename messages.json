@@ -103,6 +103,7 @@
   "boss_duck_spawn": "💀 A BOSS DUCK has appeared with {hp} HP! Everyone !bang to take it down!",
   "duck_flock": "🦆🦆🦆 A flock of {count} ducks has landed! Type !bang to pick them off!",
   "weather_change": "🌤️ Weather update: It is now {weather_name}!",
+  "rate_limited": "{nick} > You're doing that too quickly — slow down!",
   "boss_duck_flies_away": "The massive boss duck effortlessly takes off and disappears into the clouds. ·°'`'°-.,¸¸.·°'`",
   "ninja_duck_flies_away": "The ninja duck drops a smoke bomb and vanishes! *poof*",
   "decoy_duck_flies_away": "The wooden decoy duck... somehow flew away? Was it pulled by a string?",

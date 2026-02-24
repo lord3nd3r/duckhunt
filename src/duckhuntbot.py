@@ -40,6 +40,12 @@ class DuckHuntBot:
         
         self.db = DuckDB(bot=self)
         self.game = DuckGame(self, self.db)
+        # Rate limiting state: per-nick token buckets to slow scripted abuse
+        # Structure: {nick_lower: {'tokens': float, 'last_refill': float}}
+        self._rate_limiters = {}
+        # Default rate-limit configuration (can be overridden via config.json)
+        self._rl_capacity = float(self.get_config('anti_abuse.rate_limit_capacity', 3))
+        self._rl_refill_secs = float(self.get_config('anti_abuse.rate_limit_refill_secs', 1.5))
         messages_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'messages.json')
         self.messages = MessageManager(messages_file)
         
@@ -637,6 +643,36 @@ class DuckHuntBot:
             
             # Execute command with error recovery
             command_executed = False
+
+            # Rate-limited command set
+            limited_cmds = {'bang', 'bef', 'befriend', 'shop', 'use'}
+
+            # Check rate limiter for these commands
+            if cmd in limited_cmds:
+                nick_key = nick.lower()
+                now = time.time()
+                rl = self._rate_limiters.get(nick_key)
+                if rl is None:
+                    rl = {'tokens': self._rl_capacity, 'last_refill': now}
+                    self._rate_limiters[nick_key] = rl
+
+                # Refill tokens
+                since = now - rl['last_refill']
+                if since > 0:
+                    refill = since / self._rl_refill_secs
+                    rl['tokens'] = min(self._rl_capacity, rl['tokens'] + refill)
+                    rl['last_refill'] = now
+
+                if rl['tokens'] < 1.0:
+                    # Deny execution and notify user
+                    try:
+                        msg = self.messages.get('rate_limited', nick=nick)
+                        self.send_message(channel, msg)
+                    except Exception:
+                        self.send_message(channel, f"{nick} > You're doing that too quickly — slow down!")
+                    return
+                else:
+                    rl['tokens'] -= 1.0
 
             # Special case: admin PM-only bot restart uses !reload.
             # In channels, !reload remains the gameplay reload command.
