@@ -278,13 +278,28 @@ class DuckDB:
                 'worst_time': 0.0,
                 'total_time_hunting': 0.0,
                 'level': 1,
-                'xp_gained': 0,  # For message templates
-                'hp_remaining': 0,  # For golden duck messages
-                'victim': '',  # For friendly fire messages
-                'xp_lost': 0,  # For penalty messages
-                'ammo': 0,  # Legacy field
-                'max_ammo': 0,  # Legacy field
-                'chargers': 0  # Legacy field
+                'xp_gained': 0,
+                'hp_remaining': 0,
+                'victim': '',
+                'xp_lost': 0,
+                'ammo': 0,
+                'max_ammo': 0,
+                'chargers': 0,
+                # Streak & social features
+                'current_streak': 0,
+                'best_streak': 0,
+                # Achievement system
+                'achievements': [],
+                # Daily bonus
+                'last_daily': 0.0,
+                'daily_streak': 0,
+                'last_daily_date': '',
+                # Bang cooldown
+                'last_bang_time': 0.0,
+                # Economy tracking (for High Roller achievement)
+                'total_xp_spent': 0,
+                # Confiscation counter (for Trigger Happy achievement)
+                'gun_confiscated_count': 0,
             }
             
             for field, default_value in additional_fields.items():
@@ -531,7 +546,6 @@ class DuckDB:
                 'last_activity_channel': '',
                 'last_activity_time': 0.0,
                 'ignored': False,
-                # Additional fields to prevent KeyErrors
                 'best_time': 0.0,
                 'worst_time': 0.0,
                 'total_time_hunting': 0.0,
@@ -540,9 +554,22 @@ class DuckDB:
                 'hp_remaining': 0,
                 'victim': '',
                 'xp_lost': 0,
-                'ammo': bullets_per_mag,  # Legacy
-                'max_ammo': bullets_per_mag,  # Legacy
-                'chargers': magazines - 1  # Legacy
+                'ammo': bullets_per_mag,
+                'max_ammo': bullets_per_mag,
+                'chargers': magazines - 1,
+                # Streak & achievements
+                'current_streak': 0,
+                'best_streak': 0,
+                'achievements': [],
+                # Daily bonus
+                'last_daily': 0.0,
+                'daily_streak': 0,
+                'last_daily_date': '',
+                # Bang cooldown
+                'last_bang_time': 0.0,
+                # Economy tracking
+                'total_xp_spent': 0,
+                'gun_confiscated_count': 0,
             }
         except Exception as e:
             self.logger.error(f"Error creating player for {nick}: {e}")

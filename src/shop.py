@@ -18,8 +18,24 @@ class ShopManager:
         self.levels = levels_manager
         self.items = {}
         self.logger = logging.getLogger('DuckHuntBot.Shop')
+        # Load inventory limits once at startup instead of on every purchase
+        self.max_per_item = 99
+        self.max_total_items = 20
+        self._load_inventory_limits()
         self.load_items()
     
+    def _load_inventory_limits(self):
+        """Load inventory limit config once at startup (avoids per-purchase disk reads)."""
+        try:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            self.max_total_items = config.get('gameplay', {}).get('max_inventory_items', 20)
+            self.max_per_item = config.get('gameplay', {}).get('max_per_item_type', 99)
+        except Exception:
+            # Defaults already set in __init__; silently keep them
+            pass
+
     def load_items(self):
         """Load shop items from JSON file"""
         try:
@@ -104,41 +120,31 @@ class ShopManager:
         
         # Deduct XP
         player['xp'] = player_xp - item['price']
+        # Track total XP spent for High Roller achievement
+        player['total_xp_spent'] = player.get('total_xp_spent', 0) + item['price']
         
         if store_in_inventory:
-            # Add to inventory with bounds checking
+            # Add to inventory with bounds checking (limits loaded once at startup)
             inventory = player.get('inventory', {})
             item_id_str = str(item_id)
             current_count = inventory.get(item_id_str, 0)
             
-            # Load inventory limits from config
-            config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.json')
-            max_per_item = 99  # Default limit per item type
-            max_total_items = 20  # Default total items limit
-            try:
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                max_total_items = config.get('gameplay', {}).get('max_inventory_items', 20)
-                max_per_item = config.get('gameplay', {}).get('max_per_item_type', 99)
-            except:
-                pass  # Use defaults
-            
             # Check individual item limit
-            if current_count >= max_per_item:
+            if current_count >= self.max_per_item:
                 return {
                     "success": False,
                     "error": "item_limit_reached",
-                    "message": f"Cannot hold more than {max_per_item} {item['name']}s",
+                    "message": f"Cannot hold more than {self.max_per_item} {item['name']}s",
                     "item_name": item['name']
                 }
             
             # Check total inventory size limit
             total_items = sum(inventory.values())
-            if total_items >= max_total_items:
+            if total_items >= self.max_total_items:
                 return {
                     "success": False,
                     "error": "inventory_full",
-                    "message": f"Inventory full! (max {max_total_items} items)",
+                    "message": f"Inventory full! (max {self.max_total_items} items)",
                     "item_name": item['name']
                 }
             
@@ -517,9 +523,113 @@ class ShopManager:
                 "message": "You changed into dry clothes!" if was_wet else "You weren't wet!"
             }
         
+        elif item_type == 'reveal_duck':
+            return self._handle_reveal_duck(item)
+
+        elif item_type == 'second_chance':
+            return self._handle_second_chance(player, item)
+
+        elif item_type == 'temporary_accuracy':
+            return self._handle_temporary_accuracy(player, item)
+
+        elif item_type == 'trap':
+            return self._handle_trap(player, item)
+
+        elif item_type == 'mystery':
+            return self._handle_mystery_box(player, item)
+
+        elif item_type == 'xp_shield':
+            return self._handle_xp_shield(player, item)
+
         else:
             self.logger.warning(f"Unknown item type: {item_type}")
             return {"type": "unknown", "message": f"Unknown effect type: {item_type}"}
+
+    # -------------------------------------------------------------------
+    # New item type handlers
+    # -------------------------------------------------------------------
+
+    def _handle_reveal_duck(self, item: dict) -> dict:
+        """Binoculars — caller must check current duck type and send PM."""
+        return {'type': 'reveal_duck', 'reveal': True}
+
+    def _handle_second_chance(self, player: dict, item: dict) -> dict:
+        """Hunting dog — retrieves the next duck that flies away."""
+        if 'temporary_effects' not in player:
+            player['temporary_effects'] = []
+        duration = int(item.get('duration', 3600))  # 1h default
+        effect = {
+            'type': 'second_chance',
+            'name': "Hunting Dog",
+            'expires_at': time.time() + duration,
+        }
+        player['temporary_effects'].append(effect)
+        return {'type': 'second_chance', 'duration': duration // 60}
+
+    def _handle_temporary_accuracy(self, player: dict, item: dict) -> dict:
+        """Scope — grants accuracy bonus for next N shots."""
+        if 'temporary_effects' not in player:
+            player['temporary_effects'] = []
+        duration      = int(item.get('duration', 600))
+        accuracy_bonus = int(item.get('amount', 20))
+        shots          = int(item.get('shots', 5))
+        effect = {
+            'type': 'temporary_accuracy',
+            'name': 'Scope',
+            'accuracy_bonus': accuracy_bonus,
+            'shots_remaining': shots,
+            'expires_at': time.time() + duration,
+        }
+        player['temporary_effects'].append(effect)
+        return {'type': 'temporary_accuracy', 'accuracy_bonus': accuracy_bonus, 'shots': shots}
+
+    def _handle_trap(self, player: dict, item: dict, set_by: str = '') -> dict:
+        """Decoy trap — target's next !bef fails with XP penalty."""
+        if 'temporary_effects' not in player:
+            player['temporary_effects'] = []
+        duration = int(item.get('duration', 1800))  # 30m default
+        effect = {
+            'type': 'trap',
+            'name': 'Trap',
+            'set_by': set_by,
+            'expires_at': time.time() + duration,
+        }
+        player['temporary_effects'].append(effect)
+        return {'type': 'trap', 'duration': duration // 60, 'set_by': set_by}
+
+    def _handle_mystery_box(self, player: dict, item: dict) -> dict:
+        """Mystery box — randomly applies one item effect from a weighted pool."""
+        import random
+        pool = item.get('mystery_pool', [])
+        if not pool:
+            # Fallback pool using existing item IDs 1-3 if none configured
+            pool = [
+                {'item_id': 1, 'weight': 40},
+                {'item_id': 2, 'weight': 30},
+                {'item_id': 3, 'weight': 20},
+            ]
+        weights = [e.get('weight', 1) for e in pool]
+        chosen  = random.choices(pool, weights=weights, k=1)[0]
+        chosen_item = self.get_item(chosen.get('item_id', 0))
+        if chosen_item:
+            inner_result = self._apply_item_effect(player, chosen_item)
+            return {'type': 'mystery', 'inner_item': chosen_item.get('name', '?'),
+                    'inner_effect': inner_result}
+        return {'type': 'mystery', 'inner_item': 'nothing', 'inner_effect': {}}
+
+    def _handle_xp_shield(self, player: dict, item: dict) -> dict:
+        """Body armor — absorbs the next XP loss event."""
+        if 'temporary_effects' not in player:
+            player['temporary_effects'] = []
+        duration = int(item.get('duration', 86400))  # 24h default
+        effect = {
+            'type': 'xp_shield',
+            'name': 'Body Armor',
+            'expires_at': time.time() + duration,
+        }
+        player['temporary_effects'].append(effect)
+        return {'type': 'xp_shield', 'duration': duration // 3600}
+
     
     def _apply_splash_water_effect(self, target_player: Dict[str, Any], item: Dict[str, Any]) -> Dict[str, Any]:
         """Apply splash water effect to target player"""
@@ -686,8 +796,9 @@ class ShopManager:
         }
 
     def reload_items(self) -> int:
-        """Reload items from file and return count"""
+        """Reload items and config limits from file; return new item count."""
         old_count = len(self.items)
+        self._load_inventory_limits()  # Re-read limits in case config changed
         self.load_items()
         new_count = len(self.items)
         self.logger.info(f"Shop reloaded: {old_count} -> {new_count} items")

@@ -12,18 +12,22 @@ from datetime import datetime
 
 
 def load_config():
-    """Load configuration from config.json"""
+    """Load configuration from config.json relative to the project root."""
+    # Resolve the project root from this file's location so the bot works
+    # regardless of what directory it is launched from.
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    config_path = os.path.join(project_root, 'config.json')
     try:
-        with open('config.json', 'r') as f:
+        with open(config_path, 'r') as f:
             config = json.load(f)
         return config
     except Exception as e:
-        print(f"Warning: Could not load config.json: {e}")
+        print(f"Warning: Could not load config.json ({config_path}): {e}")
         return {
             "debug": {
                 "enabled": True,
                 "log_level": "DEBUG",
-                "console_log_level": "INFO", 
+                "console_log_level": "INFO",
                 "file_log_level": "DEBUG",
                 "log_everything": True,
                 "log_performance": True,

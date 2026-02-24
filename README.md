@@ -12,12 +12,12 @@ DuckHunt is an asyncio-based IRC bot that runs a classic "duck hunting" mini-gam
 - **Multi-channel support** - Bot can be in multiple channels
 - **Per-channel player stats** - Stats are tracked separately per channel
 - **Global leaderboard** - View the global top 5 across all channels
-- **Three duck types** - Normal, Golden (multi-HP), and Fast ducks
-- **Shop system** - Buy items to improve your hunting
-- **Leveling system** - Gain XP and increase your level
-- **Admin commands** - Join/leave channels, spawn ducks, manage players
-- **JSON persistence** - All stats saved to disk
-- **Auto-save** - Progress saved automatically after each action
+- **Dynamic Weather System** - Weather changes (Clear, Rain, Fog, Storm) affecting accuracy, jam chance, XP, and duck flight time.
+- **Achievement System** - Earn badges for milestones (e.g., First Blood, Sharpshooter, Boss Slayer).
+- **Six Duck Types & Flocks** - Normal, Golden, Fast, Ninja, Decoy, Boss, and multiple ducks spawning at once.
+- **Shop system** - Buy items, use them, or gift them to others.
+- **Leveling system** - Gain XP, increase your level, and unlock permanent upgrades.
+- **JSON persistence & Auto-save** - All stats saved to disk automatically after each action.
 
 ## Quick Start
 
@@ -52,27 +52,25 @@ Then edit `config.json`:
 
 ### Duck Types
 
-Three duck types with different behaviors:
+Six duck types with different behaviors:
 
-- **Normal** - Standard duck, 1 HP, base XP
-- **Golden** - Multi-HP duck (3-5 HP), high XP, awards XP per hit
-- **Fast** - Quick duck, 1 HP, flies away faster
+- **Normal** - Standard duck, 1 HP, base XP.
+- **Golden** - Multi-HP duck (3-5 HP), high XP, awards XP per hit.
+- **Fast** - Quick duck, 1 HP, flies away faster.
+- **Ninja** - Has a permanent dodge chance making it harder to hit.
+- **Boss** - Massive HP, requires cooperative shooting. XP split proportionally.
+- **Decoy** - Shooting it gets your gun confiscated, but befriending it gives a reward.
+- **Flock** - 2-4 normal ducks spawn at the exact same time!
 
-Duck spawn behavior is configured in `config.json` under `duck_types`:
-
-- `duck_types.golden.chance` - Probability of a golden duck (default: 0.15)
-- `duck_types.fast.chance` - Probability of a fast duck (default: 0.25)
-- `duck_types.golden.min_hp` / `duck_types.golden.max_hp` - Golden duck HP range
+Duck spawn behavior is configured in `config.json` under `duck_types`.
 
 ## Persistence
 
 Player stats are saved to `duckhunt.json`:
 
-- **Per-channel stats** - Players have separate stats per channel (stored under `channels`)
-- **Global top 5** - `!globaltop` aggregates XP across all channels
-- **Auto-save** - Database saved after each action (shoot, reload, shop, etc.)
-- **Atomic writes** - Safe file handling prevents database corruption
-- **Retry logic** - Automatic retry on save failures
+- **Per-channel stats** - Players have separate stats per channel (stored under `channels`).
+- **Global top 5** - `!globaltop` aggregates XP across all channels.
+- **Atomic writes & Retry logic** - Safe file handling prevents database corruption.
 
 ## Commands
 
@@ -81,62 +79,70 @@ Player stats are saved to `duckhunt.json`:
 - `!bang` - Shoot at a duck
 - `!bef` or `!befriend` - Try to befriend a duck
 - `!reload` - Reload your gun
+- `!daily` - Claim your daily XP bonus (resets every 24h, builds streaks)
+- `!duckstats [player]` - View hunting statistics for the current channel
+- `!profile` - Get a detailed hunter stat card sent to your PM
+- `!weather` - Check current weather conditions and modifiers in the channel
+- `!topduck` - View leaderboard (top hunters in the channel)
+- `!globaltop` - View global leaderboard (top 5 across all channels)
+- `!achievements` - Check your earned badges (sent via PM)
+- `!effects` - View any active temporary buffs/debuffs and their timers
+- `!inv` - Quick inline view of your inventory
+- `!duckhelp` - Get detailed command list via PM
+
+### Shop Commands
+
 - `!shop` - View available items
 - `!shop buy <item_id>` - Purchase an item from the shop
-- `!duckstats [player]` - View hunting statistics for the current channel
-- `!topduck` - View leaderboard (top hunters)
-- `!globaltop` - View global leaderboard (top 5 across all channels)
-- `!duckhelp` - Get detailed command list via PM
+- `!use <item_id> [target]` - Use an item from your inventory
+- `!give <item_id> <player>` - Give an inventory item to another player
 
 ### Admin Commands
 
 - `!rearm <player|all>` - Give player a gun
 - `!disarm <player>` - Confiscate player's gun
 - `!ignore <player>` / `!unignore <player>` - Ignore/unignore commands
-- `!ducklaunch [duck_type]` - Force spawn a duck (normal, golden, fast)
+- `!ducklaunch [duck_type]` - Force spawn a duck (normal, golden, fast, ninja, boss, decoy)
 - `!join <#channel>` - Make bot join a channel
 - `!part <#channel>` - Make bot leave a channel
+- `!reload` (in PM) - Restarts the bot process smoothly
 
-Admin commands work in PM or in-channel.
+Admin commands work in PM or in-channel (except bot restart).
 
 ## Shop Items
 
-Basic shop items available (use `!shop` to see current inventory):
+Basic shop items available (use `!shop` to see current inventory and IDs):
 
-- **Bullets** - Ammunition refills
-- **Magazines** - Extra ammo capacity
-- **Gun Improvements** - Better accuracy, less jamming
-- **Gun License** - Buy back your confiscated gun
-- **Insurance** - Protection from penalties
-
-Use `!shop buy <id>` to purchase.
+- **Ammunition & Magazines** - Ensure you never run out of bullets.
+- **Gun Brush & Sand** - Clean your gun or sabotage someone else's.
+- **Bread** - Increases duck spawn rate significantly.
+- **Insurance & Body Armor** - Prevents XP loss or friendly fire penalties.
+- **Buy Gun Back** - Skip the penalty and recover your confiscated weapon.
+- **Water & Clothes** - Soak someone to prevent shooting, or dry yourself off.
+- **Binoculars** - Peek at what type of duck is currently active in the channel (PM).
+- **Hunting Dog** - Retrieves the next duck that flies away and gives you a second chance.
+- **Scope** - Provides a massive accuracy boost for your next 5 shots.
+- **Decoy Trap** - Plant on a player to ruin their next `!bef` attempt and make them lose XP.
+- **Mystery Box** - Open a random box for a chance at high-tier items.
 
 ## Gameplay
 
 ### How to Play
 
-1. Wait for a duck to spawn (appears randomly in channel)
-2. Type `!bang` to shoot it
-3. Earn XP for successful hits
-4. Level up to improve your stats
-5. Buy items from `!shop` to enhance your hunting
-
-### Duck Behavior
-
-- **Normal ducks** - Standard targets, 1 shot to kill
-- **Golden ducks** - Tougher! Multiple HP, gives XP per hit
-- **Fast ducks** - Quick! They fly away faster than normal
+1. Wait for a duck to spawn (appears randomly in channel).
+2. Type `!bang` to shoot it or `!bef` to befriend it.
+3. Earn XP for successful hits or befriending.
+4. Level up to improve your stats (accuracy, magazine size, jam chance).
+5. Buy items from `!shop` to enhance your hunting.
 
 ### Stats Tracked
 
-- XP (experience points)
-- Ducks shot
-- Ducks befriended
-- Shots fired
-- Accuracy percentage
-- Current level
-
-Note: stats are tracked per-channel; use `!globaltop` for an across-channels view.
+- XP, Level, Current & Best Hit Streaks
+- Ducks shot & befriended
+- Accuracy, Hit Rate, Daily Bonus Streak
+- Current Inventory, Active Effects
+- Achievements Earned
+- Total XP spent in the shop
 
 ## Repo Layout
 
@@ -162,10 +168,11 @@ duckhunt/
 
 ## Recent Updates
 
-- ✅ Fixed golden duck XP bug (now awards XP on each hit)
-- ✅ Added `!join` and `!part` admin commands
-- ✅ Improved `!duckhelp` with detailed PM
-- ✅ Simplified to 3 core duck types for stability
-- ✅ Enhanced database save reliability
+- ✅ Refactored and fixed codebase logic bugs, dead code, and admin hostmask auth routing.
+- ✅ Added 4 dynamic weather states (Clear, Rain, Fog, Storm) changing gameplay odds.
+- ✅ Added 15 milestone achievements for players to unlock.
+- ✅ Added Ninja, Boss, Decoy ducks and Flock spawning.
+- ✅ Added `!daily`, `!profile`, `!inv`, `!effects`, `!weather`, `!achievements` commands.
+- ✅ Added 6 new shop items (Binoculars, Hunting Dog, Scope, Body Armor, Decoy Trap, Mystery Box).
 
 **Happy Duck Hunting!** 🦆

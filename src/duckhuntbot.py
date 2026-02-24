@@ -137,21 +137,7 @@ class DuckHuntBot:
         
         return False
     
-    def _handle_single_target_admin_command(self, args, usage_message_key, action_func, success_message_key, nick, channel):
-        """Helper for admin commands that target a single player"""
-        if not args:
-            message = self.messages.get(usage_message_key)
-            self.send_message(channel, message)
-            return False
-        
-        target = args[0]
-        player = self.db.get_player(target, channel)
-        action_func(player)
-        
-        message = self.messages.get(success_message_key, target=target, admin=nick)
-        self.send_message(channel, message)
-        self.db.save_database()
-        return True
+
 
     def _get_admin_target_player(self, nick, channel, target_nick):
         """
@@ -406,8 +392,6 @@ class DuckHuntBot:
                     self.logger.error(f"Failed to send message part {i+1}/{len(messages)}")
             
             return success_count == len(messages)
-                
-            return self.send_raw(f"PRIVMSG {target} :{sanitized_msg}")
         except Exception as e:
             self.logger.error(f"Error sanitizing/sending message: {e}")
             return False
@@ -505,7 +489,8 @@ class DuckHuntBot:
                     if not channel:
                         return
 
-                    channel_key = self._channel_key(channel)
+                    safe_channel = sanitize_user_input(channel, max_length=100, allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\')
+                    channel_key = self._channel_key(safe_channel)
                     joiner_nick = prefix.split('!')[0] if '!' in prefix else prefix
                     our_nick = self.get_config('connection.nick', 'DuckHunt') or 'DuckHunt'
                     
@@ -575,8 +560,10 @@ class DuckHuntBot:
             
             # Sanitize inputs
             safe_message = sanitize_user_input(message, max_length=500)
-            safe_user = sanitize_user_input(user, max_length=200) 
-            safe_channel = sanitize_user_input(channel, max_length=100)
+            # Include @, ., * so hostmask-based admin auth (nick!user@host.domain) works correctly.
+            safe_user = sanitize_user_input(user, max_length=200,
+                                            allowed_chars='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\!@.*:')
+            safe_channel = sanitize_user_input(channel, max_length=100, allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\')
             
             if not safe_message.startswith('!'):
                 return
@@ -783,6 +770,42 @@ class DuckHuntBot:
                     fallback=None,
                     logger=self.logger
                 )
+            elif cmd == "daily":
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_daily(nick, channel, player),
+                    fallback=None, logger=self.logger
+                )
+            elif cmd == "effects":
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_effects(nick, channel, player),
+                    fallback=None, logger=self.logger
+                )
+            elif cmd == "achievements":
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_achievements(nick, channel, player),
+                    fallback=None, logger=self.logger
+                )
+            elif cmd == "inv":
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_inv(nick, channel, player),
+                    fallback=None, logger=self.logger
+                )
+            elif cmd == "profile":
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_profile(nick, channel, player),
+                    fallback=None, logger=self.logger
+                )
+            elif cmd == "weather":
+                command_executed = True
+                await self.error_recovery.safe_execute_async(
+                    lambda: self.handle_weather(nick, channel),
+                    fallback=None, logger=self.logger
+                )
 
             
             # If no command was executed, it might be an unknown command
@@ -867,20 +890,44 @@ class DuckHuntBot:
         """Handle !bang command"""
         result = self.game.shoot_duck(nick, channel, player)
         message = self.messages.get(result['message_key'], **result['message_args'])
+        if message.startswith('[Missing'):
+            message = f"{nick} > 🦆 ..." 
         self.send_message(channel, message)
-        
+
+        # Flock: show remaining count
+        remaining_flock = result.get('message_args', {}).get('remaining_flock', 0)
+        if remaining_flock and remaining_flock > 0:
+            self.send_message(channel, f"🦆 {remaining_flock} duck(s) still in the flock!")
+
+        # Boss duck kill: announce contributors and bonus XP
+        if result.get('boss_contributors'):
+            contributors = result['boss_contributors']
+            bonus_xp = result.get('boss_bonus_xp', 0)
+            total_hits = sum(contributors.values())
+            parts = []
+            for cn, hits in sorted(contributors.items(), key=lambda x: -x[1]):
+                share = int(bonus_xp * hits / total_hits) if total_hits else 0
+                parts.append(f"{cn}({hits} hits, +{share}XP)")
+            self.send_message(channel,
+                f"💀 Boss duck defeated! Contributors: {' | '.join(parts)}")
+
+        # Item drops
         if result.get('success') and result.get('dropped_item'):
             dropped_item = result['dropped_item']
             duck_type = dropped_item['duck_type']
             item_name = dropped_item['item_name']
-            
-            drop_message_key = f'duck_drop_{duck_type}'
-            drop_message = self.messages.get(drop_message_key, 
-                nick=nick, 
-                item_name=item_name
-            )
+            drop_message = self.messages.get(f'duck_drop_{duck_type}',
+                nick=nick, item_name=item_name)
+            if drop_message.startswith('[Missing'):
+                drop_message = f"{nick} > 🎁 The duck dropped: {item_name}!"
             self.send_message(channel, drop_message)
-    
+
+        # Achievement announcements
+        for ach in result.get('new_achievements', []):
+            self.send_message(channel,
+                f"🏆 {nick} unlocked achievement: {ach['icon']} {ach['name']} — {ach['description']}!")
+
+
     async def handle_bef(self, nick, channel, player):
         """Handle !bef (befriend) command"""
         result = self.game.befriend_duck(nick, channel, player)
@@ -1161,35 +1208,92 @@ class DuckHuntBot:
             "  !duckstats [player] - View duck hunting statistics",
             "  !topduck - View leaderboard (top hunters)",
             "  !globaltop - View global leaderboard (top 5 across all channels)",
+            "  !profile - Detailed stat card sent to your PM",
+            "  !inv - Quick view your inventory",
+            "  !effects - Show active temporary effects and timers",
+            "  !achievements - View your earned achievement badges (PM)",
+            "  !weather - Check current hunting weather in this channel",
+            "  !daily - Claim your daily XP bonus (resets every 24h)",
             "",
             "SHOP COMMANDS:",
             "  !shop - View available items",
             "  !shop buy <item_id> - Purchase an item from the shop",
+            "  !use <item_id> [target] - Use an item from your inventory",
+            "  !give <item_id> <player> - Give an inventory item to another player",
+            "",
+            "DUCK TYPES:",
+            "  Normal duck  - Standard XP",
+            "  Golden duck  - Multiple HP, big XP reward",
+            "  Fast duck    - Flies away quickly",
+            "  Ninja duck   - Has a dodge chance! (!bef only)",
+            "  Decoy duck   - !bang confiscates your gun, !bef rewards you",
+            "  Boss duck    - High HP, cooperative kill, XP split among contributors",
+            "  Flock        - Multiple ducks at once, shoot them one by one",
+            "",
+            "SHOP ITEMS:",
+            "  Binoculars   - Reveals current duck type to you (PM)",
+            "  Hunting Dog  - Retrieves a duck that flies away",
+            "  Scope        - +20% accuracy for your next 5 shots",
+            "  Body Armor   - Absorbs your next XP loss event",
+            "  Decoy Trap   - Target's next !bef fails with XP penalty",
+            "  Mystery Box  - Random item from a weighted pool",
             "",
             "EXAMPLES:",
             "  When a duck appears, type: !bang",
             "  To reload: !reload",
             "  Check your stats: !duckstats",
             "  Buy item #2 from shop: !shop buy 2",
+            "  Claim daily XP: !daily",
         ]
         
-        # Add admin commands if user is admin
-        # We need to construct a proper user string for is_admin check
-        user_string = f"{nick}!user@host"  # Simplified check
-        if hasattr(self, 'is_admin') and self.is_admin(user_string):
-            help_lines.extend([
-                "",
-                "=== ADMIN COMMANDS ===",
-                "  !rearm <player|all> - Give player a gun",
-                "  !disarm <player> - Confiscate player's gun",
-                "  !ignore <player> - Ignore player's commands",
-                "  !unignore <player> - Unignore player",
-                "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast)",
-                "  !join #channel - Make bot join a channel",
-                "  !part #channel - Make bot leave a channel",
-                "",
-                "Admin commands work in PM or in-channel."
-            ])
+        # Admin commands section
+        help_lines.extend([
+            "",
+            "=== ADMIN COMMANDS ===",
+            "  !rearm <player|all> - Give player a gun",
+            "  !disarm <player> - Confiscate player's gun",
+            "  !ignore <player> - Ignore player's commands",
+            "  !unignore <player> - Unignore player",
+            "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast, ninja, boss, decoy)",
+            "  !join #channel - Make bot join a channel",
+            "  !part #channel - Make bot leave a channel",
+            "",
+            "Admin commands require admin privileges."
+        ])
+        
+        help_lines.extend([
+            "",
+            "=== TIPS ===",
+            "- Ducks spawn randomly, including flocks and rare boss ducks!",
+            "- Weather affects jam chance, accuracy, and XP — use !weather to check",
+            "- Claim !daily every day to build your streak and earn bonus XP",
+            "- Golden ducks have multiple HP and give more XP",
+            "- Boss ducks require teamwork — all contributors get XP!",
+            "- Decoy ducks: !bef them for a reward, don't !bang!",
+            "- Buy items from !shop to improve your hunting",
+            "",
+            "Good luck hunting! 🦆"
+        ])
+        
+        # Send all help lines as PM
+        for line in help_lines:
+            self.send_message(nick, line)
+        
+        # Add admin commands section for all users - admins will just get an error
+        # if they try to use commands they're not permitted to use.
+        help_lines.extend([
+            "",
+            "=== ADMIN COMMANDS ===",
+            "  !rearm <player|all> - Give player a gun",
+            "  !disarm <player> - Confiscate player's gun",
+            "  !ignore <player> - Ignore player's commands",
+            "  !unignore <player> - Unignore player",
+            "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast)",
+            "  !join #channel - Make bot join a channel",
+            "  !part #channel - Make bot leave a channel",
+            "",
+            "Admin commands require admin privileges."
+        ])
         
         help_lines.extend([
             "",
@@ -1208,19 +1312,205 @@ class DuckHuntBot:
 
     async def handle_reloadbot(self, nick, channel):
         """Admin-only: restart the bot process via PM (!reload) to apply code changes."""
-        # PM-only to avoid accidental public restarts
         if channel.startswith('#'):
             self.send_message(channel, f"{nick} > Use this command in PM only.")
             return
-
         self.send_message(nick, "Restarting bot now...")
         try:
             self.db.save_database()
         except Exception:
             pass
-
         self.restart_requested = True
         self.shutdown_requested = True
+
+    # -------------------------------------------------------------------
+    # New command handlers
+    # -------------------------------------------------------------------
+
+    async def handle_daily(self, nick, channel, player):
+        """Handle !daily — claim a daily XP bonus once per 24 hours."""
+        import random as _random
+        now = time.time()
+        last_daily = player.get('last_daily', 0)
+        if now - last_daily < 86400:
+            remaining = int(86400 - (now - last_daily))
+            h, rem = divmod(remaining, 3600)
+            m = rem // 60
+            self.send_message(channel,
+                f"{nick} > ⏳ Daily already claimed! Come back in {h}h {m}m.")
+            return
+
+        # Track daily streak
+        import datetime as _dt
+        today = _dt.date.today().isoformat()
+        last_date = player.get('last_daily_date', '')
+        yesterday = (_dt.date.today() - _dt.timedelta(days=1)).isoformat()
+        if last_date == yesterday:
+            player['daily_streak'] = player.get('daily_streak', 0) + 1
+        elif last_date != today:
+            player['daily_streak'] = 1
+        player['last_daily_date'] = today
+        player['last_daily'] = now
+
+        daily_streak = player.get('daily_streak', 1)
+        xp_bonus = _random.randint(10, 25) + (daily_streak - 1) * 2  # Streak bonus
+        player['xp'] = player.get('xp', 0) + xp_bonus
+
+        streak_msg = f" (🔥 {daily_streak}-day streak!" + (
+            " Bonus XP included!" if daily_streak > 1 else '') + ')' if daily_streak > 0 else ""
+        self.send_message(channel,
+            f"{nick} > 🎁 Daily bonus claimed! +{xp_bonus} XP{streak_msg} Come back tomorrow!")
+
+        new_ach = self.game._check_achievements(player, 'daily')
+        for ach in new_ach:
+            self.send_message(channel,
+                f"🏆 {nick} unlocked: {ach['icon']} {ach['name']} — {ach['description']}!")
+        self.db.save_database()
+
+    async def handle_effects(self, nick, channel, player):
+        """Handle !effects — show active temporary effects with remaining time."""
+        effects = player.get('temporary_effects', [])
+        now = time.time()
+        active = [e for e in effects if isinstance(e, dict) and e.get('expires_at', 0) > now]
+        if not active:
+            self.send_message(channel, f"{nick} > No active effects. Visit !shop to get some!")
+            return
+        parts = []
+        for e in active:
+            remaining = int(e.get('expires_at', 0) - now)
+            h, rem = divmod(remaining, 3600)
+            m, s   = divmod(rem, 60)
+            name = e.get('name', e.get('type', 'Unknown').replace('_', ' ').title())
+            if h > 0:
+                time_str = f"{h}h {m}m"
+            elif m > 0:
+                time_str = f"{m}m {s}s"
+            else:
+                time_str = f"{s}s"
+            extra = ''
+            if e.get('type') == 'temporary_accuracy':
+                extra = f" ({e.get('shots_remaining', '?')} shots left)"
+            parts.append(f"{name}{extra} [{time_str}]")
+        self.send_message(channel, f"{nick} > Active effects: {' | '.join(parts)}")
+
+    async def handle_achievements(self, nick, channel, player):
+        """Handle !achievements — show earned achievement badges via PM."""
+        achievements = player.get('achievements', [])
+        if not achievements:
+            self.send_message(channel,
+                f"{nick} > No achievements yet! Keep hunting! 🦆")
+            return
+        self.send_message(nick, f"=== {nick}'s Achievements ({len(achievements)} earned) ===")
+        for ach in achievements:
+            if isinstance(ach, dict):
+                self.send_message(nick,
+                    f"  {ach.get('icon','🏆')} {ach.get('name','?')} — {ach.get('description','')}")
+        if channel.startswith('#'):
+            self.send_message(channel,
+                f"{nick} > Check your PM for your {len(achievements)} achievement(s)! 🏆")
+
+    async def handle_inv(self, nick, channel, player):
+        """Handle !inv — compact inventory display."""
+        inventory = player.get('inventory', {})
+        if not inventory:
+            self.send_message(channel,
+                f"{nick} > Inventory empty. Use !shop to buy items!")
+            return
+        parts = []
+        for item_id_str, qty in inventory.items():
+            item = self.shop.get_item(int(item_id_str))
+            if item:
+                parts.append(f"{item['name']} x{qty} (#{item_id_str})")
+            else:
+                parts.append(f"Item #{item_id_str} x{qty}")
+        self.send_message(channel, f"{nick} > 🎒 Inventory: {' | '.join(parts)}")
+
+    async def handle_profile(self, nick, channel, player):
+        """Handle !profile — detailed player stat card sent via PM."""
+        level_info   = self.levels.get_player_level_info(player)
+        level        = level_info['level']
+        level_name   = level_info['name']
+        xp           = player.get('xp', 0)
+        ducks_shot   = player.get('ducks_shot', 0)
+        ducks_bef    = player.get('ducks_befriended', 0)
+        accuracy     = player.get('accuracy', 75)
+        shots_fired  = player.get('shots_fired', 0)
+        shots_missed = player.get('shots_missed', 0)
+        hit_rate     = round(ducks_shot / shots_fired * 100, 1) if shots_fired else 0
+        streak       = player.get('current_streak', 0)
+        best_streak  = player.get('best_streak', 0)
+        daily_streak = player.get('daily_streak', 0)
+        achievements = player.get('achievements', [])
+        xp_needed    = level_info.get('needed_for_next', 0)
+        next_name    = level_info.get('next_level_name', 'Max')
+        gun_status   = '🔫 Armed' if not player.get('gun_confiscated', False) else '🚫 Confiscated'
+        current_ammo = player.get('current_ammo', 0)
+        bullets_per  = player.get('bullets_per_magazine', 6)
+        magazines    = player.get('magazines', 0)
+        jam_chance   = player.get('jam_chance', 0)
+        total_spent  = player.get('total_xp_spent', 0)
+
+        lines = [
+            f"=== 🦆 {nick}'s Hunter Profile ===",
+            f"  Level   : {level} — {level_name}",
+            f"  XP      : {xp}" + (f" (need {xp_needed} for {next_name})" if xp_needed else " (Max level!)"),
+            f"  Ducks   : {ducks_shot} shot, {ducks_bef} befriended",
+            f"  Accuracy: {accuracy}% (hit rate {hit_rate}%)",
+            f"  Streak  : {streak} current | {best_streak} best",
+            f"  Daily   : {daily_streak}-day streak",
+            f"  Gun     : {gun_status} | {current_ammo}/{bullets_per} | {magazines} mags | {jam_chance}% jam",
+            f"  Spending: {total_spent} XP spent in shop",
+            f"  Badges  : {len(achievements)} achievement(s) earned",
+        ]
+        # Weather at glance
+        try:
+            weather = self.game.get_channel_weather(channel)
+            from .game import WEATHER_STATES
+            w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
+            lines.append(f"  Weather : {w_cfg['name']}")
+        except Exception:
+            pass
+        # Inventory
+        inventory = player.get('inventory', {})
+        if inventory:
+            inv_parts = []
+            for iid, qty in inventory.items():
+                item = self.shop.get_item(int(iid))
+                inv_parts.append(f"{item['name']} x{qty}" if item else f"#{iid} x{qty}")
+            lines.append(f"  Items   : {' | '.join(inv_parts)}")
+        # Active effects
+        now = time.time()
+        active_fx = [e for e in player.get('temporary_effects', [])
+                     if isinstance(e, dict) and e.get('expires_at', 0) > now]
+        if active_fx:
+            fx_names = [e.get('name', e.get('type', '?')) for e in active_fx]
+            lines.append(f"  Effects : {' | '.join(fx_names)}")
+        for line in lines:
+            self.send_message(nick, line)
+        if channel.startswith('#'):
+            self.send_message(channel, f"{nick} > Profile sent to your PM! 📬")
+
+    async def handle_weather(self, nick, channel):
+        """Handle !weather — show current channel weather."""
+        try:
+            from .game import WEATHER_STATES
+            weather = self.game.get_channel_weather(channel)
+            w_cfg   = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
+            expires_in = int(weather.get('expires_at', 0) - time.time())
+            h, rem = divmod(max(0, expires_in), 3600)
+            m = rem // 60
+            time_left = f"{h}h {m}m" if h > 0 else f"{m}m"
+            modifiers = []
+            if w_cfg['jam_modifier']:      modifiers.append(f"+{w_cfg['jam_modifier']}% jam")
+            if w_cfg['accuracy_modifier']: modifiers.append(f"{w_cfg['accuracy_modifier']}% accuracy")
+            if w_cfg['xp_modifier'] != 1:  modifiers.append(f"{w_cfg['xp_modifier']}x XP")
+            mod_str = (" | " + ", ".join(modifiers)) if modifiers else " | No modifiers"
+            self.send_message(channel,
+                f"{nick} > {w_cfg['name']}{mod_str} | Changes in ~{time_left}")
+        except Exception as e:
+            self.logger.error(f"Error in handle_weather: {e}")
+            self.send_message(channel, f"{nick} > Could not retrieve weather data.")
+
     
     
     async def handle_use(self, nick, channel, player, args):
@@ -1566,8 +1856,16 @@ class DuckHuntBot:
         else:
             duck_type_arg = args[0] if args else "normal"
         
+        # Normalize/sanitize target channel (IRC channels are case-insensitive)
+        target_channel = sanitize_user_input(
+            target_channel,
+            max_length=100,
+            allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\'
+        )
+        target_channel_key = self._channel_key(target_channel)
+
         # Validate target channel
-        if target_channel not in self.channels_joined:
+        if target_channel_key not in self.channels_joined:
             if is_private_msg:
                 self.send_message(channel, f"{nick} > Channel {target_channel} is not available for duckhunt")
             else:
@@ -1586,8 +1884,8 @@ class DuckHuntBot:
         import time
         import random
         
-        if target_channel not in self.game.ducks:
-            self.game.ducks[target_channel] = []
+        if target_channel_key not in self.game.ducks:
+            self.game.ducks[target_channel_key] = []
         
         # Create duck based on specified type
         current_time = time.time()
@@ -1602,7 +1900,7 @@ class DuckHuntBot:
             duck = {
                 'id': duck_id,
                 'spawn_time': current_time,
-                'channel': target_channel,
+                'channel': target_channel_key,
                 'duck_type': 'golden',
                 'max_hp': hp,
                 'current_hp': hp
@@ -1612,21 +1910,21 @@ class DuckHuntBot:
             duck = {
                 'id': duck_id,
                 'spawn_time': current_time,
-                'channel': target_channel,
+                'channel': target_channel_key,
                 'duck_type': duck_type_arg,
                 'max_hp': 1,
                 'current_hp': 1
             }
-        
-        self.game.ducks[target_channel].append(duck)
+
+        self.game.ducks[target_channel_key].append(duck)
         duck_message = self.messages.get('duck_spawn')
         
         # Send duck spawn message to target channel
-        self.send_message(target_channel, duck_message)
+        self.send_message(target_channel_key, duck_message)
         
         # Send confirmation to admin (either in channel or private message)
         if is_private_msg:
-            self.send_message(channel, f"{nick} > Launched {duck_type_arg} duck in {target_channel}")
+            self.send_message(channel, f"{nick} > Launched {duck_type_arg} duck in {target_channel_key}")
         else:
             # In channel, only send the duck message (no admin notification to avoid spam)
             pass
@@ -1645,18 +1943,23 @@ class DuckHuntBot:
             self.send_message(channel, f"{nick} > Invalid channel format. Must start with #")
             return
         
-        # Check if already joined
-        if target_channel in self.channels_joined:
+        # Normalize the channel key (IRC channels are case-insensitive)
+        target_channel_key = self._channel_key(target_channel)
+        
+        # Check if already joined (compare normalized keys)
+        if target_channel_key in self.channels_joined:
             self.send_message(channel, f"{nick} > Already in {target_channel}")
             return
         
-        # Send JOIN command
+        # Send JOIN command and register as pending (server confirms via JOIN event)
         if self.send_raw(f"JOIN {target_channel}"):
-            self.channels_joined.add(target_channel)
-            self.send_message(channel, f"{nick} > Joined {target_channel}")
-            self.logger.info(f"Admin {nick} made bot join {target_channel}")
+            if not hasattr(self, 'pending_joins') or not isinstance(self.pending_joins, dict):
+                self.pending_joins = {}
+            self.pending_joins[target_channel_key] = None
+            self.send_message(channel, f"{nick} > Joining {target_channel}...")
+            self.logger.info(f"Admin {nick} requested bot join {target_channel}")
         else:
-            self.send_message(channel, f"{nick} > Failed to join {target_channel}")
+            self.send_message(channel, f"{nick} > Failed to send JOIN for {target_channel}")
     
     async def handle_part_channel(self, nick, channel, args):
         """Handle !part command (admin only) - leave a channel"""
@@ -1671,14 +1974,17 @@ class DuckHuntBot:
             self.send_message(channel, f"{nick} > Invalid channel format. Must start with #")
             return
         
-        # Check if in channel
-        if target_channel not in self.channels_joined:
+        # Normalize channel key (IRC channels are case-insensitive)
+        target_channel_key = self._channel_key(target_channel)
+        
+        # Check if in channel (compare normalized keys)
+        if target_channel_key not in self.channels_joined:
             self.send_message(channel, f"{nick} > Not in {target_channel}")
             return
         
-        # Send PART command
-        if self.send_raw(f"PART {target_channel}"):
-            self.channels_joined.discard(target_channel)
+        # Send PART command and remove from joined set
+        if self.send_raw(f"PART {target_channel_key}"):
+            self.channels_joined.discard(target_channel_key)
             self.send_message(channel, f"{nick} > Left {target_channel}")
             self.logger.info(f"Admin {nick} made bot leave {target_channel}")
         else:
