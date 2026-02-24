@@ -153,6 +153,66 @@ class MessageManager:
                 
         except Exception as e:
             return f"[Critical message error: {e}]"
+
+    def get_choice(self, key: str, match: str = None, index: int = None, **kwargs) -> str:
+        """Select a message deterministically from a list by matching substring or index.
+
+        If `match` is provided, returns the first list entry containing the substring.
+        If `index` is provided, returns the entry at that index (if valid).
+        Falls back to random choice when neither match nor index resolve.
+        The returned message is formatted the same as `get`.
+        """
+        try:
+            if key not in self.messages:
+                return f"[Missing message: {key}]"
+
+            message = self.messages[key]
+
+            if isinstance(message, list):
+                chosen = None
+                if match:
+                    for entry in message:
+                        if match in (entry or ""):
+                            chosen = entry
+                            break
+                if chosen is None and index is not None:
+                    try:
+                        chosen = message[index]
+                    except Exception:
+                        chosen = None
+                if chosen is None:
+                    chosen = random.choice(message) if message else f"[Empty message array: {key}]"
+                message = chosen
+
+            # Delegate to existing formatting behavior by re-using get's internals
+            # We temporarily insert the resolved message into a small dict and call format logic.
+            # Replace color placeholders
+            if "colours" in self.messages and isinstance(self.messages["colours"], dict):
+                for color_name, color_code in self.messages["colours"].items():
+                    placeholder = "{" + color_name + "}"
+                    message = message.replace(placeholder, color_code)
+
+            safe_kwargs = {}
+            for k, v in kwargs.items():
+                try:
+                    safe_key = str(k)[:50] if k is not None else 'unknown'
+                    if isinstance(v, (int, float)):
+                        safe_kwargs[safe_key] = v
+                    elif v is None:
+                        safe_kwargs[safe_key] = ''
+                    else:
+                        safe_value = str(v)[:4000]
+                        safe_value = safe_value.replace('\r', '').replace('\n', ' ')
+                        safe_kwargs[safe_key] = safe_value
+                except Exception:
+                    safe_kwargs[str(k)] = '[error]'
+
+            try:
+                return message.format(**safe_kwargs)
+            except Exception as e:
+                return f"[Format error in {key}: {e}]"
+        except Exception as e:
+            return f"[Critical message error: {e}]"
     
     def reload(self):
         """Reload messages from file"""

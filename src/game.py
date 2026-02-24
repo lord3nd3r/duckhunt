@@ -156,7 +156,11 @@ class DuckGame:
             self.logger.info("Duck timeout loop cancelled")
 
     async def weather_loop(self):
-        """Rotate weather for active channels every rotation interval."""
+        """Rotate weather for active channels every rotation interval (silent).
+
+        Weather rotations are silent now — no periodic announcements. Weather
+        state is displayed when a duck is spawned in the channel.
+        """
         try:
             await asyncio.sleep(30)  # Let bot settle first
             while True:
@@ -165,7 +169,7 @@ class DuckGame:
                     ck = self._channel_key(channel)
                     w = self.weather.get(ck)
                     if w is None or current_time >= w.get('expires_at', 0):
-                        self._rotate_weather(ck, announce_channel=channel)
+                        self._rotate_weather(ck)
                 await asyncio.sleep(60)
         except asyncio.CancelledError:
             self.logger.info("Weather loop cancelled")
@@ -179,12 +183,12 @@ class DuckGame:
         ck = self._channel_key(channel)
         w = self.weather.get(ck)
         if w is None or time.time() >= w.get('expires_at', 0):
-            self._rotate_weather(ck, announce_channel=None)
+            self._rotate_weather(ck)
             w = self.weather[ck]
         return w
 
-    def _rotate_weather(self, channel_key: str, announce_channel=None):
-        """Pick a new random weather state and optionally announce it."""
+    def _rotate_weather(self, channel_key: str):
+        """Pick a new random weather state for a channel (silent — no announce)."""
         states  = ['clear', 'rain', 'fog', 'storm']
         weights = [40, 25, 20, 15]
         new_state = random.choices(states, weights=weights, k=1)[0]
@@ -193,14 +197,6 @@ class DuckGame:
             'state': new_state,
             'expires_at': time.time() + cfg['duration'],
         }
-        if announce_channel:
-            try:
-                msg = self.bot.messages.get('weather_change', weather_name=cfg['name'])
-                if msg.startswith('[Missing'):
-                    msg = f"🌤️ Weather update: It is now {cfg['name']}!"
-                self.bot.send_message(announce_channel, msg)
-            except Exception as e:
-                self.logger.debug(f"Error announcing weather: {e}")
 
     # -----------------------------------------------------------------------
     # Duck factory helpers
@@ -258,6 +254,9 @@ class DuckGame:
             msg = self.bot.messages.get('boss_duck_spawn', hp=hp)
             if msg.startswith('[Missing'):
                 msg = f"💀 A BOSS DUCK has appeared with {hp} HP! Everyone !bang to take it down!"
+            weather = self.get_channel_weather(channel)
+            w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
+            msg += f" [Weather: {w_cfg['name']}]"
             self.ducks[channel_key].append(duck)
             self.bot.send_message(channel, msg)
             return
@@ -282,7 +281,12 @@ class DuckGame:
             self.logger.info(f"Normal duck spawned in {channel_key}")
 
         self.ducks[channel_key].append(duck)
-        self.bot.send_message(channel, self.bot.messages.get('duck_spawn'))
+        # Use the preferred spawn template if present (the dotted/ornate prefix)
+        msg = self.bot.messages.get_choice('duck_spawn', match='·.¸¸.·´¯`·.¸¸.·´¯`·.')
+        weather = self.get_channel_weather(channel)
+        w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
+        msg += f" [Weather: {w_cfg['name']}]"
+        self.bot.send_message(channel, msg)
 
     async def _spawn_flock(self, channel, channel_key, t):
         """Spawn a flock of 2-4 normal ducks."""
@@ -297,6 +301,9 @@ class DuckGame:
         msg = self.bot.messages.get('duck_flock', count=flock_size)
         if msg.startswith('[Missing'):
             msg = f"🦆🦆🦆 A flock of {flock_size} ducks has landed! Type !bang to pick them off!"
+        weather = self.get_channel_weather(channel)
+        w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
+        msg += f" [Weather: {w_cfg['name']}]"
         self.bot.send_message(channel, msg)
         self.logger.info(f"Flock of {flock_size} ducks spawned in {channel_key}")
 

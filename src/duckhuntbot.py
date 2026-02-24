@@ -1908,6 +1908,15 @@ class DuckHuntBot:
             msg = self.messages.get('boss_duck_spawn', hp=hp)
             if msg.startswith('[Missing'):
                 msg = f"💀 A BOSS DUCK has appeared with {hp} HP! Everyone !bang to take it down!"
+            
+            try:
+                from .game import WEATHER_STATES
+                weather = self.game.get_channel_weather(target_channel_key)
+                w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
+                msg += f" [Weather: {w_cfg['name']}]"
+            except Exception:
+                pass
+                
             self.game.ducks[target_channel_key].append(duck)
             self.send_message(target_channel_key, msg)
             if is_private_msg:
@@ -1938,7 +1947,16 @@ class DuckHuntBot:
             }
 
         self.game.ducks[target_channel_key].append(duck)
-        duck_message = self.messages.get('duck_spawn')
+        # Use the preferred spawn template (ornate dotted prefix) to match admin-launched output
+        duck_message = self.messages.get_choice('duck_spawn', match='·.¸¸.·´¯`·.¸¸.·´¯`·.')
+        
+        try:
+            from .game import WEATHER_STATES
+            weather = self.game.get_channel_weather(target_channel_key)
+            w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
+            duck_message += f" [Weather: {w_cfg['name']}]"
+        except Exception:
+            pass
         
         # Send duck spawn message to target channel
         self.send_message(target_channel_key, duck_message)
