@@ -1875,7 +1875,7 @@ class DuckHuntBot:
         
         # Validate duck type
         duck_type_arg = duck_type_arg.lower()
-        valid_types = ["normal", "golden", "fast"]
+        valid_types = ["normal", "golden", "fast", "ninja", "decoy", "boss", "flock"]
         if duck_type_arg not in valid_types:
             self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {', '.join(valid_types)}")
             return
@@ -1887,33 +1887,54 @@ class DuckHuntBot:
         if target_channel_key not in self.game.ducks:
             self.game.ducks[target_channel_key] = []
         
-        # Create duck based on specified type
         current_time = time.time()
         duck_id = f"{duck_type_arg}_duck_{int(current_time)}_{random.randint(1000, 9999)}"
-        
-        if duck_type_arg == "golden":
+
+        if duck_type_arg == "flock":
+            import asyncio
+            asyncio.create_task(self.game._spawn_flock(target_channel, target_channel_key, current_time))
+            if is_private_msg:
+                self.send_message(channel, f"{nick} > Launched flock in {target_channel_key}")
+            return
+            
+        elif duck_type_arg == "boss":
+            min_hp = int(self.get_config('duck_types.boss.min_hp', 8))
+            max_hp = int(self.get_config('duck_types.boss.max_hp', 15))
+            hp = random.randint(min_hp, max_hp)
+            duck = {
+                'id': duck_id, 'spawn_time': current_time, 'channel': target_channel_key,
+                'duck_type': 'boss', 'max_hp': hp, 'current_hp': hp, 'contributors': {}
+            }
+            msg = self.messages.get('boss_duck_spawn')
+            if msg.startswith('[Missing'):
+                msg = f"💀 A BOSS DUCK has appeared with {hp} HP! Everyone !bang to take it down!"
+            self.game.ducks[target_channel_key].append(duck)
+            self.send_message(target_channel_key, msg)
+            if is_private_msg:
+                self.send_message(channel, f"{nick} > Launched boss duck in {target_channel_key}")
+            return
+
+        elif duck_type_arg == "golden":
             min_hp_val = self.get_config('duck_types.golden.min_hp', 3)
             max_hp_val = self.get_config('duck_types.golden.max_hp', 5)
             min_hp = int(min_hp_val) if min_hp_val is not None else 3
             max_hp = int(max_hp_val) if max_hp_val is not None else 5
             hp = random.randint(min_hp, max_hp)
             duck = {
-                'id': duck_id,
-                'spawn_time': current_time,
-                'channel': target_channel_key,
-                'duck_type': 'golden',
-                'max_hp': hp,
-                'current_hp': hp
+                'id': duck_id, 'spawn_time': current_time, 'channel': target_channel_key,
+                'duck_type': 'golden', 'max_hp': hp, 'current_hp': hp
+            }
+        elif duck_type_arg == "ninja":
+            dodge = float(self.get_config('duck_types.ninja.dodge_chance', 0.35))
+            duck = {
+                'id': duck_id, 'spawn_time': current_time, 'channel': target_channel_key,
+                'duck_type': 'ninja', 'max_hp': 1, 'current_hp': 1, 'dodge_chance': dodge
             }
         else:
-            # Both normal and fast ducks have 1 HP
+            # normal, fast, decoy have 1 HP
             duck = {
-                'id': duck_id,
-                'spawn_time': current_time,
-                'channel': target_channel_key,
-                'duck_type': duck_type_arg,
-                'max_hp': 1,
-                'current_hp': 1
+                'id': duck_id, 'spawn_time': current_time, 'channel': target_channel_key,
+                'duck_type': duck_type_arg, 'max_hp': 1, 'current_hp': 1
             }
 
         self.game.ducks[target_channel_key].append(duck)
@@ -1925,9 +1946,6 @@ class DuckHuntBot:
         # Send confirmation to admin (either in channel or private message)
         if is_private_msg:
             self.send_message(channel, f"{nick} > Launched {duck_type_arg} duck in {target_channel_key}")
-        else:
-            # In channel, only send the duck message (no admin notification to avoid spam)
-            pass
     
     
     async def handle_join_channel(self, nick, channel, args):
