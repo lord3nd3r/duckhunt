@@ -1905,7 +1905,7 @@ class DuckHuntBot:
                 'id': duck_id, 'spawn_time': current_time, 'channel': target_channel_key,
                 'duck_type': 'boss', 'max_hp': hp, 'current_hp': hp, 'contributors': {}
             }
-            msg = self.messages.get('boss_duck_spawn')
+            msg = self.messages.get('boss_duck_spawn', hp=hp)
             if msg.startswith('[Missing'):
                 msg = f"💀 A BOSS DUCK has appeared with {hp} HP! Everyone !bang to take it down!"
             self.game.ducks[target_channel_key].append(duck)

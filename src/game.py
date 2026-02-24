@@ -255,7 +255,7 @@ class DuckGame:
             duck = self._make_duck('boss', channel, channel_key, t,
                                    max_hp=hp, current_hp=hp, contributors={})
             self.logger.info(f"Boss duck spawned in {channel_key} with {hp} HP")
-            msg = self.bot.messages.get('boss_duck_spawn')
+            msg = self.bot.messages.get('boss_duck_spawn', hp=hp)
             if msg.startswith('[Missing'):
                 msg = f"💀 A BOSS DUCK has appeared with {hp} HP! Everyone !bang to take it down!"
             self.ducks[channel_key].append(duck)
