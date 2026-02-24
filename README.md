@@ -125,6 +125,85 @@ Basic shop items available (use `!shop` to see current inventory and IDs):
 - **Decoy Trap** - Plant on a player to ruin their next `!bef` attempt and make them lose XP.
 - **Mystery Box** - Open a random box for a chance at high-tier items.
 
+## Shop Item Reference (Detailed)
+
+This section documents every shop item, its cost, and exactly what it does and how to use it.
+
+- ID 1 — Single Bullet (5 XP)
+    - Type: `ammo` — Adds 1 bullet to your current magazine (up to magazine capacity).
+    - Usage: Buy and `!use 1` to add bullets immediately, or `!shop 1` then store to inventory.
+    - Notes: Fails if magazine is already full.
+
+- ID 2 — Magazine (15 XP)
+    - Type: `magazine` — Adds 1 spare magazine to your inventory (subject to per-level max).
+    - Usage: Buy and `!use 2` to consume from inventory or buy with storage.
+    - Notes: Cannot exceed level-based magazine limit; `ShopManager` enforces max per-level.
+
+- ID 3 — Sand (10 XP)
+    - Type: `sabotage_jam` — Increases a target player's jam chance by 15% and applies a temporary effect.
+    - Usage: Must be used with a target (cannot be applied to yourself). Buy then `!use 3 <player>` or purchase with target.
+    - Notes: Effect is temporary and tracked in `temporary_effects` on the target.
+
+- ID 4 — Gun Brush (20 XP)
+    - Type: `clean_gun` — Reduces the purchaser's jam chance by 10%.
+    - Usage: Buy and auto-applies to buyer (or store and `!use 4`).
+
+- ID 5 — Bread (50 XP)
+    - Type: `attract_ducks` — Temporarily increases duck spawn rate (default 2x) for the configured duration (default 20 minutes).
+    - Usage: Buy and apply — effect added to buyer's `temporary_effects`. Bread affects the whole channel and cannot target a single player.
+
+- ID 6 — Hunter's Insurance (75 XP)
+    - Type: `insurance` — Grants protection from friendly-fire penalties for 24 hours (default); prevents XP loss and gun confiscation from friendly fire.
+    - Usage: Buy and auto-applies as a temporary effect on purchaser.
+
+- ID 7 — Buy Gun Back (40 XP)
+    - Type: `buy_gun_back` — If your gun is confiscated, restores it along with the ammo/magazines that were held when confiscated.
+    - Usage: Buy to immediately restore if `gun_confiscated` is true; otherwise returns a helpful message.
+
+- ID 8 — Bucket of Water (25 XP)
+    - Type: `splash_water` — Soaks a target player; adds a `wet_clothes` temporary effect preventing them from shooting until they dry or use `Dry Clothes`.
+    - Usage: Must target a player (`!use 8 <player>`). Duration is configured (default 5 minutes).
+
+- ID 9 — Dry Clothes (30 XP)
+    - Type: `dry_clothes` — Removes `wet_clothes` effects from the purchaser, allowing shooting again.
+    - Usage: Buy and use on yourself (or store/use from inventory).
+
+- ID 10 — 4-Leaf Clover (250 XP)
+    - Type: `clover_luck` — Strong temporary boost: sets minimum hit and befriend chances (defaults to 95%) for its duration (default 10 minutes).
+    - Usage: Buy and it adds/extends a `clover_luck` temporary effect on the purchaser.
+    - Notes: Buying additional clovers extends the active duration and preserves the best min-chance values.
+
+- ID 11 — Binoculars (30 XP)
+    - Type: `reveal_duck` — Reveals the current duck type in the channel via PM to the purchaser.
+    - Usage: Buy then use to receive a private reveal message.
+
+- ID 12 — Hunting Dog (80 XP)
+    - Type: `second_chance` — Adds a temporary `second_chance` effect; when the next duck flies away, the dog retrieves and re-spawns it immediately.
+    - Usage: Buy and auto-applies as a temporary effect (duration default 1 hour).
+
+- ID 13 — Scope (60 XP)
+    - Type: `temporary_accuracy` — Grants +20% accuracy for the purchaser for the next 5 shots (configurable); effect expires after a duration if unused.
+    - Usage: Buy and apply; tracked under `temporary_effects` with `shots_remaining`.
+
+- ID 14 — Body Armor (100 XP)
+    - Type: `xp_shield` — Absorbs one XP-loss event (e.g., miss penalty, friendly fire) while active; duration default 24 hours.
+    - Usage: Buy to add `xp_shield` to purchaser's temporary effects.
+
+- ID 15 — Decoy Trap (45 XP)
+    - Type: `trap` — Plant on a player so their next `!bef` attempt fails and causes an XP penalty.
+    - Usage: Must target another player when used or purchased for gifting. Traps expire after their duration.
+
+- ID 16 — Mystery Box (35 XP)
+    - Type: `mystery` — Consumes the box and randomly awards one item/effect from a weighted pool defined in `shop.json`.
+    - Usage: Buy and open (`!use 16`) to receive a random inner item; inner effects apply immediately.
+
+Notes on inventory and limits:
+- Items can be purchased and either applied immediately or stored in inventory if supported. `ShopManager` enforces `max_per_item` and `max_total_items` limits loaded from `config.json` (defaults apply if config missing).
+- Many items add entries to a player's `temporary_effects` list; those effects are time-limited and code checks `expires_at` before applying bonuses/penalties.
+- Harmful items (e.g., `Sand`, `Bucket of Water`) require a target and will fail if no valid target is provided.
+
+*** Happy Hunting! ***
+
 ## Gameplay
 
 ### How to Play
