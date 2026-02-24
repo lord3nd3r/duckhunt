@@ -1021,12 +1021,17 @@ class DuckHuntBot:
         else:
             display_nick = nick
             display_player = player
-        bold = self.messages.messages.get('colours', {}).get('bold', '')
-        reset = self.messages.messages.get('colours', {}).get('reset', '')
-        green = self.messages.messages.get('colours', {}).get('green', '')
-        blue = self.messages.messages.get('colours', {}).get('blue', '')
-        yellow = self.messages.messages.get('colours', {}).get('yellow', '')
-        red = self.messages.messages.get('colours', {}).get('red', '')
+        # Safely extract only the control byte from colour mappings so numeric
+        # colour parameters don't accidentally consume adjacent digits (e.g. XP values).
+        colours_map = self.messages.messages.get('colours', {}) if isinstance(self.messages.messages.get('colours', {}), dict) else {}
+        def _ctrl(c):
+            return (c[0] if isinstance(c, str) and c else '')
+        bold = _ctrl(colours_map.get('bold', ''))
+        reset = _ctrl(colours_map.get('reset', ''))
+        green = _ctrl(colours_map.get('green', ''))
+        blue = _ctrl(colours_map.get('blue', ''))
+        yellow = _ctrl(colours_map.get('yellow', ''))
+        red = _ctrl(colours_map.get('red', ''))
         
         # Get player level info
         level_info = self.levels.get_player_level_info(display_player)
