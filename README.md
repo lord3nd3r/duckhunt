@@ -249,9 +249,8 @@ duckhunt/
 
 - ✅ Refactored and fixed codebase logic bugs, dead code, and admin hostmask auth routing.
 - ✅ Added 4 dynamic weather states (Clear, Rain, Fog, Storm) changing gameplay odds.
- - ✅ Added 4 dynamic weather states (Clear, Rain, Fog, Storm) changing gameplay odds.
- - ✅ Weather rotations are now silent (no periodic broadcast); current weather is appended to duck spawn messages and still available via `!weather`.
- - ✅ Spawn messages favour an ornate prefix template for consistent appearance when ducks are spawned or admin-launched.
+- ✅ Weather rotations are now silent (no periodic broadcast); current weather is appended to duck spawn messages and still available via `!weather`.
+- ✅ Spawn messages favour an ornate prefix template for consistent appearance when ducks are spawned or admin-launched.
 - ✅ Added 15 milestone achievements for players to unlock.
 - ✅ Added Ninja, Boss, Decoy ducks and Flock spawning.
 - ✅ Added `!daily`, `!profile`, `!inv`, `!effects`, `!weather`, `!achievements` commands.
