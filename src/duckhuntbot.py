@@ -1070,7 +1070,10 @@ class DuckHuntBot:
         # Build compact stats message with subtle colors
         stats_parts = [
             f"Lv{level} {level_name}",
-            f"{green}{xp}XP{reset}{xp_progress}",
+            # Place the numeric XP before the colour control so clients don't
+            # treat the following digits as colour parameters (which would
+            # truncate the displayed number). Colour the 'XP' suffix instead.
+            f"{xp}{green}XP{reset}{xp_progress}",
             f"{ducks_shot} shot",
             f"{ducks_befriended} befriended",
             f"{accuracy}% accuracy",
