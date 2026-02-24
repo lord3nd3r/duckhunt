@@ -352,7 +352,7 @@ class DuckHuntBot:
             # Sanitize target and message
             safe_target = sanitize_user_input(target, max_length=100, 
                                             allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\')
-            safe_msg = sanitize_user_input(msg, max_length=400)
+            safe_msg = sanitize_user_input(msg, max_length=4000)
             
             if not safe_target or not safe_msg:
                 self.logger.warning(f"Empty target or message after sanitization")

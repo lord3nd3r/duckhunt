@@ -106,7 +106,7 @@ class MessageManager:
                         safe_kwargs[safe_key] = ''
                     else:
                         # Sanitize string values
-                        safe_value = str(v)[:200]  # Limit length
+                        safe_value = str(v)[:4000]  # Limit length (increased to allow long shop lists)
                         safe_value = safe_value.replace('\r', '').replace('\n', ' ')  # Remove newlines
                         safe_kwargs[safe_key] = safe_value
                 except Exception:
