@@ -12,7 +12,7 @@ DuckHunt is an asyncio-based IRC bot that runs a classic "duck hunting" mini-gam
 - **Multi-channel support** - Bot can be in multiple channels
 - **Per-channel player stats** - Stats are tracked separately per channel
 - **Global leaderboard** - View the global top 5 across all channels
-- **Dynamic Weather System** - Weather changes (Clear, Rain, Fog, Storm) affecting accuracy, jam chance, XP, and duck flight time.
+- **Dynamic Weather System** - Weather changes (Clear, Rain, Fog, Storm) affecting accuracy, jam chance, XP, and duck flight time. Weather now rotates silently per-channel and is shown when a duck is spawned or when queried with `!weather`.
 - **Achievement System** - Earn badges for milestones (e.g., First Blood, Sharpshooter, Boss Slayer).
 - **Six Duck Types & Flocks** - Normal, Golden, Fast, Ninja, Decoy, Boss, and multiple ducks spawning at once.
 - **Shop system** - Buy items, use them, or gift them to others.
@@ -170,6 +170,9 @@ duckhunt/
 
 - ✅ Refactored and fixed codebase logic bugs, dead code, and admin hostmask auth routing.
 - ✅ Added 4 dynamic weather states (Clear, Rain, Fog, Storm) changing gameplay odds.
+ - ✅ Added 4 dynamic weather states (Clear, Rain, Fog, Storm) changing gameplay odds.
+ - ✅ Weather rotations are now silent (no periodic broadcast); current weather is appended to duck spawn messages and still available via `!weather`.
+ - ✅ Spawn messages favour an ornate prefix template for consistent appearance when ducks are spawned or admin-launched.
 - ✅ Added 15 milestone achievements for players to unlock.
 - ✅ Added Ninja, Boss, Decoy ducks and Flock spawning.
 - ✅ Added `!daily`, `!profile`, `!inv`, `!effects`, `!weather`, `!achievements` commands.
