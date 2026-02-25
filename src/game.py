@@ -693,15 +693,57 @@ class DuckGame:
         bullets_per_mag = player.get('bullets_per_magazine', 6)
         if current_ammo >= bullets_per_mag:
             return {'success': False, 'message_key': 'reload_already_loaded', 'message_args': {'nick': nick}}
+        
+        # Check if we need to auto-use a magazine from inventory
         if player.get('magazines', 1) <= 1:
-            return {'success': False, 'message_key': 'reload_no_chargers', 'message_args': {'nick': nick}}
+            inventory = player.get('inventory', {})
+            magazine_item_id = None
+            if hasattr(self.bot, 'shop') and self.bot.shop:
+                for item_id_str, qty in inventory.items():
+                    if qty > 0:
+                        try:
+                            item = self.bot.shop.get_item(int(item_id_str))
+                            if item and item.get('type') == 'magazine':
+                                magazine_item_id = item_id_str
+                                break
+                        except ValueError:
+                            pass
+            
+            if magazine_item_id:
+                # Auto consume 1 magazine item
+                inventory[magazine_item_id] -= 1
+                if inventory[magazine_item_id] <= 0:
+                    del inventory[magazine_item_id]
+                player['inventory'] = inventory
+                
+                item_amount = self.bot.shop.get_item(int(magazine_item_id)).get('amount', 1)
+                player['magazines'] = player.get('magazines', 1) + item_amount
+            else:
+                return {'success': False, 'message_key': 'reload_no_chargers', 'message_args': {'nick': nick}}
+                
         player['current_ammo'] = bullets_per_mag
         player['magazines'] = player.get('magazines', 1) - 1
+        
+        # Calculate total spare magazines for the output message
+        active_spares = player.get('magazines', 1) - 1
+        inv_spares = 0
+        if hasattr(self.bot, 'shop') and self.bot.shop:
+            inventory = player.get('inventory', {})
+            for item_id_str, qty in inventory.items():
+                if qty > 0:
+                    try:
+                        item = self.bot.shop.get_item(int(item_id_str))
+                        if item and item.get('type') == 'magazine':
+                            inv_spares += (qty * item.get('amount', 1))
+                    except ValueError:
+                        pass
+        total_spares = active_spares + inv_spares
+        
         self.db.save_database()
         return {'success': True, 'message_key': 'reload_success',
                 'message_args': {'nick': nick, 'ammo': player['current_ammo'],
                                  'max_ammo': bullets_per_mag,
-                                 'chargers': player['magazines'] - 1}}
+                                 'chargers': total_spares}}
 
     # -----------------------------------------------------------------------
     # Achievement system
