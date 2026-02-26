@@ -491,7 +491,8 @@ class ShopManager:
                 return {
                     "type": "buy_gun_back",
                     "restored": True,
-                    "ammo_restored": restored_ammo
+                    "ammo_restored": restored_ammo,
+                    "magazines_restored": restored_magazines
                 }
             else:
                 return {
