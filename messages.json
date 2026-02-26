@@ -84,7 +84,7 @@
   "shop_buy_usage": "Usage: !shop buy <item_id>",
   "use_attract_ducks": "{nick} > You scattered bread around the pond! Ducks will spawn {spawn_multiplier}x faster for {duration} minutes.",
   "use_insurance": "{nick} > You activated Hunter's Insurance! Protected from friendly fire penalties for {duration} hours.",
-  "use_buy_gun_back": "{nick} > Your gun has been returned with {ammo_restored} bullets and {magazines_restored} magazines.",
+  "use_buy_gun_back": "{nick} > Your gun has been returned with {ammo_restored} bullets. You now have {total_spares} spare magazines available.",
   "use_buy_gun_back_not_needed": "{nick} > Your gun is not confiscated.",
   "bang_wet_clothes": "{nick} > *SPLASH* Your clothes are soaked! You can't shoot until you dry off or buy new clothes.",
   "use_splash_water": "{nick} > *SPLASH* You soaked {target_nick} with water! They can't shoot for {duration} minutes.",

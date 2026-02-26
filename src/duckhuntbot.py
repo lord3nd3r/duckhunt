@@ -1096,9 +1096,22 @@ class DuckHuntBot:
         
         # Ammo info
         current_ammo = display_player.get('current_ammo', 0)
-        magazines = display_player.get('magazines', 0)
         bullets_per_mag = display_player.get('bullets_per_magazine', 6)
         jam_chance = display_player.get('jam_chance', 0)
+        
+        # Calculate total spare magazines
+        active_spares = max(0, display_player.get('magazines', 1) - 1)
+        inv_spares = 0
+        inventory = display_player.get('inventory', {})
+        for item_id_str, qty in inventory.items():
+            if qty > 0:
+                try:
+                    item = self.shop.get_item(int(item_id_str))
+                    if item and item.get('type') == 'magazine':
+                        inv_spares += (qty * item.get('amount', 1))
+                except ValueError:
+                    pass
+        total_spares = active_spares + inv_spares
         
         # Gun status
         gun_status = "Armed" if not display_player.get('gun_confiscated', False) else "Confiscated"
@@ -1115,7 +1128,7 @@ class DuckHuntBot:
             f"{accuracy}% accuracy",
             f"{hit_rate}% hit rate",
             f"{green if gun_status == 'Armed' else red}{gun_status}{reset}",
-            f"{current_ammo}/{bullets_per_mag}|{magazines} mags",
+            f"{current_ammo}/{bullets_per_mag} ammo | {total_spares} spares",
             f"{jam_chance}% jam chance"
         ]
         
@@ -1601,9 +1614,22 @@ class DuckHuntBot:
                 elif effect_type == 'buy_gun_back':
                     # Use specific message for buying gun back
                     if effect.get('restored', False):
+                        active_spares = max(0, effect.get('magazines_restored', 1) - 1)
+                        inv_spares = 0
+                        inventory = player.get('inventory', {})
+                        for item_id_str, qty in inventory.items():
+                            if qty > 0:
+                                try:
+                                    item = self.shop.get_item(int(item_id_str))
+                                    if item and item.get('type') == 'magazine':
+                                        inv_spares += (qty * item.get('amount', 1))
+                                except ValueError:
+                                    pass
+                        total_spares = active_spares + inv_spares
+                        
                         message = self.messages.get('use_buy_gun_back', nick=nick,
                             ammo_restored=effect.get('ammo_restored', 0),
-                            magazines_restored=effect.get('magazines_restored', 0))
+                            total_spares=total_spares)
                     else:
                         message = self.messages.get('use_buy_gun_back_not_needed', nick=nick)
                 elif effect_type == 'splash_water':
