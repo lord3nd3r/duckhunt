@@ -1256,7 +1256,6 @@ class DuckHuntBot:
         if channel.startswith('#'):
             self.send_message(channel, f"{nick} > Please check your PM for the duckhunt command list.")
         
-        # Build detailed help message
         help_lines = [
             "=== DuckHunt Commands ===",
             "",
@@ -1299,18 +1298,7 @@ class DuckHuntBot:
             "  Decoy Trap   - Target's next !bef fails with XP penalty",
             "  Mystery Box  - Random item from a weighted pool",
             "",
-            "EXAMPLES:",
-            "  When a duck appears, type: !bang",
-            "  To reload: !reload",
-            "  Check your stats: !duckstats",
-            "  Buy item #2 from shop: !shop buy 2",
-            "  Claim daily XP: !daily",
-        ]
-        
-        # Admin commands section
-        help_lines.extend([
-            "",
-            "=== ADMIN COMMANDS ===",
+            "ADMIN COMMANDS:",
             "  !rearm <player|all> - Give player a gun",
             "  !disarm <player> - Confiscate player's gun",
             "  !ignore <player> - Ignore player's commands",
@@ -1319,57 +1307,20 @@ class DuckHuntBot:
             "  !join #channel - Make bot join a channel",
             "  !part #channel - Make bot leave a channel",
             "",
-            "Admin commands require admin privileges."
-        ])
-        
-        help_lines.extend([
-            "",
-            "=== TIPS ===",
+            "TIPS:",
             "- Ducks spawn randomly, including flocks and rare boss ducks!",
             "- Weather affects jam chance, accuracy, and XP — use !weather to check",
             "- Claim !daily every day to build your streak and earn bonus XP",
-            "- Golden ducks have multiple HP and give more XP",
             "- Boss ducks require teamwork — all contributors get XP!",
             "- Decoy ducks: !bef them for a reward, don't !bang!",
-            "- Buy items from !shop to improve your hunting",
             "",
             "Good luck hunting! 🦆"
-        ])
+        ]
         
-        # Send all help lines as PM
+        # Send lines as PM with a small delay to avoid IRC excess flood
         for line in help_lines:
             self.send_message(nick, line)
-        
-        # Add admin commands section for all users - admins will just get an error
-        # if they try to use commands they're not permitted to use.
-        help_lines.extend([
-            "",
-            "=== ADMIN COMMANDS ===",
-            "  !rearm <player|all> - Give player a gun",
-            "  !disarm <player> - Confiscate player's gun",
-            "  !ignore <player> - Ignore player's commands",
-            "  !unignore <player> - Unignore player",
-            "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast)",
-            "  !join #channel - Make bot join a channel",
-            "  !part #channel - Make bot leave a channel",
-            "",
-            "Admin commands require admin privileges."
-        ])
-        
-        help_lines.extend([
-            "",
-            "=== TIPS ===",
-            "- Ducks spawn randomly. Watch for them!",
-            "- Golden ducks have multiple HP and give more XP",
-            "- Fast ducks fly away quickly",
-            "- Buy items from !shop to improve your hunting",
-            "",
-            "Good luck hunting! 🦆"
-        ])
-        
-        # Send all help lines as PM
-        for line in help_lines:
-            self.send_message(nick, line)
+            await asyncio.sleep(0.4)
 
     async def handle_reloadbot(self, nick, channel):
         """Admin-only: restart the bot process via PM (!reload) to apply code changes."""
