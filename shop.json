@@ -80,18 +80,18 @@
     "12": {
       "name": "Hunting Dog",
       "price": 80,
-      "description": "Your trusty dog retrieves the next duck that flies away and re-spawns it",
+      "description": "Your trusty dog retrieves the next duck that flies away and re-spawns it (active for 12 hours)",
       "type": "second_chance",
-      "duration": 3600
+      "duration": 43200
     },
     "13": {
       "name": "Scope",
       "price": 60,
-      "description": "Precision scope: +20% accuracy for your next 5 shots",
+      "description": "Precision scope: +20% accuracy for your next 5 shots (active for 12 hours)",
       "type": "temporary_accuracy",
       "amount": 20,
       "shots": 5,
-      "duration": 3600
+      "duration": 43200
     },
     "14": {
       "name": "Body Armor",

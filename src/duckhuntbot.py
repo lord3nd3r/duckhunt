@@ -1099,19 +1099,23 @@ class DuckHuntBot:
         bullets_per_mag = display_player.get('bullets_per_magazine', 6)
         jam_chance = display_player.get('jam_chance', 0)
         
-        # Calculate total spare magazines
+        # Spare magazine count:
+        # - active_spares: reloads available from level-based magazine slots (can reload without inventory item)
+        # - inv_mags: Magazine items sitting in inventory (these are consumed on !reload when slots run out)
+        # Show them separately so the number matches what !inv shows
         active_spares = max(0, display_player.get('magazines', 1) - 1)
-        inv_spares = 0
+        inv_mags = 0
         inventory = display_player.get('inventory', {})
         for item_id_str, qty in inventory.items():
             if qty > 0:
                 try:
                     item = self.shop.get_item(int(item_id_str))
                     if item and item.get('type') == 'magazine':
-                        inv_spares += (qty * item.get('amount', 1))
+                        inv_mags += qty
                 except ValueError:
                     pass
-        total_spares = active_spares + inv_spares
+        # Total reloads available = active level-slots + inventory Magazine items
+        total_spares = active_spares + inv_mags
         
         # Gun status
         gun_status = "Armed" if not display_player.get('gun_confiscated', False) else "Confiscated"
@@ -1128,7 +1132,7 @@ class DuckHuntBot:
             f"{accuracy}% accuracy",
             f"{hit_rate}% hit rate",
             f"{green if gun_status == 'Armed' else red}{gun_status}{reset}",
-            f"{current_ammo}/{bullets_per_mag} ammo | {total_spares} spares",
+            f"{current_ammo}/{bullets_per_mag} ammo | {total_spares} spare magazines",
             f"{jam_chance}% jam chance"
         ]
         
@@ -1289,8 +1293,8 @@ class DuckHuntBot:
             "",
             "SHOP ITEMS:",
             "  Binoculars   - Reveals current duck type to you (PM)",
-            "  Hunting Dog  - Retrieves a duck that flies away",
-            "  Scope        - +20% accuracy for your next 5 shots",
+            "  Hunting Dog  - Retrieves a duck that flies away (active 12h)",
+            "  Scope        - +20% accuracy for your next 5 shots (active 12h)",
             "  Body Armor   - Absorbs your next XP loss event",
             "  Decoy Trap   - Target's next !bef fails with XP penalty",
             "  Mystery Box  - Random item from a weighted pool",

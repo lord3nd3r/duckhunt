@@ -724,9 +724,9 @@ class DuckGame:
         player['current_ammo'] = bullets_per_mag
         player['magazines'] = player.get('magazines', 1) - 1
         
-        # Calculate total spare magazines for the output message
-        active_spares = player.get('magazines', 1) - 1
-        inv_spares = 0
+        # Count spare magazines after reload: level-slots + inventory Magazine items (by count, not amount)
+        active_spares = max(0, player.get('magazines', 1) - 1)
+        inv_mags = 0
         if hasattr(self.bot, 'shop') and self.bot.shop:
             inventory = player.get('inventory', {})
             for item_id_str, qty in inventory.items():
@@ -734,10 +734,10 @@ class DuckGame:
                     try:
                         item = self.bot.shop.get_item(int(item_id_str))
                         if item and item.get('type') == 'magazine':
-                            inv_spares += (qty * item.get('amount', 1))
+                            inv_mags += qty
                     except ValueError:
                         pass
-        total_spares = active_spares + inv_spares
+        total_spares = active_spares + inv_mags
         
         self.db.save_database()
         return {'success': True, 'message_key': 'reload_success',
