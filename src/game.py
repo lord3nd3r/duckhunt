@@ -63,6 +63,8 @@ class DuckGame:
         self.spawn_task = None
         self.timeout_task = None
         self.weather_task = None
+        # Per-channel spawn tasks: {channel_key: asyncio.Task}
+        self._channel_spawn_tasks = {}
         # Per-channel weather: {channel_key: {'state': str, 'expires_at': float}}
         self.weather = {}
 
@@ -82,7 +84,7 @@ class DuckGame:
 
     async def start_game_loops(self):
         """Start all game loops"""
-        self.spawn_task   = asyncio.create_task(self.duck_spawn_loop())
+        self.spawn_task   = asyncio.create_task(self._spawn_manager_loop())
         self.timeout_task = asyncio.create_task(self.duck_timeout_loop())
         self.weather_task = asyncio.create_task(self.weather_loop())
         try:
@@ -90,25 +92,77 @@ class DuckGame:
         except asyncio.CancelledError:
             self.logger.info("Game loops cancelled")
 
-    async def duck_spawn_loop(self):
-        """Duck spawning loop with responsive shutdown"""
+    # -----------------------------------------------------------------------
+    # Per-channel spawn configuration
+    # -----------------------------------------------------------------------
+
+    def _get_channel_spawn_config(self, channel: str) -> tuple:
+        """Return (spawn_min, spawn_max) for a channel.
+
+        Checks ``channel_overrides.<channel_key>.duck_spawning`` first,
+        then falls back to the global ``duck_spawning`` values.
+        """
+        ck = self._channel_key(channel)
+        # Try channel-specific override
+        override_min = self.bot.get_config(f'channel_overrides.{ck}.duck_spawning.spawn_min')
+        override_max = self.bot.get_config(f'channel_overrides.{ck}.duck_spawning.spawn_max')
+        global_min = self.bot.get_config('duck_spawning.spawn_min', 300)
+        global_max = self.bot.get_config('duck_spawning.spawn_max', 900)
+        spawn_min = override_min if override_min is not None else global_min
+        spawn_max = override_max if override_max is not None else global_max
+        return int(spawn_min), int(spawn_max)
+
+    # -----------------------------------------------------------------------
+    # Spawn manager – maintains one task per joined channel
+    # -----------------------------------------------------------------------
+
+    async def _spawn_manager_loop(self):
+        """Reconcile per-channel spawn tasks with the current set of joined channels."""
         try:
             while True:
-                min_wait = self.bot.get_config('duck_spawning.spawn_min', 300)
-                max_wait = self.bot.get_config('duck_spawning.spawn_max', 900)
+                current_channels = set(self.bot.channels_joined)
+                # Start tasks for newly joined channels
+                for ch in current_channels:
+                    ck = self._channel_key(ch)
+                    if ck not in self._channel_spawn_tasks or self._channel_spawn_tasks[ck].done():
+                        self.logger.info(f"Starting spawn task for {ck}")
+                        self._channel_spawn_tasks[ck] = asyncio.create_task(
+                            self._channel_spawn_loop(ch)
+                        )
+                # Cancel tasks for channels we've left
+                for ck, task in list(self._channel_spawn_tasks.items()):
+                    if ck not in {self._channel_key(c) for c in current_channels}:
+                        self.logger.info(f"Stopping spawn task for {ck} (no longer in channel)")
+                        task.cancel()
+                        del self._channel_spawn_tasks[ck]
+                await asyncio.sleep(5)  # Re-check every 5 seconds
+        except asyncio.CancelledError:
+            # Shut down all per-channel tasks
+            for task in self._channel_spawn_tasks.values():
+                task.cancel()
+            self._channel_spawn_tasks.clear()
+            self.logger.info("Spawn manager loop cancelled")
+
+    async def _channel_spawn_loop(self, channel: str):
+        """Independent spawn loop for a single channel."""
+        channel_key = self._channel_key(channel)
+        try:
+            while True:
+                min_wait, max_wait = self._get_channel_spawn_config(channel)
                 spawn_multiplier = self._get_active_spawn_multiplier()
                 if spawn_multiplier > 1.0:
                     min_wait = int(min_wait / spawn_multiplier)
                     max_wait = int(max_wait / spawn_multiplier)
-                wait_time = random.randint(min_wait, max_wait)
+                # Ensure min <= max
+                if min_wait > max_wait:
+                    min_wait, max_wait = max_wait, min_wait
+                wait_time = random.randint(min_wait, max(min_wait, max_wait))
+                self.logger.debug(f"Next spawn in {channel_key} in {wait_time}s (range {min_wait}-{max_wait})")
                 for _ in range(wait_time):
                     await asyncio.sleep(1)
-                channels = list(self.bot.channels_joined)
-                if channels:
-                    channel = random.choice(channels)
-                    await self.spawn_duck(channel)
+                await self.spawn_duck(channel)
         except asyncio.CancelledError:
-            self.logger.info("Duck spawning loop cancelled")
+            self.logger.info(f"Spawn loop for {channel_key} cancelled")
 
     async def duck_timeout_loop(self):
         """Remove expired ducks, trigger hunting dog, clean effects"""

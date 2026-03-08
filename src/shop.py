@@ -80,6 +80,71 @@ class ShopManager:
             return False
         return player_xp >= item['price']
     
+    def _check_item_usable(self, item: Dict[str, Any], affected_player: Dict[str, Any]) -> Optional[str]:
+        """Check if an item would actually do something useful for the affected player.
+        
+        Returns None if the item is usable, or an error message string if it would be wasted.
+        This is called BEFORE consuming inventory items or deducting XP.
+        """
+        item_type = item.get('type', 'unknown')
+        amount = item.get('amount', 0)
+        
+        if item_type == 'ammo':
+            current_ammo = affected_player.get('current_ammo', 0)
+            bullets_per_mag = affected_player.get('bullets_per_magazine', 6)
+            if current_ammo >= bullets_per_mag:
+                return f"Magazine is already full ({bullets_per_mag}/{bullets_per_mag})!"
+        
+        elif item_type == 'magazine':
+            if self.levels:
+                current_magazines = affected_player.get('magazines', 1)
+                level_info = self.levels.get_player_level_info(affected_player)
+                max_magazines = level_info.get('magazines', 3)
+                if current_magazines >= max_magazines:
+                    return f"Already at maximum magazines ({max_magazines}) for current level!"
+        
+        elif item_type == 'accuracy':
+            current_accuracy = affected_player.get('accuracy', 75)
+            if current_accuracy >= 100:
+                return "Accuracy is already at 100%!"
+        
+        elif item_type == 'clean_gun':
+            current_jam = affected_player.get('jam_chance', 5)
+            if current_jam <= 0:
+                return "Gun jam chance is already at 0% — no need to clean!"
+        
+        elif item_type == 'jam_resistance':
+            current_jam = affected_player.get('jam_chance', 5)
+            if current_jam <= 0:
+                return "Gun jam chance is already at 0%!"
+        
+        elif item_type == 'critical_hit':
+            current_crit = affected_player.get('critical_chance', 0)
+            if current_crit >= 25:
+                return "Critical hit chance is already at maximum (25%)!"
+        
+        elif item_type == 'sabotage_jam':
+            current_jam = affected_player.get('jam_chance', 5)
+            if current_jam >= 50:
+                return "Target's jam chance is already at maximum (50%)!"
+        
+        elif item_type == 'sabotage_accuracy':
+            current_acc = affected_player.get('accuracy', 75)
+            if current_acc <= 10:
+                return "Target's accuracy is already at minimum (10%)!"
+        
+        elif item_type == 'buy_gun_back':
+            if not affected_player.get('gun_confiscated', False):
+                return "Gun isn't confiscated — no need to buy it back!"
+        
+        elif item_type == 'dry_clothes':
+            effects = affected_player.get('temporary_effects', [])
+            is_wet = any(e.get('type') == 'wet_clothes' for e in effects if isinstance(e, dict))
+            if not is_wet:
+                return "Not wet — no need to change clothes!"
+        
+        return None  # Item is usable
+
     def purchase_item(self, player: Dict[str, Any], item_id: int, target_player: Optional[Dict[str, Any]] = None, store_in_inventory: bool = False) -> Dict[str, Any]:
         """
         Purchase an item and either store in inventory or apply immediately
@@ -117,6 +182,20 @@ class ShopManager:
                 "price": item['price'],
                 "current_xp": player_xp
             }
+        
+        # Pre-purchase checks — don't take XP if the item won't do anything
+        if not store_in_inventory:
+            affected = target_player if target_player else player
+            usable_error = self._check_item_usable(item, affected)
+            if usable_error:
+                return {
+                    "success": False,
+                    "error": "item_not_usable",
+                    "message": usable_error,
+                    "item_name": item['name'],
+                    "price": item['price'],
+                    "current_xp": player_xp
+                }
         
         # Deduct XP
         player['xp'] = player_xp - item['price']
@@ -698,32 +777,16 @@ class ShopManager:
                 "item_name": item['name']
             }
         
-        # Special checks for ammo/magazine limits
-        if item['type'] == 'magazine' and self.levels:
-            affected_player = target_player if target_player else player
-            current_magazines = affected_player.get('magazines', 1)
-            level_info = self.levels.get_player_level_info(affected_player)
-            max_magazines = level_info.get('magazines', 3)
-            
-            if current_magazines >= max_magazines:
-                return {
-                    "success": False,
-                    "error": "max_magazines_reached",
-                    "message": f"Already at maximum magazines ({max_magazines}) for current level!",
-                    "item_name": item['name']
-                }
-        elif item['type'] == 'ammo':
-            affected_player = target_player if target_player else player
-            current_ammo = affected_player.get('current_ammo', 0)
-            bullets_per_mag = affected_player.get('bullets_per_magazine', 6)
-            
-            if current_ammo >= bullets_per_mag:
-                return {
-                    "success": False,
-                    "error": "magazine_full",
-                    "message": f"Current magazine is already full ({bullets_per_mag}/{bullets_per_mag})!",
-                    "item_name": item['name']
-                }
+        # Check if item would actually do something before consuming it
+        affected_player = target_player if target_player else player
+        usable_error = self._check_item_usable(item, affected_player)
+        if usable_error:
+            return {
+                "success": False,
+                "error": "item_not_usable",
+                "message": usable_error,
+                "item_name": item['name']
+            }
         
         # Remove item from inventory
         inventory[item_id_str] -= 1

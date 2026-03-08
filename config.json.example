@@ -31,6 +31,15 @@
     "timeout": 60,
     "rearm_on_duck_shot": true
   },
+  "channel_overrides": {
+    "_comment": "Per-channel settings. Keys must be lowercase. Only include settings you want to override.",
+    "#slow-channel": {
+      "duck_spawning": {
+        "spawn_min": 3600,
+        "spawn_max": 3600
+      }
+    }
+  },
   "duck_types": {
     "normal": {
       "xp": 10,

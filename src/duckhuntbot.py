@@ -402,6 +402,22 @@ class DuckHuntBot:
             self.logger.error(f"Error sanitizing/sending message: {e}")
             return False
     
+    def send_notice(self, target, msg):
+        """Send a NOTICE to target (channel or user)"""
+        if not isinstance(target, str) or not isinstance(msg, str):
+            self.logger.warning(f"Invalid notice parameters: target={type(target)}, msg={type(msg)}")
+            return False
+        try:
+            safe_target = sanitize_user_input(target, max_length=100,
+                                            allowed_chars='#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\')
+            safe_msg = sanitize_user_input(msg, max_length=400)
+            if not safe_target or not safe_msg:
+                return False
+            return self.send_raw(f"NOTICE {safe_target} :{safe_msg}")
+        except Exception as e:
+            self.logger.error(f"Error sending notice to {target}: {e}")
+            return False
+    
     async def send_server_password(self):
         """Send server password if configured (must be sent immediately after connection)"""
         password = self.get_config('connection.password')
@@ -992,12 +1008,23 @@ class DuckHuntBot:
                     await self.handle_shop_buy(nick, channel, player, item_id, target_nick, store_in_inventory)
                     return
                 except (ValueError, IndexError):
-                    message = self.messages.get('shop_buy_usage', nick=nick)
-                    self.send_message(channel, message)
+                    # Show available items so the player knows which ID to use
+                    items_list = " | ".join(
+                        f"({iid}) {it['name']} {it['price']}XP"
+                        for iid, it in sorted(self.shop.get_items().items())
+                    )
+                    self.send_message(channel,
+                        f"{nick} > Usage: !shop buy <id>. Items: {items_list}")
                     return
         
-        shop_text = self.shop.get_shop_display(player, self.messages)
-        self.send_message(channel, shop_text)
+        # Send full shop menu via NOTICE to the user
+        xp = player.get('xp', 0)
+        self.send_notice(nick, f"=== DuckHunt Shop === (You have {xp} XP)")
+        for item_id, item in sorted(self.shop.get_items().items()):
+            self.send_notice(nick, f"  ({item_id}) {item['name']} - {item['price']} XP — {item.get('description', '')}")
+        self.send_notice(nick, f"Use: !shop buy <id> [target]")
+        if channel.startswith('#'):
+            self.send_message(channel, f"{nick} > Check your notices for the shop menu.")
     
     async def handle_shop_buy(self, nick, channel, player, item_id, target_nick=None, store_in_inventory=False):
         """Handle buying an item from the shop"""
