@@ -32,7 +32,7 @@ class DuckHuntBot:
         self.rejoin_attempts = {}  # Track rejoin attempts per channel
         self.rejoin_tasks = {}     # Track active rejoin tasks
         
-        self.logger.info("🤖 Initializing DuckHunt Bot components...")
+        self.logger.info("Initializing DuckHunt Bot components...")
         
         # Initialize error recovery systems
         self.error_recovery = ErrorRecovery()
@@ -183,7 +183,7 @@ class DuckHuntBot:
         """Setup signal handlers for immediate shutdown"""
         def signal_handler(signum, _frame):
             signal_name = "SIGINT" if signum == signal.SIGINT else "SIGTERM"
-            self.logger.info(f"🛑 Received {signal_name} (Ctrl+C), shutting down immediately...")
+            self.logger.info(f"Received {signal_name} (Ctrl+C), shutting down immediately...")
             self.shutdown_requested = True
             try:
                 loop = asyncio.get_running_loop()
@@ -422,7 +422,7 @@ class DuckHuntBot:
         """Send server password if configured (must be sent immediately after connection)"""
         password = self.get_config('connection.password')
         if password and password != "your_iline_password_here":
-            self.logger.info("🔐 Sending server password")
+            self.logger.info("Sending server password")
             self.send_raw(f"PASS {password}")
             return True
         return False
@@ -852,14 +852,7 @@ class DuckHuntBot:
                     lambda: self.handle_profile(nick, channel, player),
                     fallback=None, logger=self.logger
                 )
-            elif cmd == "weather":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_weather(nick, channel),
-                    fallback=None, logger=self.logger
-                )
 
-            
             # If no command was executed, it might be an unknown command
             if not command_executed:
                 self.logger.debug(f"Unknown command '{cmd}' from {nick}")
@@ -871,7 +864,7 @@ class DuckHuntBot:
             try:
                 if channel.startswith('#'):
                     error_msg = safe_format_message(
-                        "{nick} > ⚠️ Something went wrong processing your command. Please try again in a moment.",
+                        "{nick} > Something went wrong processing your command. Please try again in a moment.",
                         nick=nick
                     )
                     self.send_message(channel, error_msg)
@@ -943,25 +936,13 @@ class DuckHuntBot:
         result = self.game.shoot_duck(nick, channel, player)
         message = self.messages.get(result['message_key'], **result['message_args'])
         if message.startswith('[Missing'):
-            message = f"{nick} > 🦆 ..." 
+            message = f"{nick} > ..." 
         self.send_message(channel, message)
 
         # Flock: show remaining count
         remaining_flock = result.get('message_args', {}).get('remaining_flock', 0)
         if remaining_flock and remaining_flock > 0:
-            self.send_message(channel, f"🦆 {remaining_flock} duck(s) still in the flock!")
-
-        # Boss duck kill: announce contributors and bonus XP
-        if result.get('boss_contributors'):
-            contributors = result['boss_contributors']
-            bonus_xp = result.get('boss_bonus_xp', 0)
-            total_hits = sum(contributors.values())
-            parts = []
-            for cn, hits in sorted(contributors.items(), key=lambda x: -x[1]):
-                share = int(bonus_xp * hits / total_hits) if total_hits else 0
-                parts.append(f"{cn}({hits} hits, +{share}XP)")
-            self.send_message(channel,
-                f"💀 Boss duck defeated! Contributors: {' | '.join(parts)}")
+            self.send_message(channel, f"{remaining_flock} duck(s) still in the flock!")
 
         # Item drops
         if result.get('success') and result.get('dropped_item'):
@@ -971,13 +952,13 @@ class DuckHuntBot:
             drop_message = self.messages.get(f'duck_drop_{duck_type}',
                 nick=nick, item_name=item_name)
             if drop_message.startswith('[Missing'):
-                drop_message = f"{nick} > 🎁 The duck dropped: {item_name}!"
+                drop_message = f"{nick} > The duck dropped: {item_name}!"
             self.send_message(channel, drop_message)
 
         # Achievement announcements
         for ach in result.get('new_achievements', []):
             self.send_message(channel,
-                f"🏆 {nick} unlocked achievement: {ach['icon']} {ach['name']} — {ach['description']}!")
+                f"[Achievement] {nick} unlocked: {ach['name']} - {ach['description']}")
 
 
     async def handle_bef(self, nick, channel, player):
@@ -1264,7 +1245,7 @@ class DuckHuntBot:
             top5 = entries[:5]
 
             parts = []
-            medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+            medals = {1: "#1", 2: "#2", 3: "#3"}
             for idx, (xp, player_nick, channel_key) in enumerate(top5, 1):
                 prefix = medals.get(idx, f"#{idx}")
                 channel_label = _display_channel_key(channel_key)
@@ -1299,49 +1280,46 @@ class DuckHuntBot:
             "  !inv - Quick view your inventory",
             "  !effects - Show active temporary effects and timers",
             "  !achievements - View your earned achievement badges (PM)",
-            "  !weather - Check current hunting weather in this channel",
             "  !daily - Claim your daily XP bonus (resets every 24h)",
             "",
             "SHOP COMMANDS:",
             "  !shop - View available items",
             "  !shop buy <item_id> - Purchase an item from the shop",
-            "  !use <item_id> [target] - Use an item from your inventory",
+            "  !use <item_id> - Use an item from your inventory",
             "  !give <item_id> <player> - Give an inventory item to another player",
             "",
             "DUCK TYPES:",
             "  Normal duck  - Standard XP",
             "  Golden duck  - Multiple HP, big XP reward",
             "  Fast duck    - Flies away quickly",
-            "  Ninja duck   - Has a dodge chance! (!bef only)",
+            "  Ninja duck   - Has a dodge chance",
             "  Decoy duck   - !bang confiscates your gun, !bef rewards you",
-            "  Boss duck    - High HP, cooperative kill, XP split among contributors",
             "  Flock        - Multiple ducks at once, shoot them one by one",
             "",
             "SHOP ITEMS:",
-            "  Binoculars   - Reveals current duck type to you (PM)",
-            "  Hunting Dog  - Retrieves a duck that flies away (active 12h)",
-            "  Scope        - +20% accuracy for your next 5 shots (active 12h)",
-            "  Body Armor   - Absorbs your next XP loss event",
-            "  Decoy Trap   - Target's next !bef fails with XP penalty",
-            "  Mystery Box  - Random item from a weighted pool",
+            "  (1)  Single Bullet  - 5 XP  - Add 1 bullet to your magazine",
+            "  (2)  Magazine       - 15 XP - Add a spare magazine",
+            "  (4)  Gun Brush      - 20 XP - Reduce gun jam chance by 10%",
+            "  (5)  Bread          - 50 XP - Double duck spawn rate for 20 min",
+            "  (7)  Buy Gun Back   - 40 XP - Recover your confiscated gun",
+            "  (13) Scope          - 60 XP - +20% accuracy for next 5 shots",
+            "  (14) Body Armor     - 100 XP - Absorbs your next XP loss event",
             "",
             "ADMIN COMMANDS:",
             "  !rearm <player|all> - Give player a gun",
             "  !disarm <player> - Confiscate player's gun",
             "  !ignore <player> - Ignore player's commands",
             "  !unignore <player> - Unignore player",
-            "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast, ninja, boss, decoy)",
+            "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast, ninja, decoy)",
             "  !join #channel - Make bot join a channel",
             "  !part #channel - Make bot leave a channel",
             "",
             "TIPS:",
-            "- Ducks spawn randomly, including flocks and rare boss ducks!",
-            "- Weather affects jam chance, accuracy, and XP — use !weather to check",
+            "- Ducks spawn randomly, including flocks and rare golden ducks!",
             "- Claim !daily every day to build your streak and earn bonus XP",
-            "- Boss ducks require teamwork — all contributors get XP!",
             "- Decoy ducks: !bef them for a reward, don't !bang!",
             "",
-            "Good luck hunting! 🦆"
+            "Good luck hunting!"
         ]
         
         # Send lines as PM with a small delay to avoid IRC excess flood
@@ -1376,7 +1354,7 @@ class DuckHuntBot:
             h, rem = divmod(remaining, 3600)
             m = rem // 60
             self.send_message(channel,
-                f"{nick} > ⏳ Daily already claimed! Come back in {h}h {m}m.")
+                f"{nick} > Daily already claimed! Come back in {h}h {m}m.")
             return
 
         # Track daily streak
@@ -1395,15 +1373,15 @@ class DuckHuntBot:
         xp_bonus = _random.randint(10, 25) + (daily_streak - 1) * 2  # Streak bonus
         player['xp'] = player.get('xp', 0) + xp_bonus
 
-        streak_msg = f" (🔥 {daily_streak}-day streak!" + (
+        streak_msg = f" ({daily_streak}-day streak!" + (
             " Bonus XP included!" if daily_streak > 1 else '') + ')' if daily_streak > 0 else ""
         self.send_message(channel,
-            f"{nick} > 🎁 Daily bonus claimed! +{xp_bonus} XP{streak_msg} Come back tomorrow!")
+            f"{nick} > Daily bonus claimed! +{xp_bonus} XP{streak_msg} Come back tomorrow!")
 
         new_ach = self.game._check_achievements(player, 'daily')
         for ach in new_ach:
             self.send_message(channel,
-                f"🏆 {nick} unlocked: {ach['icon']} {ach['name']} — {ach['description']}!")
+                f"[Achievement] {nick} unlocked: {ach['name']} - {ach['description']}")
         self.db.save_database()
 
     async def handle_effects(self, nick, channel, player):
@@ -1437,16 +1415,16 @@ class DuckHuntBot:
         achievements = player.get('achievements', [])
         if not achievements:
             self.send_message(channel,
-                f"{nick} > No achievements yet! Keep hunting! 🦆")
+                f"{nick} > No achievements yet! Keep hunting!")
             return
         self.send_message(nick, f"=== {nick}'s Achievements ({len(achievements)} earned) ===")
         for ach in achievements:
             if isinstance(ach, dict):
                 self.send_message(nick,
-                    f"  {ach.get('icon','🏆')} {ach.get('name','?')} — {ach.get('description','')}")
+                    f"  {ach.get('name','?')} - {ach.get('description','')}")
         if channel.startswith('#'):
             self.send_message(channel,
-                f"{nick} > Check your PM for your {len(achievements)} achievement(s)! 🏆")
+                f"{nick} > Check your PM for your {len(achievements)} achievement(s)!")
 
     async def handle_inv(self, nick, channel, player):
         """Handle !inv — compact inventory display."""
@@ -1462,7 +1440,7 @@ class DuckHuntBot:
                 parts.append(f"{item['name']} x{qty} (#{item_id_str})")
             else:
                 parts.append(f"Item #{item_id_str} x{qty}")
-        self.send_message(channel, f"{nick} > 🎒 Inventory: {' | '.join(parts)}")
+        self.send_message(channel, f"{nick} > Inventory: {' | '.join(parts)}")
 
     async def handle_profile(self, nick, channel, player):
         """Handle !profile — detailed player stat card sent via PM."""
@@ -1482,7 +1460,7 @@ class DuckHuntBot:
         achievements = player.get('achievements', [])
         xp_needed    = level_info.get('needed_for_next', 0)
         next_name    = level_info.get('next_level_name', 'Max')
-        gun_status   = '🔫 Armed' if not player.get('gun_confiscated', False) else '🚫 Confiscated'
+        gun_status   = 'Armed' if not player.get('gun_confiscated', False) else 'Confiscated'
         current_ammo = player.get('current_ammo', 0)
         bullets_per  = player.get('bullets_per_magazine', 6)
         magazines    = player.get('magazines', 0)
@@ -1490,7 +1468,7 @@ class DuckHuntBot:
         total_spent  = player.get('total_xp_spent', 0)
 
         lines = [
-            f"=== 🦆 {nick}'s Hunter Profile ===",
+            f"=== {nick}'s Hunter Profile ===",
             f"  Level   : {level} — {level_name}",
             f"  XP      : {xp}" + (f" (need {xp_needed} for {next_name})" if xp_needed else " (Max level!)"),
             f"  Ducks   : {ducks_shot} shot, {ducks_bef} befriended",
@@ -1501,14 +1479,6 @@ class DuckHuntBot:
             f"  Spending: {total_spent} XP spent in shop",
             f"  Badges  : {len(achievements)} achievement(s) earned",
         ]
-        # Weather at glance
-        try:
-            weather = self.game.get_channel_weather(channel)
-            from .game import WEATHER_STATES
-            w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-            lines.append(f"  Weather : {w_cfg['name']}")
-        except Exception:
-            pass
         # Inventory
         inventory = player.get('inventory', {})
         if inventory:
@@ -1527,31 +1497,8 @@ class DuckHuntBot:
         for line in lines:
             self.send_message(nick, line)
         if channel.startswith('#'):
-            self.send_message(channel, f"{nick} > Profile sent to your PM! 📬")
+            self.send_message(channel, f"{nick} > Profile sent to your PM!")
 
-    async def handle_weather(self, nick, channel):
-        """Handle !weather — show current channel weather."""
-        try:
-            from .game import WEATHER_STATES
-            weather = self.game.get_channel_weather(channel)
-            w_cfg   = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-            expires_in = int(weather.get('expires_at', 0) - time.time())
-            h, rem = divmod(max(0, expires_in), 3600)
-            m = rem // 60
-            time_left = f"{h}h {m}m" if h > 0 else f"{m}m"
-            modifiers = []
-            if w_cfg['jam_modifier']:      modifiers.append(f"+{w_cfg['jam_modifier']}% jam")
-            if w_cfg['accuracy_modifier']: modifiers.append(f"{w_cfg['accuracy_modifier']}% accuracy")
-            if w_cfg['xp_modifier'] != 1:  modifiers.append(f"{w_cfg['xp_modifier']}x XP")
-            mod_str = (" | " + ", ".join(modifiers)) if modifiers else " | No modifiers"
-            self.send_message(channel,
-                f"{nick} > {w_cfg['name']}{mod_str} | Changes in ~{time_left}")
-        except Exception as e:
-            self.logger.error(f"Error in handle_weather: {e}")
-            self.send_message(channel, f"{nick} > Could not retrieve weather data.")
-
-    
-    
     async def handle_use(self, nick, channel, player, args):
         """Handle !use command"""
         if not args:
@@ -1927,7 +1874,7 @@ class DuckHuntBot:
         
         # Validate duck type
         duck_type_arg = duck_type_arg.lower()
-        valid_types = ["normal", "golden", "fast", "ninja", "decoy", "boss", "flock"]
+        valid_types = ["normal", "golden", "fast", "ninja", "decoy", "flock"]
         if duck_type_arg not in valid_types:
             self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {', '.join(valid_types)}")
             return
@@ -1949,32 +1896,6 @@ class DuckHuntBot:
                 self.send_message(channel, f"{nick} > Launched flock in {target_channel_key}")
             return
             
-        elif duck_type_arg == "boss":
-            min_hp = int(self.get_config('duck_types.boss.min_hp', 8))
-            max_hp = int(self.get_config('duck_types.boss.max_hp', 15))
-            hp = random.randint(min_hp, max_hp)
-            duck = {
-                'id': duck_id, 'spawn_time': current_time, 'channel': target_channel_key,
-                'duck_type': 'boss', 'max_hp': hp, 'current_hp': hp, 'contributors': {}
-            }
-            msg = self.messages.get('boss_duck_spawn', hp=hp)
-            if msg.startswith('[Missing'):
-                msg = f"💀 A BOSS DUCK has appeared with {hp} HP! Everyone !bang to take it down!"
-            
-            try:
-                from .game import WEATHER_STATES
-                weather = self.game.get_channel_weather(target_channel_key)
-                w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-                msg += f" [Weather: {w_cfg['name']}]"
-            except Exception:
-                pass
-                
-            self.game.ducks[target_channel_key].append(duck)
-            self.send_message(target_channel_key, msg)
-            if is_private_msg:
-                self.send_message(channel, f"{nick} > Launched boss duck in {target_channel_key}")
-            return
-
         elif duck_type_arg == "golden":
             min_hp_val = self.get_config('duck_types.golden.min_hp', 3)
             max_hp_val = self.get_config('duck_types.golden.max_hp', 5)
@@ -2189,7 +2110,7 @@ class DuckHuntBot:
             self.logger.info("Shutdown initiated, cleaning up...")
             
         except asyncio.CancelledError:
-            self.logger.info("🛑 Main loop cancelled")
+            self.logger.info("Main loop cancelled")
         except Exception as e:
             self.logger.error(f"Bot error: {e}")
         finally:
@@ -2257,7 +2178,7 @@ class DuckHuntBot:
                 except Exception as e:
                     self.logger.debug(f"Error during connection close: {e}")
                     
-            self.logger.info("🔌 IRC connection closed")
+            self.logger.info("IRC connection closed")
             
         except Exception as e:
             self.logger.error(f"Critical error closing connection: {e}")

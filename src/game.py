@@ -9,48 +9,22 @@ import time
 import logging
 
 # ---------------------------------------------------------------------------
-# Weather states
-# ---------------------------------------------------------------------------
-WEATHER_STATES = {
-    'clear': {
-        'name': '☀️ Clear',      'jam_modifier': 0,   'accuracy_modifier': 0,
-        'timeout_modifier': 1.0, 'xp_modifier': 1.0,  'duration': 1800,
-    },
-    'rain': {
-        'name': '🌧️ Rainy',      'jam_modifier': 10,  'accuracy_modifier': -5,
-        'timeout_modifier': 1.0, 'xp_modifier': 1.0,  'duration': 1200,
-    },
-    'fog': {
-        'name': '🌫️ Foggy',      'jam_modifier': 0,   'accuracy_modifier': -10,
-        'timeout_modifier': 0.5, 'xp_modifier': 1.0,  'duration': 900,
-    },
-    'storm': {
-        'name': '🌪️ Stormy',     'jam_modifier': 15,  'accuracy_modifier': -15,
-        'timeout_modifier': 0.75,'xp_modifier': 2.0,  'duration': 600,
-    },
-}
-
-# ---------------------------------------------------------------------------
 # Achievement definitions
 # ---------------------------------------------------------------------------
 ACHIEVEMENTS = {
-    'first_blood':    {'icon': '🩸', 'name': 'First Blood',      'description': 'Shot your first duck'},
-    'century_hunter': {'icon': '💯', 'name': 'Century Hunter',   'description': 'Shot 100 ducks'},
-    'legendary':      {'icon': '🏆', 'name': 'Legendary Hunter', 'description': 'Shot 500 ducks'},
-    'duck_whisperer': {'icon': '🤝', 'name': 'Duck Whisperer',   'description': 'Befriended 50 ducks'},
-    'sharpshooter':   {'icon': '🎯', 'name': 'Sharpshooter',     'description': 'Hit 10 ducks in a row without missing'},
-    'golden_slayer':  {'icon': '🥇', 'name': 'Golden Slayer',    'description': 'Killed a golden duck'},
-    'boss_slayer':    {'icon': '💀', 'name': 'Boss Slayer',       'description': 'Contributed to defeating a boss duck'},
-    'ninja_slayer':   {'icon': '🥷', 'name': 'Ninja Slayer',     'description': 'Shot a ninja duck'},
-    'trigger_happy':  {'icon': '🤦', 'name': 'Trigger Happy',    'description': 'Got your gun confiscated 10 times'},
-    'high_roller':    {'icon': '💸', 'name': 'High Roller',       'description': 'Spent 500 XP in the shop'},
-    'daily_devotee':  {'icon': '📅', 'name': 'Daily Devotee',    'description': 'Claimed daily bonus 7 days in a row'},
-    'survivor':       {'icon': '🦺', 'name': 'Survivor',          'description': 'Was protected by body armor'},
-    'flock_master':   {'icon': '🦆', 'name': 'Flock Master',      'description': 'Shot during a flock event'},
-    'storm_hunter':   {'icon': '⛈️', 'name': 'Storm Hunter',     'description': 'Shot a duck during a storm'},
-    'mystery_lover':  {'icon': '🎁', 'name': 'Mystery Lover',    'description': 'Opened a mystery box'},
+    'first_blood':    {'name': 'First Blood',      'description': 'Shot your first duck'},
+    'century_hunter': {'name': 'Century Hunter',   'description': 'Shot 100 ducks'},
+    'legendary':      {'name': 'Legendary Hunter', 'description': 'Shot 500 ducks'},
+    'duck_whisperer': {'name': 'Duck Whisperer',   'description': 'Befriended 50 ducks'},
+    'sharpshooter':   {'name': 'Sharpshooter',     'description': 'Hit 10 ducks in a row without missing'},
+    'golden_slayer':  {'name': 'Golden Slayer',    'description': 'Killed a golden duck'},
+    'ninja_slayer':   {'name': 'Ninja Slayer',     'description': 'Shot a ninja duck'},
+    'trigger_happy':  {'name': 'Trigger Happy',    'description': 'Got your gun confiscated 10 times'},
+    'high_roller':    {'name': 'High Roller',       'description': 'Spent 500 XP in the shop'},
+    'daily_devotee':  {'name': 'Daily Devotee',    'description': 'Claimed daily bonus 7 days in a row'},
+    'survivor':       {'name': 'Survivor',          'description': 'Was protected by body armor'},
+    'flock_master':   {'name': 'Flock Master',      'description': 'Shot during a flock event'},
 }
-
 
 class DuckGame:
     """Game mechanics for DuckHunt - shooting, befriending, reloading"""
@@ -62,11 +36,8 @@ class DuckGame:
         self.logger = logging.getLogger('DuckHuntBot.Game')
         self.spawn_task = None
         self.timeout_task = None
-        self.weather_task = None
         # Per-channel spawn tasks: {channel_key: asyncio.Task}
         self._channel_spawn_tasks = {}
-        # Per-channel weather: {channel_key: {'state': str, 'expires_at': float}}
-        self.weather = {}
 
     @staticmethod
     def _channel_key(channel: str) -> str:
@@ -86,9 +57,8 @@ class DuckGame:
         """Start all game loops"""
         self.spawn_task   = asyncio.create_task(self._spawn_manager_loop())
         self.timeout_task = asyncio.create_task(self.duck_timeout_loop())
-        self.weather_task = asyncio.create_task(self.weather_loop())
         try:
-            await asyncio.gather(self.spawn_task, self.timeout_task, self.weather_task)
+            await asyncio.gather(self.spawn_task, self.timeout_task)
         except asyncio.CancelledError:
             self.logger.info("Game loops cancelled")
 
@@ -176,10 +146,7 @@ class DuckGame:
                     ducks_to_remove = []
                     for duck in ducks:
                         duck_type = duck.get('duck_type', 'normal')
-                        base_timeout = self.bot.get_config(f'duck_types.{duck_type}.timeout', 60)
-                        weather = self.get_channel_weather(channel)
-                        w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-                        effective_timeout = base_timeout * w_cfg['timeout_modifier']
+                        effective_timeout = self.bot.get_config(f'duck_types.{duck_type}.timeout', 60)
                         if current_time - duck['spawn_time'] > effective_timeout:
                             ducks_to_remove.append(duck)
 
@@ -191,7 +158,6 @@ class DuckGame:
                         msg_keys = {
                             'golden': 'golden_duck_flies_away',
                             'fast':   'fast_duck_flies_away',
-                            'boss':   'boss_duck_flies_away',
                             'ninja':  'ninja_duck_flies_away',
                             'decoy':  'decoy_duck_flies_away',
                         }
@@ -208,49 +174,6 @@ class DuckGame:
                 self._clean_expired_effects()
         except asyncio.CancelledError:
             self.logger.info("Duck timeout loop cancelled")
-
-    async def weather_loop(self):
-        """Rotate weather for active channels every rotation interval (silent).
-
-        Weather rotations are silent now — no periodic announcements. Weather
-        state is displayed when a duck is spawned in the channel.
-        """
-        try:
-            await asyncio.sleep(30)  # Let bot settle first
-            while True:
-                current_time = time.time()
-                for channel in list(self.bot.channels_joined):
-                    ck = self._channel_key(channel)
-                    w = self.weather.get(ck)
-                    if w is None or current_time >= w.get('expires_at', 0):
-                        self._rotate_weather(ck)
-                await asyncio.sleep(60)
-        except asyncio.CancelledError:
-            self.logger.info("Weather loop cancelled")
-
-    # -----------------------------------------------------------------------
-    # Weather helpers
-    # -----------------------------------------------------------------------
-
-    def get_channel_weather(self, channel: str) -> dict:
-        """Return the current weather dict for a channel, rotating if expired."""
-        ck = self._channel_key(channel)
-        w = self.weather.get(ck)
-        if w is None or time.time() >= w.get('expires_at', 0):
-            self._rotate_weather(ck)
-            w = self.weather[ck]
-        return w
-
-    def _rotate_weather(self, channel_key: str):
-        """Pick a new random weather state for a channel (silent — no announce)."""
-        states  = ['clear', 'rain', 'fog', 'storm']
-        weights = [40, 25, 20, 15]
-        new_state = random.choices(states, weights=weights, k=1)[0]
-        cfg = WEATHER_STATES[new_state]
-        self.weather[channel_key] = {
-            'state': new_state,
-            'expires_at': time.time() + cfg['duration'],
-        }
 
     # -----------------------------------------------------------------------
     # Duck factory helpers
@@ -298,23 +221,7 @@ class DuckGame:
             cumulative += chance
             return rand < cumulative
 
-        if _hit(boss_chance):
-            min_hp = int(self.bot.get_config('duck_types.boss.min_hp', 8))
-            max_hp = int(self.bot.get_config('duck_types.boss.max_hp', 15))
-            hp = random.randint(min_hp, max_hp)
-            duck = self._make_duck('boss', channel, channel_key, t,
-                                   max_hp=hp, current_hp=hp, contributors={})
-            self.logger.info(f"Boss duck spawned in {channel_key} with {hp} HP")
-            msg = self.bot.messages.get('boss_duck_spawn', hp=hp)
-            if msg.startswith('[Missing'):
-                msg = f"💀 A BOSS DUCK has appeared with {hp} HP! Everyone !bang to take it down!"
-            weather = self.get_channel_weather(channel)
-            w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-            msg += f" [Weather: {w_cfg['name']}]"
-            self.ducks[channel_key].append(duck)
-            self.bot.send_message(channel, msg)
-            return
-        elif _hit(golden_chance):
+        if _hit(golden_chance):
             min_hp = int(self.bot.get_config('duck_types.golden.min_hp', self.bot.get_config('golden_duck_min_hp', 3)))
             max_hp = int(self.bot.get_config('duck_types.golden.max_hp', self.bot.get_config('golden_duck_max_hp', 5)))
             hp = random.randint(min_hp, max_hp)
@@ -335,11 +242,7 @@ class DuckGame:
             self.logger.info(f"Normal duck spawned in {channel_key}")
 
         self.ducks[channel_key].append(duck)
-        # Use the preferred spawn template if present (the dotted/ornate prefix)
         msg = self.bot.messages.get_choice('duck_spawn', match='·.¸¸.·´¯`·.¸¸.·´¯`·.')
-        weather = self.get_channel_weather(channel)
-        w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-        msg += f" [Weather: {w_cfg['name']}]"
         self.bot.send_message(channel, msg)
 
     async def _spawn_flock(self, channel, channel_key, t):
@@ -354,10 +257,7 @@ class DuckGame:
             self.ducks[channel_key].append(duck)
         msg = self.bot.messages.get('duck_flock', count=flock_size)
         if msg.startswith('[Missing'):
-            msg = f"🦆🦆🦆 A flock of {flock_size} ducks has landed! Type !bang to pick them off!"
-        weather = self.get_channel_weather(channel)
-        w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-        msg += f" [Weather: {w_cfg['name']}]"
+            msg = f"A flock of {flock_size} ducks has landed! Type !bang to pick them off!"
         self.bot.send_message(channel, msg)
         self.logger.info(f"Flock of {flock_size} ducks spawned in {channel_key}")
 
@@ -384,12 +284,8 @@ class DuckGame:
         if player.get('current_ammo', 0) <= 0:
             return {'success': False, 'message_key': 'bang_no_ammo', 'message_args': {'nick': nick}}
 
-        # Weather
-        weather = self.get_channel_weather(channel)
-        w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-
         # Gun jam check
-        base_jam = self.bot.levels.get_jam_chance(player) + w_cfg['jam_modifier']
+        base_jam = self.bot.levels.get_jam_chance(player)
         if random.random() < max(0, min(100, base_jam)) / 100.0:
             player['current_ammo'] = player.get('current_ammo', 1) - 1
             self.db.save_database()
@@ -435,7 +331,7 @@ class DuckGame:
         player['shots_fired']  = player.get('shots_fired', 0) + 1
 
         # Accuracy calculation
-        base_acc   = self.bot.levels.get_modified_accuracy(player) + w_cfg['accuracy_modifier']
+        base_acc   = self.bot.levels.get_modified_accuracy(player)
         scope_bonus = self._apply_scope_effect(player)
         hit_chance  = max(5, min(100, base_acc + scope_bonus)) / 100.0
 
@@ -460,43 +356,16 @@ class DuckGame:
                         'message_args': {'nick': nick}}
 
         if random.random() < hit_chance:
-            return self._process_hit(nick, channel, channel_key, player, duck, duck_type, w_cfg)
+            return self._process_hit(nick, channel, channel_key, player, duck, duck_type)
         else:
             return self._process_miss(nick, channel, channel_key, player)
 
-    def _process_hit(self, nick, channel, channel_key, player, duck, duck_type, w_cfg):
+    def _process_hit(self, nick, channel, channel_key, player, duck, duck_type):
         """Handle a successful shot."""
-        xp_mod = w_cfg['xp_modifier']
+        xp_mod = 1.0
         is_flock = duck.get('is_flock', False)
 
-        # Boss duck — multi-contributor
-        if duck_type == 'boss':
-            duck['contributors'][nick] = duck['contributors'].get(nick, 0) + 1
-            duck['current_hp'] -= 1
-            xp_per_hit = int(self.bot.get_config('duck_types.boss.xp_per_hit', 5) * xp_mod)
-            player['xp'] = player.get('xp', 0) + xp_per_hit
-            if duck['current_hp'] > 0:
-                self.db.save_database()
-                return {'success': True, 'hit': True,
-                        'message_key': 'bang_hit_boss',
-                        'message_args': {'nick': nick, 'hp_remaining': duck['current_hp'],
-                                         'xp_gained': xp_per_hit}}
-            else:
-                self.ducks[channel_key].pop(0)
-                total_bonus_xp = int(self.bot.get_config('duck_types.boss.kill_bonus_xp', 50) * xp_mod)
-                contributors = duck['contributors']
-                total_hits = sum(contributors.values())
-                self._distribute_boss_xp(contributors, total_hits, total_bonus_xp)
-                new_ach = self._check_achievements(player, 'duck_shot', duck_type='boss',
-                                                   weather_state=w_cfg.get('name', 'clear'))
-                self.db.save_database()
-                return {'success': True, 'hit': True,
-                        'message_key': 'bang_hit_boss_killed',
-                        'message_args': {'nick': nick, 'xp_gained': xp_per_hit},
-                        'boss_contributors': contributors,
-                        'boss_bonus_xp': total_bonus_xp,
-                        'new_achievements': new_ach or []}
-
+        # Boss duck — multi-contributor logic removed; boss duck no longer spawns.
         # Golden duck — multi-hit
         if duck_type == 'golden':
             duck['current_hp'] -= 1
@@ -507,7 +376,8 @@ class DuckGame:
                 self.db.save_database()
                 return {'success': True, 'hit': True, 'message_key': 'bang_hit_golden',
                         'message_args': {'nick': nick,
-                                         'hp_remaining': duck['current_hp'], 'xp_gained': xp_gained}}
+                                         'hp_remaining': duck['current_hp'], 'xp_gained': xp_gained,
+                                         'ducks_shot': player.get('ducks_shot', 0)}}
             # Killed golden duck
             self.ducks[channel_key].pop(0)
             xp_gained *= duck['max_hp']
@@ -547,8 +417,7 @@ class DuckGame:
             self._rearm_all_disarmed_players(channel)
 
         dropped_item = self._check_item_drop(player, duck_type)
-        new_ach = self._check_achievements(player, 'duck_shot', duck_type=duck_type,
-                                           weather_state=w_cfg.get('name', 'clear'))
+        new_ach = self._check_achievements(player, 'duck_shot', duck_type=duck_type)
         self.db.save_database()
 
         # Global announcement for golden duck kill
@@ -557,7 +426,7 @@ class DuckGame:
                 for ch in list(self.bot.channels_joined):
                     if self._channel_key(ch) != self._channel_key(channel):
                         self.bot.send_message(ch,
-                            f"📢 [Global] {nick} just slayed a Golden Duck in {channel}!")
+                            f"[Global] {nick} just slayed a Golden Duck in {channel}!")
 
         result = {
             'success': True, 'hit': True,
@@ -630,22 +499,6 @@ class DuckGame:
         return {'success': True, 'hit': False,
                 'message_key': 'bang_miss', 'message_args': {'nick': nick}}
 
-    def _distribute_boss_xp(self, contributors: dict, total_hits: int, bonus_xp: int):
-        """Award proportional bonus XP to all boss duck contributors."""
-        if total_hits == 0:
-            return
-        for nick, hits in contributors.items():
-            try:
-                share = int(bonus_xp * hits / total_hits)
-                # Find player across channels and add XP
-                for ch_key, ch_data in (self.db.channels or {}).items():
-                    players = ch_data.get('players', {})
-                    if nick.lower() in players:
-                        players[nick.lower()]['xp'] = players[nick.lower()].get('xp', 0) + share
-                        break
-            except Exception as e:
-                self.logger.debug(f"Error distributing boss XP to {nick}: {e}")
-
     # -----------------------------------------------------------------------
     # Befriending
     # -----------------------------------------------------------------------
@@ -684,11 +537,6 @@ class DuckGame:
                     'message_key': 'bef_trapped',
                     'message_args': {'nick': nick, 'xp_lost': xp_loss,
                                      'set_by': trap.get('set_by', 'someone')}}
-
-        # Boss duck can be befriended (low chance) or simply fail
-        if duck_type == 'boss':
-            return {'success': False, 'message_key': 'bef_boss_not_interested',
-                    'message_args': {'nick': nick}}
 
         base_rate = self.bot.get_config('gameplay.befriend_success_rate', 75)
         try:
@@ -825,7 +673,6 @@ class DuckGame:
         xp_spent        = player.get('total_xp_spent', 0)
         daily_streak    = player.get('daily_streak', 0)
         duck_type       = context.get('duck_type', '')
-        weather_state   = context.get('weather_state', '')
 
         if event == 'duck_shot':
             if ducks_shot >= 1:   _award('first_blood')
@@ -833,10 +680,8 @@ class DuckGame:
             if ducks_shot >= 500: _award('legendary')
             if streak >= 10:      _award('sharpshooter')
             if duck_type == 'golden': _award('golden_slayer')
-            if duck_type == 'boss':   _award('boss_slayer')
             if duck_type == 'ninja':  _award('ninja_slayer')
             if duck_type in ('flock',): _award('flock_master')
-            if 'Storm' in weather_state or 'storm' in weather_state: _award('storm_hunter')
         elif event == 'duck_befriended':
             if ducks_befriended >= 50: _award('duck_whisperer')
         elif event == 'confiscated':
@@ -882,7 +727,7 @@ class DuckGame:
                         self.ducks[channel_key].append(new_duck)
                         msg = self.bot.messages.get('hunting_dog_retrieves')
                         if msg.startswith('[Missing'):
-                            msg = "🐕 A hunting dog fetches the duck back! It's still out there!"
+                            msg = "A hunting dog fetches the duck back! It's still out there!"
                         self.bot.send_message(channel, msg)
                         return True
         except Exception as e:

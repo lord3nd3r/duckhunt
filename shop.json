@@ -14,13 +14,6 @@
       "type": "magazine",
       "amount": 1
     },
-    "3": {
-      "name": "Sand",
-      "price": 10,
-      "description": "Throw sand in target's gun - increases jam chance by 15%",
-      "type": "sabotage_jam",
-      "amount": 15
-    },
     "4": {
       "name": "Gun Brush",
       "price": 20,
@@ -36,58 +29,16 @@
       "duration": 1200,
       "spawn_multiplier": 2.0
     },
-    "6": {
-      "name": "Hunter's Insurance",
-      "price": 75,
-      "description": "Protects against friendly fire penalties for 24 hours - no XP loss or gun confiscation",
-      "type": "insurance",
-      "duration": 86400,
-      "protection": "friendly_fire"
-    },
     "7": {
       "name": "Buy Gun Back",
       "price": 40,
       "description": "Get your confiscated gun back with the same ammo it had when taken",
       "type": "buy_gun_back"
     },
-    "8": {
-      "name": "Bucket of Water",
-      "price": 25,
-      "description": "Splash another hunter - soaks their clothes and prevents shooting until they dry off",
-      "type": "splash_water"
-    },
-    "9": {
-      "name": "Dry Clothes",
-      "price": 30,
-      "description": "Change into dry clothes - allows shooting again after being soaked",
-      "type": "dry_clothes"
-    },
-    "10": {
-      "name": "4-Leaf Clover",
-      "price": 250,
-      "description": "Crazy luck for 10 minutes - greatly boosts hit & befriend success",
-      "type": "clover_luck",
-      "duration": 600,
-      "min_hit_chance": 0.95,
-      "min_befriend_chance": 0.95
-    },
-    "11": {
-      "name": "Binoculars",
-      "price": 30,
-      "description": "Peek at the current duck type in this channel (sent via PM)",
-      "type": "reveal_duck"
-    },
-    "12": {
-      "name": "Hunting Dog",
-      "price": 80,
-      "description": "Your trusty dog retrieves the next duck that flies away and re-spawns it (active for 12 hours)",
-      "type": "second_chance",
-      "duration": 43200
-    },
     "13": {
       "name": "Scope",
       "price": 60,
-      "description": "Precision scope: +20% accuracy for your next 5 shots (active for 12 hours)",
+      "description": "Precision scope: +20% accuracy for your next 5 shots",
       "type": "temporary_accuracy",
       "amount": 20,
       "shots": 5,
@@ -96,52 +47,9 @@
     "14": {
       "name": "Body Armor",
       "price": 100,
-      "description": "Absorbs your next XP loss event (misfire penalty, friendly fire, etc.)",
+      "description": "Absorbs your next XP loss event (misfire penalty, etc.)",
       "type": "xp_shield",
       "duration": 86400
-    },
-    "15": {
-      "name": "Decoy Trap",
-      "price": 45,
-      "description": "Plant a trap on a player - their next !bef attempt fails and they lose XP",
-      "type": "trap",
-      "duration": 1800
-    },
-    "16": {
-      "name": "Mystery Box",
-      "price": 35,
-      "description": "Open a random mystery box - could be fantastic or... not. Good luck!",
-      "type": "mystery",
-      "mystery_pool": [
-        {
-          "item_id": 1,
-          "weight": 30
-        },
-        {
-          "item_id": 2,
-          "weight": 20
-        },
-        {
-          "item_id": 4,
-          "weight": 15
-        },
-        {
-          "item_id": 5,
-          "weight": 10
-        },
-        {
-          "item_id": 10,
-          "weight": 5
-        },
-        {
-          "item_id": 13,
-          "weight": 12
-        },
-        {
-          "item_id": 14,
-          "weight": 8
-        }
-      ]
     }
   }
 }
