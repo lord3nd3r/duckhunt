@@ -136,7 +136,8 @@ class ErrorRecovery:
             return func()
         except Exception as e:
             if log_errors:
-                logger.error(f"Error executing {func.__name__}: {e}")
+                func_name = getattr(func, '__name__', '<lambda>')
+                logger.error(f"Error executing {func_name}: {e}")
             return fallback
     
     @staticmethod
@@ -150,7 +151,8 @@ class ErrorRecovery:
             return await func()
         except Exception as e:
             if log_errors:
-                logger.error(f"Error executing {func.__name__}: {e}")
+                func_name = getattr(func, '__name__', '<lambda>')
+                logger.error(f"Error executing {func_name}: {e}")
             return fallback
     
     @staticmethod
@@ -189,7 +191,21 @@ class HealthChecker:
         
         for name, check in self.checks.items():
             try:
-                result = await check['func']() if asyncio.iscoroutinefunction(check['func']) else check['func']()
+                check_func = check['func']
+                
+                # Safely detect and handle both async and sync functions
+                try:
+                    if asyncio.iscoroutinefunction(check_func):
+                        result = await check_func()
+                    else:
+                        result = check_func()
+                except TypeError as te:
+                    # Fallback: if iscoroutinefunction fails, try calling and await
+                    try:
+                        result = await check_func()
+                    except Exception:
+                        raise te  # Re-raise original error
+                
                 check['last_success'] = time.time()
                 check['failure_count'] = 0
                 results[name] = {'status': 'healthy', 'result': result}

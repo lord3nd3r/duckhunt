@@ -8,6 +8,7 @@ import logging
 import time
 import os
 from datetime import datetime
+from typing import Dict, Optional, Generator, Tuple, Any
 from .error_handling import with_retry, RetryConfig, ErrorRecovery, sanitize_user_input
 
 
@@ -92,14 +93,25 @@ class DuckDB:
 
     @property
     def players(self):
-        """Backward-compatible flattened view of all players across channels."""
+        """Backward-compatible flattened view of all players across channels.
+        
+        WARNING: This property flattens per-channel data. If the same nick exists
+        in multiple channels, only the last one encountered is kept (last-write-wins).
+        For accurate multi-channel support, use get_player(nick, channel) instead.
+        """
         flattened = {}
         try:
-            for _channel_key, channel_data in (self.channels or {}).items():
+            for channel_key, channel_data in (self.channels or {}).items():
                 players = channel_data.get('players', {}) if isinstance(channel_data, dict) else {}
                 if isinstance(players, dict):
                     for nick, player in players.items():
-                        # Last-write-wins if the same nick exists in multiple channels.
+                        # Check for conflicts (same nick in multiple channels)
+                        if nick in flattened and flattened[nick] != player:
+                            self.logger.warning(
+                                f"Nick collision in backward-compat players property: {nick} not from "
+                                f"channel {channel_key}. This nick exists in multiple channels - "
+                                f"using multi-channel aware methods instead."
+                            )
                         flattened[nick] = player
         except Exception:
             return {}
@@ -317,7 +329,7 @@ class DuckDB:
     
     @with_retry(RetryConfig(max_attempts=3, base_delay=0.5, max_delay=5.0), 
                 exceptions=(OSError, PermissionError, IOError))
-    def save_database(self):
+    def save_database(self) -> bool:
         """Save all player data to JSON file with retry logic and comprehensive error handling"""
         return self._save_database_impl()
     
@@ -391,7 +403,7 @@ class DuckDB:
             except Exception:
                 pass
     
-    def get_players_for_channel(self, channel: str) -> dict:
+    def get_players_for_channel(self, channel: str) -> Dict[str, Any]:
         """Get the players dict for a channel, creating the channel bucket if needed."""
         channel_key = self._normalize_channel(channel)
         bucket = self.channels.setdefault(channel_key, {'players': {}})
@@ -402,7 +414,7 @@ class DuckDB:
             bucket['players'] = {}
         return bucket['players']
 
-    def iter_all_players(self):
+    def iter_all_players(self) -> Generator[Tuple[str, str, Dict[str, Any]], None, None]:
         """Yield (channel_key, nick, player_dict) for all players in all channels."""
         for channel_key, channel_data in (self.channels or {}).items():
             if not isinstance(channel_data, dict):
@@ -413,7 +425,7 @@ class DuckDB:
             for nick, player in players.items():
                 yield channel_key, nick, player
 
-    def get_player_if_exists(self, nick, channel: str):
+    def get_player_if_exists(self, nick: str, channel: str) -> Optional[dict]:
         """Return player dict for nick+channel if present; does not create records."""
         try:
             if not isinstance(nick, str) or not nick.strip():
@@ -435,7 +447,7 @@ class DuckDB:
         except Exception:
             return None
 
-    def get_player(self, nick, channel: str):
+    def get_player(self, nick: str, channel: str) -> dict:
         """Get player data for a specific channel, creating if doesn't exist with comprehensive validation"""
         try:
             # Validate and sanitize nick
@@ -507,7 +519,7 @@ class DuckDB:
             self.logger.error(f"Error migrating player data for {nick}: {e}")
             return self.create_player(nick)
     
-    def create_player(self, nick):
+    def create_player(self, nick: str) -> Dict[str, Any]:
         """Create a new player with all required fields"""
         try:
             safe_nick = str(nick)[:50] if nick else 'Unknown'
