@@ -211,7 +211,6 @@ class DuckGame:
         golden_chance = self.bot.get_config('duck_types.golden.chance',  self.bot.get_config('golden_duck_chance', 0.15))
         fast_chance   = self.bot.get_config('duck_types.fast.chance',    self.bot.get_config('fast_duck_chance', 0.20))
         ninja_chance  = self.bot.get_config('duck_types.ninja.chance',   0.10)
-        decoy_chance  = self.bot.get_config('duck_types.decoy.chance',   0.07)
 
         rand = random.random()
         cumulative = 0
@@ -234,9 +233,6 @@ class DuckGame:
             dodge = float(self.bot.get_config('duck_types.ninja.dodge_chance', 0.35))
             duck = self._make_duck('ninja', channel, channel_key, t, dodge_chance=dodge)
             self.logger.info(f"Ninja duck spawned in {channel_key}")
-        elif _hit(decoy_chance):
-            duck = self._make_duck('decoy', channel, channel_key, t)
-            self.logger.info(f"Decoy duck spawned in {channel_key}")
         else:
             duck = self._make_duck('normal', channel, channel_key, t)
             self.logger.info(f"Normal duck spawned in {channel_key}")

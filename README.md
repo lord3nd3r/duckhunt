@@ -13,7 +13,7 @@ DuckHunt is an asyncio-based IRC bot that runs a classic "duck hunting" mini-gam
 - **Per-channel player stats** - Stats are tracked separately per channel
 - **Global leaderboard** - View the global top 5 across all channels
 - **Achievement System** - Earn badges for milestones (e.g., First Blood, Sharpshooter, Golden Slayer)
-- **Duck Types & Flocks** - Normal, Golden, Fast, Ninja, Decoy, and flock events
+- **Duck Types & Flocks** - Normal, Golden, Fast, Ninja, and flock events
 - **Shop system** - Buy items, use them, or gift them to others
 - **Leveling system** - Gain XP, increase your level, and unlock permanent upgrades
 - **JSON persistence & Auto-save** - All stats saved to disk automatically after each action
@@ -53,13 +53,12 @@ Duck spawning is controlled by `duck_spawning.spawn_min` and `duck_spawning.spaw
 
 ### Duck Types
 
-Five duck types plus flock events:
+Four duck types plus flock events:
 
 - **Normal** - Standard duck, 1 HP, base XP.
 - **Golden** - Multi-HP duck (3–5 HP), higher XP, awards XP per hit.
 - **Fast** - Quick duck, 1 HP, flies away faster.
 - **Ninja** - Has a dodge chance making it harder to hit.
-- **Decoy** - Shooting it gets your gun confiscated; befriending it gives a reward.
 - **Flock** - 2–4 normal ducks spawn at once — shoot them one by one.
 
 Duck spawn behavior is configured in `config.json` under `duck_types`.
@@ -101,7 +100,7 @@ Player stats are saved to `duckhunt.json`:
 - `!rearm <player|all>` - Give a player a gun
 - `!disarm <player>` - Confiscate a player's gun
 - `!ignore <player>` / `!unignore <player>` - Ignore/unignore commands from a player
-- `!ducklaunch [duck_type]` - Force spawn a duck (normal, golden, fast, ninja, decoy)
+- `!ducklaunch [duck_type]` - Force spawn a duck (normal, golden, fast, ninja, flock)
 - `!join <#channel>` - Make the bot join a channel
 - `!part <#channel>` - Make the bot leave a channel
 - `!reload` (in PM) - Restart the bot process smoothly

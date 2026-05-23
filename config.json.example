@@ -115,22 +115,20 @@
     "normal_duck_drops": [
       {"item_id": 1, "weight": 40},
       {"item_id": 2, "weight": 25},
-      {"item_id": 4, "weight": 20},
-      {"item_id": 3, "weight": 15}
+      {"item_id": 4, "weight": 20}
     ],
     "fast_duck_drops": [
       {"item_id": 1, "weight": 30},
       {"item_id": 2, "weight": 25},
       {"item_id": 4, "weight": 20},
-      {"item_id": 8, "weight": 15},
-      {"item_id": 3, "weight": 10}
+      {"item_id": 13, "weight": 15}
     ],
     "golden_duck_drops": [
       {"item_id": 5, "weight": 25},
-      {"item_id": 6, "weight": 20},
+      {"item_id": 14, "weight": 20},
       {"item_id": 7, "weight": 20},
       {"item_id": 2, "weight": 15},
-      {"item_id": 9, "weight": 10},
+      {"item_id": 13, "weight": 10},
       {"item_id": 1, "weight": 10}
     ]
   },

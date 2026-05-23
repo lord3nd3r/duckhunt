@@ -1293,7 +1293,6 @@ class DuckHuntBot:
             "  Golden duck  - Multiple HP, big XP reward",
             "  Fast duck    - Flies away quickly",
             "  Ninja duck   - Has a dodge chance",
-            "  Decoy duck   - !bang confiscates your gun, !bef rewards you",
             "  Flock        - Multiple ducks at once, shoot them one by one",
             "",
             "SHOP ITEMS:",
@@ -1310,14 +1309,13 @@ class DuckHuntBot:
             "  !disarm <player> - Confiscate player's gun",
             "  !ignore <player> - Ignore player's commands",
             "  !unignore <player> - Unignore player",
-            "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast, ninja, decoy)",
+            "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast, ninja, flock)",
             "  !join #channel - Make bot join a channel",
             "  !part #channel - Make bot leave a channel",
             "",
             "TIPS:",
             "- Ducks spawn randomly, including flocks and rare golden ducks!",
             "- Claim !daily every day to build your streak and earn bonus XP",
-            "- Decoy ducks: !bef them for a reward, don't !bang!",
             "",
             "Good luck hunting!"
         ]
@@ -1848,7 +1846,7 @@ class DuckHuntBot:
         
         if is_private_msg:
             if not args:
-                self.send_message(channel, f"{nick} > Usage: !ducklaunch [channel] [duck_type] - duck_type can be: normal, golden, fast")
+                self.send_message(channel, f"{nick} > Usage: !ducklaunch [channel] [duck_type] - duck_type can be: normal, golden, fast, ninja, flock")
                 return
             target_channel = args[0]
             duck_type_arg = args[1] if len(args) > 1 else "normal"
@@ -1874,7 +1872,7 @@ class DuckHuntBot:
         
         # Validate duck type
         duck_type_arg = duck_type_arg.lower()
-        valid_types = ["normal", "golden", "fast", "ninja", "decoy", "flock"]
+        valid_types = ["normal", "golden", "fast", "ninja", "flock"]
         if duck_type_arg not in valid_types:
             self.send_message(channel, f"{nick} > Invalid duck type '{duck_type_arg}'. Valid types: {', '.join(valid_types)}")
             return
