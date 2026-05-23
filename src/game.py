@@ -206,7 +206,6 @@ class DuckGame:
             await self._spawn_flock(channel, channel_key, t)
             return
 
-        boss_chance   = self.bot.get_config('duck_types.boss.chance',   0.05)
         golden_chance = self.bot.get_config('duck_types.golden.chance',  self.bot.get_config('golden_duck_chance', 0.15))
         fast_chance   = self.bot.get_config('duck_types.fast.chance',    self.bot.get_config('fast_duck_chance', 0.20))
         ninja_chance  = self.bot.get_config('duck_types.ninja.chance',   0.10)
