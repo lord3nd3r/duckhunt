@@ -692,9 +692,9 @@ class ShopManager:
         if not pool:
             # Fallback pool using existing item IDs 1-3 if none configured
             pool = [
-                {'item_id': 1, 'weight': 40},
+                {'item_id': 1, 'weight': 50},
                 {'item_id': 2, 'weight': 30},
-                {'item_id': 3, 'weight': 20},
+                {'item_id': 4, 'weight': 20},
             ]
         weights = [e.get('weight', 1) for e in pool]
         chosen  = random.choices(pool, weights=weights, k=1)[0]
