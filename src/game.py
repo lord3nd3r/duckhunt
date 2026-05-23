@@ -159,7 +159,6 @@ class DuckGame:
                             'golden': 'golden_duck_flies_away',
                             'fast':   'fast_duck_flies_away',
                             'ninja':  'ninja_duck_flies_away',
-                            'decoy':  'decoy_duck_flies_away',
                         }
                         msg_key = msg_keys.get(duck_type, 'duck_flies_away')
                         self.bot.send_message(channel, self.bot.messages.get(msg_key))
@@ -306,22 +305,6 @@ class DuckGame:
 
         duck = self.ducks[channel_key][0]
         duck_type = duck.get('duck_type', 'normal')
-
-        # Decoy — bang confiscates your gun
-        if duck_type == 'decoy':
-            self.ducks[channel_key].pop(0)
-            player['shots_fired']  = player.get('shots_fired', 0) + 1
-            player['shots_missed'] = player.get('shots_missed', 0) + 1
-            player['current_ammo'] = player.get('current_ammo', 1) - 1
-            player['confiscated_ammo']      = player.get('current_ammo', 0)
-            player['confiscated_magazines'] = player.get('magazines', 0)
-            player['current_ammo']    = 0
-            player['gun_confiscated'] = True
-            player['gun_confiscated_count'] = player.get('gun_confiscated_count', 0) + 1
-            player['current_streak'] = 0
-            self.db.save_database()
-            return {'success': False, 'message_key': 'bang_decoy',
-                    'message_args': {'nick': nick}}
 
         player['current_ammo'] = player.get('current_ammo', 1) - 1
         player['shots_fired']  = player.get('shots_fired', 0) + 1
@@ -508,17 +491,6 @@ class DuckGame:
 
         duck = self.ducks[channel_key][0]
         duck_type = duck.get('duck_type', 'normal')
-
-        # Decoy duck: !bef succeeds and gives a reward
-        if duck_type == 'decoy':
-            self.ducks[channel_key].pop(0)
-            xp_gained = self.bot.get_config('duck_types.decoy.bef_xp', 5)
-            player['xp'] = player.get('xp', 0) + xp_gained
-            player['ducks_befriended'] = player.get('ducks_befriended', 0) + 1
-            self.db.save_database()
-            return {'success': True, 'befriended': True,
-                    'message_key': 'bef_decoy',
-                    'message_args': {'nick': nick, 'xp_gained': xp_gained}}
 
         # Trap effect on player: !bef fails, XP penalty
         trap = self._get_active_effect(player, 'trap')

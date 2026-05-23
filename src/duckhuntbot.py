@@ -1911,7 +1911,7 @@ class DuckHuntBot:
                 'duck_type': 'ninja', 'max_hp': 1, 'current_hp': 1, 'dodge_chance': dodge
             }
         else:
-            # normal, fast, decoy have 1 HP
+            # normal, fast have 1 HP
             duck = {
                 'id': duck_id, 'spawn_time': current_time, 'channel': target_channel_key,
                 'duck_type': duck_type_arg, 'max_hp': 1, 'current_hp': 1
