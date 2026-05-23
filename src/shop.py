@@ -197,11 +197,6 @@ class ShopManager:
                     "current_xp": player_xp
                 }
         
-        # Deduct XP
-        player['xp'] = player_xp - item['price']
-        # Track total XP spent for High Roller achievement
-        player['total_xp_spent'] = player.get('total_xp_spent', 0) + item['price']
-        
         if store_in_inventory:
             # Add to inventory with bounds checking (limits loaded once at startup)
             inventory = player.get('inventory', {})
@@ -227,6 +222,11 @@ class ShopManager:
                     "item_name": item['name']
                 }
             
+            # Deduct XP after limits are checked
+            player['xp'] = player_xp - item['price']
+            # Track total XP spent for High Roller achievement
+            player['total_xp_spent'] = player.get('total_xp_spent', 0) + item['price']
+
             inventory[item_id_str] = current_count + 1
             player['inventory'] = inventory
             
@@ -239,6 +239,10 @@ class ShopManager:
                 "inventory_count": inventory[item_id_str]
             }
         else:
+            # Deduct XP for immediate use items
+            player['xp'] = player_xp - item['price']
+            player['total_xp_spent'] = player.get('total_xp_spent', 0) + item['price']
+            
             # Apply effect immediately
             if item.get('target_required', False) and target_player:
                 effect_result = self._apply_item_effect(target_player, item)
