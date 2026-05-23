@@ -439,14 +439,14 @@ class ShopManager:
         
         elif item_type == 'steal_ammo':
             # Steal ammo from target player
-            current_ammo = player.get('ammo', 0)
+            current_ammo = player.get('current_ammo', 0)
             stolen = min(amount, current_ammo)
-            player['ammo'] = max(current_ammo - stolen, 0)
+            player['current_ammo'] = max(current_ammo - stolen, 0)
             
             return {
                 "type": "steal_ammo",
                 "stolen": stolen,
-                "remaining": player['ammo']
+                "remaining": player['current_ammo']
             }
         
         elif item_type == 'clean_gun':
