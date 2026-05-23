@@ -727,7 +727,7 @@ class ShopManager:
             with open(config_path, 'r') as f:
                 config = json.load(f)
             wet_duration = config.get('gameplay', {}).get('wet_clothes_duration', 300)  # 5 minutes default
-        except:
+        except Exception:
             wet_duration = 300  # Default 5 minutes
         
         if 'temporary_effects' not in target_player:
