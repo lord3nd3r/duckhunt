@@ -257,13 +257,27 @@ class DuckDB:
             sanitized['confiscated_ammo'] = max(0, min(50, int(float(player_data.get('confiscated_ammo', 0)))))
             sanitized['confiscated_magazines'] = max(0, min(20, int(float(player_data.get('confiscated_magazines', 0)))))
             
-            # Safe inventory handling
             inventory = player_data.get('inventory', {})
             if isinstance(inventory, dict):
                 clean_inventory = {}
+                
+                # Fetch valid item IDs from shop if available, otherwise fallback to known valid IDs
+                valid_ids = None
+                if self.bot and hasattr(self.bot, 'shop') and self.bot.shop:
+                    try:
+                        valid_ids = {str(k) for k in self.bot.shop.get_items().keys()}
+                    except Exception:
+                        pass
+                
+                if not valid_ids:
+                    # Fallback to current valid item IDs (1: ammo, 2: magazine, 4: clean_gun, 5: attract_ducks, 7: buy_gun_back, 13: temporary_accuracy, 14: xp_shield)
+                    valid_ids = {"1", "2", "4", "5", "7", "13", "14"}
+                
                 for k, v in inventory.items():
                     try:
                         clean_key = str(k)[:20]
+                        if clean_key not in valid_ids:
+                            continue
                         clean_value = max(0, int(float(v))) if isinstance(v, (int, float, str)) else 0
                         if clean_value > 0:
                             clean_inventory[clean_key] = clean_value
