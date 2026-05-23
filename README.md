@@ -164,16 +164,22 @@ duckhunt/
 
 ### Recent Fixes & Enhancements
 
-- **Multi-channel safety** - Database now warns when player nicks collide across channels, preventing silent data loss
-- **Robust error handling** - Improved async function detection and lambda logging in error recovery
-- **Type hints** - Core database functions now have full type annotations for better IDE support and type checking
-- **Comprehensive error recovery** - Circuit breakers and retry logic prevent cascading failures
+- **Asynchronous Non-blocking Message Loops** - Converted the bot message-sending queue to run asynchronously, resolving loop blocking issues caused by synchronous message-throttling delay sleep.
+- **Config & Duck Types Syncing** - Removed dead/unimplemented duck types from the configuration template and added proper config schema for the `ninja` duck.
+- **Decoy Duck Removal** - Completely removed vestigial decoy duck references, comments, and handling branches from the shooting and befriending mechanics.
+- **Redundant Schema Clean-up** - Stripped legacy player database fields (`ammo`, `max_ammo`, `chargers`) from defaults, creation, and runtime sanitization logic.
+- **Dynamic Inventory Sanitization** - Implemented automated sanitization on player load to filter out and remove invalid or orphaned item IDs.
+- **Command & Shop Fixes** - Corrected config key path mismatches, synced the default fallback shop with the active catalog, and updated the mystery box fallback pool.
+- **Multi-channel safety** - Database warns when player nicks collide across channels, preventing silent data loss.
+- **Robust error handling** - Improved async function detection and lambda logging in error recovery.
+- **Type hints** - Core database functions now have full type annotations for better IDE support.
+- **Comprehensive error recovery** - Circuit breakers and retry logic prevent cascading failures.
 
 ### Code Quality
 
-- Atomic database writes with JSON validation
-- Comprehensive input sanitization
-- Health check monitoring
-- Per-player rate limiting to prevent abuse
+- Atomic database writes with JSON validation.
+- Comprehensive input sanitization.
+- Health check monitoring.
+- Per-player rate limiting to prevent abuse.
 
 **Happy Duck Hunting!**
