@@ -294,9 +294,6 @@ class DuckDB:
                 'hp_remaining': 0,
                 'victim': '',
                 'xp_lost': 0,
-                'ammo': 0,
-                'max_ammo': 0,
-                'chargers': 0,
                 # Streak & social features
                 'current_streak': 0,
                 'best_streak': 0,
@@ -566,9 +563,6 @@ class DuckDB:
                 'hp_remaining': 0,
                 'victim': '',
                 'xp_lost': 0,
-                'ammo': bullets_per_mag,
-                'max_ammo': bullets_per_mag,
-                'chargers': magazines - 1,
                 # Streak & achievements
                 'current_streak': 0,
                 'best_streak': 0,
@@ -612,10 +606,7 @@ class DuckDB:
                 'xp_gained': 0,
                 'hp_remaining': 0,
                 'victim': '',
-                'xp_lost': 0,
-                'ammo': 6,
-                'max_ammo': 6,
-                'chargers': 2
+                'xp_lost': 0
             }
 
     def get_leaderboard(self, channel: str, category='xp', limit=3):
