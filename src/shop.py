@@ -54,11 +54,15 @@ class ShopManager:
             self.items = self._get_default_items()
     
     def _get_default_items(self) -> Dict[int, Dict[str, Any]]:
-        """Default fallback shop items"""
+        """Default fallback shop items matching shop.json"""
         return {
             1: {"name": "Single Bullet", "price": 5, "description": "1 extra bullet", "type": "ammo", "amount": 1},
-            2: {"name": "Accuracy Boost", "price": 20, "description": "+10% accuracy", "type": "accuracy", "amount": 10},
-            3: {"name": "Lucky Charm", "price": 30, "description": "+5% duck spawn chance", "type": "luck", "amount": 5}
+            2: {"name": "Magazine", "price": 15, "description": "1 extra magazine", "type": "magazine", "amount": 1},
+            4: {"name": "Gun Brush", "price": 20, "description": "Clean your gun - decreases jam chance by 10%", "type": "clean_gun", "amount": -10},
+            5: {"name": "Bread", "price": 50, "description": "Attract ducks - increases duck spawn rate for 20 minutes", "type": "attract_ducks", "duration": 1200, "spawn_multiplier": 2.0},
+            7: {"name": "Buy Gun Back", "price": 40, "description": "Get your confiscated gun back with the same ammo it had when taken", "type": "buy_gun_back"},
+            13: {"name": "Scope", "price": 60, "description": "Precision scope: +20% accuracy for your next 5 shots", "type": "temporary_accuracy", "amount": 20, "shots": 5, "duration": 43200},
+            14: {"name": "Body Armor", "price": 100, "description": "Absorbs your next XP loss event (misfire penalty, etc.)", "type": "xp_shield", "duration": 86400}
         }
     
     def get_items(self) -> Dict[int, Dict[str, Any]]:
