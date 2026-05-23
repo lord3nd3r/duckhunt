@@ -533,7 +533,7 @@ class DuckGame:
             new_level = self.bot.levels.calculate_player_level(player)
             if new_level != old_level:
                 self.bot.levels.update_player_magazines(player)
-            if self.bot.get_config('rearm_on_duck_shot', False):
+            if self.bot.get_config('duck_spawning.rearm_on_duck_shot', False):
                 self._rearm_all_disarmed_players(channel)
             new_ach = self._check_achievements(player, 'duck_befriended', duck_type=duck_type)
             self.db.save_database()
