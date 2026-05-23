@@ -346,13 +346,15 @@ class DuckHuntBot:
             self.logger.warning(f"Invalid message parameters: target={type(target)}, msg={type(msg)}")
             return False
         
-        return self.error_recovery.safe_execute(
+        # Schedule the message to be sent asynchronously to avoid blocking the event loop
+        asyncio.create_task(self.error_recovery.safe_execute_async(
             lambda: self._send_message_impl(target, msg),
             fallback=False,
             logger=self.logger
-        )
+        ))
+        return True
     
-    def _send_message_impl(self, target, msg):
+    async def _send_message_impl(self, target, msg):
         """Internal implementation of send_message"""
         try:
             # Sanitize target and message
@@ -390,7 +392,7 @@ class DuckHuntBot:
             success_count = 0
             for i, message_part in enumerate(messages):
                 if i > 0:  # Small delay between messages to avoid flooding
-                    time.sleep(0.1)
+                    await asyncio.sleep(0.1)
                 
                 if self.send_raw(f"PRIVMSG {safe_target} :{message_part}"):
                     success_count += 1
