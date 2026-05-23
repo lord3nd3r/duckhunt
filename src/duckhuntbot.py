@@ -1923,14 +1923,6 @@ class DuckHuntBot:
         # Use the preferred spawn template (ornate dotted prefix) to match admin-launched output
         duck_message = self.messages.get_choice('duck_spawn', match='·.¸¸.·´¯`·.¸¸.·´¯`·.')
         
-        try:
-            from .game import WEATHER_STATES
-            weather = self.game.get_channel_weather(target_channel_key)
-            w_cfg = WEATHER_STATES.get(weather['state'], WEATHER_STATES['clear'])
-            duck_message += f" [Weather: {w_cfg['name']}]"
-        except Exception:
-            pass
-        
         # Send duck spawn message to target channel
         self.send_message(target_channel_key, duck_message)
         
