@@ -983,6 +983,8 @@ class DuckDB:
                     value = sanitized_data.get("xp", 0)
                 elif category == "ducks_shot":
                     value = sanitized_data.get("ducks_shot", 0)
+                elif category == "ducks_befriended":
+                    value = sanitized_data.get("ducks_befriended", 0)
                 else:
                     continue
 
