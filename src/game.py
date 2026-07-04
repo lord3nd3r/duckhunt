@@ -141,7 +141,7 @@ class DuckGame:
         try:
             while True:
                 min_wait, max_wait = self._get_channel_spawn_config(channel)
-                spawn_multiplier = self._get_active_spawn_multiplier()
+                spawn_multiplier = self._get_active_spawn_multiplier(channel)
                 if spawn_multiplier > 1.0:
                     min_wait = int(min_wait / spawn_multiplier)
                     max_wait = int(max_wait / spawn_multiplier)
@@ -357,7 +357,7 @@ class DuckGame:
         if channel_key not in self.ducks or not self.ducks[channel_key]:
             player["shots_fired"] = player.get("shots_fired", 0) + 1
             player["shots_missed"] = player.get("shots_missed", 0) + 1
-            player["confiscated_ammo"] = player.get("current_ammo", 1) - 1
+            player["confiscated_ammo"] = player.get("current_ammo", 0)
             player["confiscated_magazines"] = player.get("magazines", 0)
             player["current_ammo"] = 0
             player["gun_confiscated"] = True
@@ -934,12 +934,23 @@ class DuckGame:
         ]
         return True
 
-    def _get_active_spawn_multiplier(self):
-        """Get the current spawn rate multiplier from active bread effects."""
+    def _get_active_spawn_multiplier(self, channel=None):
+        """Get the current spawn rate multiplier from active bread effects.
+
+        When *channel* is provided, only players in that channel are checked so
+        that using bread in one channel doesn't speed up spawns everywhere.
+        """
         max_multiplier = 1.0
         current_time = time.time()
         try:
-            for _ch, _pn, player_data in self.db.iter_all_players():
+            if channel:
+                players = self.db.get_players_for_channel(channel)
+                player_iter = players.values()
+            else:
+                player_iter = (
+                    pd for _ch, _pn, pd in self.db.iter_all_players()
+                )
+            for player_data in player_iter:
                 for effect in player_data.get("temporary_effects", []):
                     if (
                         effect.get("type") == "attract_ducks"
@@ -1030,6 +1041,15 @@ class DuckGame:
                     item_id = drop_item.get("item_id")
                     if item_id:
                         inventory = player.get("inventory", {})
+                        # Respect inventory limits (same caps the shop enforces)
+                        max_total = int(
+                            self.bot.get_config("limits.max_inventory_items", 20)
+                        )
+                        if sum(inventory.values()) >= max_total:
+                            self.logger.debug(
+                                f"Inventory full for {player.get('nick', '?')}, drop discarded"
+                            )
+                            return None
                         inventory[str(item_id)] = inventory.get(str(item_id), 0) + 1
                         player["inventory"] = inventory
                         item_info = self.bot.shop.get_item(item_id)
