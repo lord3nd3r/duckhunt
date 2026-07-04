@@ -27,6 +27,10 @@
     "yourNickHere"
   ],
   "_comment_admins": "For stronger security than nick-only auth (spoofable if someone else takes that nick), use hostmask entries instead, e.g.: \"admins\": [{\"nick\": \"yourNickHere\", \"hostmask\": \"*!youruser@your.host\"}]",
+  "commands": {
+    "_comment_prefix": "The character(s) that trigger bot commands in-channel and in PM, e.g. '!' for !bang, '@' for @bang, '$' for $bang. Must be non-empty and contain no whitespace.",
+    "prefix": "!"
+  },
   "duck_spawning": {
     "spawn_min": 1200,
     "spawn_max": 3600,

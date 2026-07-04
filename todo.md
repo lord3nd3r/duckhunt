@@ -250,9 +250,22 @@ Findings from full codebase review (2026-07-03). Checked items are fixed.
 
 ### sasl.py
 - [x] CAP negotiation has no timeout — can hang forever if server doesn't respond. Fixed as
-      part of the Critical SASL fix above (15s negotiation timeout watchdog).
+      Fixed as part of the Critical SASL fix above (15s negotiation timeout watchdog).
 - [x] `"sasl" in caps` check may miss spec-compliant `CAP LS 302` responses like `sasl=PLAIN`.
       Fixed as part of the Critical SASL fix above (`_has_sasl_cap()`).
+
+## ✅ Feature Requests
+- [x] Command prefix (`!`) was hardcoded in `handle_command`'s message parsing, and
+      duplicated as literal `!` text throughout every help/usage string in `messages.json`
+      and `duckhuntbot.py`. Added `commands.prefix` to `config.json`/`config.json.example`
+      (default `"!"`, validated non-empty/no-whitespace at startup with a warning +
+      fallback). `MessageManager` now substitutes a `{prefix}` placeholder in all message
+      templates, and every hardcoded `!command` reference in help text, usage errors, and
+      admin command messages in `duckhuntbot.py` was switched to use the configured
+      prefix dynamically. Also removed 3 orphaned decoy-duck message strings
+      (`decoy_duck_flies_away`, `bang_decoy`, `bef_decoy`) found while auditing the
+      hardcoded-`!` references, plus confirmed decoy ducks are no longer spawnable
+      (already removed from `config.json`/`config.json.example`/`game.py` in an earlier pass).
 
 ## Notes
 - No SQL/eval/pickle usage anywhere (JSON only); no data races found in core duck-shooting

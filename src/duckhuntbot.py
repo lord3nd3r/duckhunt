@@ -64,7 +64,22 @@ class DuckHuntBot:
         messages_file = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "messages.json"
         )
-        self.messages = MessageManager(messages_file)
+        # Command prefix (e.g. "!", "@", "$") is configurable via commands.prefix
+        # in config.json. Falls back to "!" if unset, blank, or contains whitespace.
+        raw_prefix = self.get_config("commands.prefix", "!")
+        if (
+            not isinstance(raw_prefix, str)
+            or not raw_prefix
+            or any(c.isspace() for c in raw_prefix)
+        ):
+            self.logger.warning(
+                f"Invalid commands.prefix {raw_prefix!r} in config; falling back to '!'"
+            )
+            raw_prefix = "!"
+        self.command_prefix = raw_prefix
+        self.messages = MessageManager(
+            messages_file, command_prefix=self.command_prefix
+        )
 
         self.sasl_handler = SASLHandler(self, config)
 
@@ -752,7 +767,9 @@ class DuckHuntBot:
         """Handle bot commands with enhanced error handling and input validation"""
         try:
             # Validate input parameters
-            if not isinstance(message, str) or not message.startswith("!"):
+            if not isinstance(message, str) or not message.startswith(
+                self.command_prefix
+            ):
                 return
 
             if not isinstance(user, str) or not isinstance(channel, str):
@@ -775,11 +792,11 @@ class DuckHuntBot:
                 allowed_chars="#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\",
             )
 
-            if not safe_message.startswith("!"):
+            if not safe_message.startswith(self.command_prefix):
                 return
 
             try:
-                parts = safe_message[1:].split()
+                parts = safe_message[len(self.command_prefix) :].split()
             except Exception as e:
                 self.logger.warning(f"Error parsing command '{message}': {e}")
                 return
@@ -1205,7 +1222,8 @@ class DuckHuntBot:
                         for iid, it in sorted(self.shop.get_items().items())
                     )
                     self.send_message(
-                        channel, f"{nick} > Usage: !shop buy <id>. Items: {items_list}"
+                        channel,
+                        f"{nick} > Usage: {self.command_prefix}shop buy <id>. Items: {items_list}",
                     )
                     return
 
@@ -1217,7 +1235,7 @@ class DuckHuntBot:
                 nick,
                 f"  ({item_id}) {item['name']} - {item['price']} XP — {item.get('description', '')}",
             )
-        self.send_notice(nick, f"Use: !shop buy <id> [target]")
+        self.send_notice(nick, f"Use: {self.command_prefix}shop buy <id> [target]")
         if channel.startswith("#"):
             self.send_message(
                 channel, f"{nick} > Check your notices for the shop menu."
@@ -1510,29 +1528,30 @@ class DuckHuntBot:
                 channel, f"{nick} > Please check your PM for the duckhunt command list."
             )
 
+        p = self.command_prefix
         help_lines = [
             "=== DuckHunt Commands ===",
             "",
             "BASIC COMMANDS:",
-            "  !bang - Shoot at a duck",
-            "  !bef or !befriend - Try to befriend a duck",
-            "  !reload - Reload your gun",
+            f"  {p}bang - Shoot at a duck",
+            f"  {p}bef or {p}befriend - Try to befriend a duck",
+            f"  {p}reload - Reload your gun",
             "",
             "INFO COMMANDS:",
-            "  !duckstats [player] - View duck hunting statistics",
-            "  !topduck - View leaderboard (top hunters)",
-            "  !globaltop - View global leaderboard (top 5 across all channels)",
-            "  !profile - Detailed stat card sent to your PM",
-            "  !inv - Quick view your inventory",
-            "  !effects - Show active temporary effects and timers",
-            "  !achievements - View your earned achievement badges (PM)",
-            "  !daily - Claim your daily XP bonus (resets every 24h)",
+            f"  {p}duckstats [player] - View duck hunting statistics",
+            f"  {p}topduck - View leaderboard (top hunters)",
+            f"  {p}globaltop - View global leaderboard (top 5 across all channels)",
+            f"  {p}profile - Detailed stat card sent to your PM",
+            f"  {p}inv - Quick view your inventory",
+            f"  {p}effects - Show active temporary effects and timers",
+            f"  {p}achievements - View your earned achievement badges (PM)",
+            f"  {p}daily - Claim your daily XP bonus (resets every 24h)",
             "",
             "SHOP COMMANDS:",
-            "  !shop - View available items",
-            "  !shop buy <item_id> - Purchase an item from the shop",
-            "  !use <item_id> - Use an item from your inventory",
-            "  !give <item_id> <player> - Give an inventory item to another player",
+            f"  {p}shop - View available items",
+            f"  {p}shop buy <item_id> - Purchase an item from the shop",
+            f"  {p}use <item_id> - Use an item from your inventory",
+            f"  {p}give <item_id> <player> - Give an inventory item to another player",
             "",
             "DUCK TYPES:",
             "  Normal duck  - Standard XP",
@@ -1551,17 +1570,17 @@ class DuckHuntBot:
             "  (14) Body Armor     - 100 XP - Absorbs your next XP loss event",
             "",
             "ADMIN COMMANDS:",
-            "  !rearm <player|all> - Give player a gun",
-            "  !disarm <player> - Confiscate player's gun",
-            "  !ignore <player> - Ignore player's commands",
-            "  !unignore <player> - Unignore player",
-            "  !ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast, ninja, flock)",
-            "  !join #channel - Make bot join a channel",
-            "  !part #channel - Make bot leave a channel",
+            f"  {p}rearm <player|all> - Give player a gun",
+            f"  {p}disarm <player> - Confiscate player's gun",
+            f"  {p}ignore <player> - Ignore player's commands",
+            f"  {p}unignore <player> - Unignore player",
+            f"  {p}ducklaunch [duck_type] - Force spawn a duck (normal, golden, fast, ninja, flock)",
+            f"  {p}join #channel - Make bot join a channel",
+            f"  {p}part #channel - Make bot leave a channel",
             "",
             "TIPS:",
             "- Ducks spawn randomly, including flocks and rare golden ducks!",
-            "- Claim !daily every day to build your streak and earn bonus XP",
+            f"- Claim {p}daily every day to build your streak and earn bonus XP",
             "",
             "Good luck hunting!",
         ]
@@ -1649,7 +1668,8 @@ class DuckHuntBot:
         ]
         if not active:
             self.send_message(
-                channel, f"{nick} > No active effects. Visit !shop to get some!"
+                channel,
+                f"{nick} > No active effects. Visit {self.command_prefix}shop to get some!",
             )
             return
         parts = []
@@ -1695,7 +1715,8 @@ class DuckHuntBot:
         inventory = player.get("inventory", {})
         if not inventory:
             self.send_message(
-                channel, f"{nick} > Inventory empty. Use !shop to buy items!"
+                channel,
+                f"{nick} > Inventory empty. Use {self.command_prefix}shop to buy items!",
             )
             return
         parts = []
@@ -1775,7 +1796,7 @@ class DuckHuntBot:
     async def handle_use(self, nick, channel, player, args):
         """Handle !use command"""
         if not args:
-            message = f"{nick} > Usage: !use <item_id> [target]"
+            message = f"{nick} > Usage: {self.command_prefix}use <item_id> [target]"
             self.send_message(channel, message)
             return
 
@@ -1910,13 +1931,15 @@ class DuckHuntBot:
             self.db.save_database()
 
         except ValueError:
-            message = f"{nick} > Invalid item ID. Use !duckstats to see your items."
+            message = f"{nick} > Invalid item ID. Use {self.command_prefix}duckstats to see your items."
             self.send_message(channel, message)
 
     async def handle_give(self, nick, channel, player, args):
         """Handle !give command - give inventory items to other players"""
         if not args or len(args) < 2:
-            self.send_message(channel, f"{nick} > Usage: !give <item_id> <player>")
+            self.send_message(
+                channel, f"{nick} > Usage: {self.command_prefix}give <item_id> <player>"
+            )
             return
 
         try:
@@ -1940,7 +1963,7 @@ class DuckHuntBot:
             if str(item_id) not in inventory or inventory[str(item_id)] <= 0:
                 self.send_message(
                     channel,
-                    f"{nick} > You don't have that item. Use !duckstats to check your inventory.",
+                    f"{nick} > You don't have that item. Use {self.command_prefix}duckstats to check your inventory.",
                 )
                 return
 
@@ -1999,7 +2022,9 @@ class DuckHuntBot:
             self.db.save_database()
 
         except ValueError:
-            self.send_message(channel, f"{nick} > Usage: !give <item_id> <player>")
+            self.send_message(
+                channel, f"{nick} > Usage: {self.command_prefix}give <item_id> <player>"
+            )
 
     async def handle_rearm(self, nick, channel, args):
         """Handle !rearm command (admin only) - supports private messages"""
@@ -2010,7 +2035,7 @@ class DuckHuntBot:
             if is_private_msg:
                 self.send_message(
                     reply_target,
-                    f"{nick} > Usage: !rearm all | !rearm <channel> <player>",
+                    f"{nick} > Usage: {self.command_prefix}rearm all | {self.command_prefix}rearm <channel> <player>",
                 )
                 return
 
@@ -2042,7 +2067,7 @@ class DuckHuntBot:
             else:
                 self.send_message(
                     reply_target,
-                    f"{nick} > Usage: !rearm all | !rearm <channel> <player>",
+                    f"{nick} > Usage: {self.command_prefix}rearm all | {self.command_prefix}rearm <channel> <player>",
                 )
                 return
         else:
@@ -2119,7 +2144,8 @@ class DuckHuntBot:
         if not args:
             if is_private_msg:
                 self.send_message(
-                    reply_target, f"{nick} > Usage: !disarm <channel> <player>"
+                    reply_target,
+                    f"{nick} > Usage: {self.command_prefix}disarm <channel> <player>",
                 )
             else:
                 message = self.messages.get("usage_disarm")
@@ -2131,7 +2157,8 @@ class DuckHuntBot:
         if is_private_msg:
             if len(args) < 2:
                 self.send_message(
-                    reply_target, f"{nick} > Usage: !disarm <channel> <player>"
+                    reply_target,
+                    f"{nick} > Usage: {self.command_prefix}disarm <channel> <player>",
                 )
                 return
             target_channel = args[0]
@@ -2226,7 +2253,7 @@ class DuckHuntBot:
             channel,
             args,
             usage_command="usage_ignore",
-            private_usage="!ignore <player>",
+            private_usage=f"{self.command_prefix}ignore <player>",
             message_key="admin_ignore",
             ignored_value=True,
         )
@@ -2238,7 +2265,7 @@ class DuckHuntBot:
             channel,
             args,
             usage_command="usage_unignore",
-            private_usage="!unignore <player>",
+            private_usage=f"{self.command_prefix}unignore <player>",
             message_key="admin_unignore",
             ignored_value=False,
         )
@@ -2254,7 +2281,7 @@ class DuckHuntBot:
             if not args:
                 self.send_message(
                     reply_target,
-                    f"{nick} > Usage: !ducklaunch [channel] [duck_type] - duck_type can be: normal, golden, fast, ninja, flock",
+                    f"{nick} > Usage: {self.command_prefix}ducklaunch [channel] [duck_type] - duck_type can be: normal, golden, fast, ninja, flock",
                 )
                 return
             target_channel = args[0]
@@ -2372,7 +2399,9 @@ class DuckHuntBot:
         reply_target = nick if is_private_msg else channel
 
         if not args:
-            self.send_message(reply_target, f"{nick} > Usage: !join <#channel>")
+            self.send_message(
+                reply_target, f"{nick} > Usage: {self.command_prefix}join <#channel>"
+            )
             return
 
         target_channel = args[0]
@@ -2412,7 +2441,9 @@ class DuckHuntBot:
         reply_target = nick if is_private_msg else channel
 
         if not args:
-            self.send_message(reply_target, f"{nick} > Usage: !part <#channel>")
+            self.send_message(
+                reply_target, f"{nick} > Usage: {self.command_prefix}part <#channel>"
+            )
             return
 
         target_channel = args[0]

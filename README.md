@@ -54,6 +54,9 @@ Then edit `config.json`:
     granted admin access. The bot logs a startup warning for any admin configured this way.
   - a dict with a hostmask, e.g. `{"nick": "colby", "hostmask": "*!colby@trusted.host"}` —
     recommended, since it also requires the connecting user/host to match.
+- `commands.prefix` (default `"!"`) - the character(s) that trigger bot commands, e.g.
+  `!bang`, `@bang`, `$bang`. Must be non-empty and contain no whitespace. All command
+  usage/help text (including `!duckhelp`) automatically reflects whatever prefix you configure.
 
 Duck spawning is controlled by `duck_spawning.spawn_min` and `duck_spawning.spawn_max` (in seconds). Default is 1–2 hours (`3600`–`7200`).
 
@@ -80,6 +83,10 @@ Player stats are saved to `duckhunt.json`:
 - **Atomic writes & retry logic** - Safe file handling prevents database corruption.
 
 ## Commands
+
+All commands below use the default `!` prefix. This is configurable via `commands.prefix`
+in `config.json` (see [Configuration](#configuration)) — if you set it to e.g. `@`, use
+`@bang` instead of `!bang`, and so on for every command.
 
 ### Player Commands
 
@@ -176,6 +183,8 @@ duckhunt/
 - **Config & Duck Types Syncing** - Removed dead/unimplemented duck types from the configuration template and added proper config schema for the `ninja` duck.
 - **Decoy Duck Removal** - Completely removed vestigial decoy duck references, comments, and handling branches from the shooting and befriending mechanics.
 - **Redundant Schema Clean-up** - Stripped legacy player database fields (`ammo`, `max_ammo`, `chargers`) from defaults, creation, and runtime sanitization logic.
+- **Configurable Command Prefix** - Added `commands.prefix` config option so the bot's trigger character (`!`, `@`, `$`, etc.) is no longer hardcoded. All help/usage text and message templates dynamically reflect the configured prefix.
+- **Dead Decoy Message Strings Removed** - Cleaned up orphaned `decoy_duck_flies_away`/`bang_decoy`/`bef_decoy` message strings left over after decoy duck removal.
 - **Dynamic Inventory Sanitization** - Implemented automated sanitization on player load to filter out and remove invalid or orphaned item IDs.
 - **Command & Shop Fixes** - Corrected config key path mismatches, synced the default fallback shop with the active catalog, and updated the mystery box fallback pool.
 - **Multi-channel safety** - Database warns when player nicks collide across channels, preventing silent data loss.
