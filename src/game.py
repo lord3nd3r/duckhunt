@@ -36,6 +36,10 @@ ACHIEVEMENTS = {
         "name": "Flock Master",
         "description": "Shot during a flock event",
     },
+    "mystery_lover": {
+        "name": "Mystery Lover",
+        "description": "Opened a mystery box",
+    },
 }
 
 
@@ -141,19 +145,27 @@ class DuckGame:
         try:
             while True:
                 min_wait, max_wait = self._get_channel_spawn_config(channel)
-                spawn_multiplier = self._get_active_spawn_multiplier(channel)
-                if spawn_multiplier > 1.0:
-                    min_wait = int(min_wait / spawn_multiplier)
-                    max_wait = int(max_wait / spawn_multiplier)
                 # Ensure min <= max
                 if min_wait > max_wait:
                     min_wait, max_wait = max_wait, min_wait
-                wait_time = random.randint(min_wait, max(min_wait, max_wait))
+                base_wait = random.randint(min_wait, max(min_wait, max_wait))
                 self.logger.debug(
-                    f"Next spawn in {channel_key} in {wait_time}s (range {min_wait}-{max_wait})"
+                    f"Next spawn in {channel_key} in {base_wait}s (range {min_wait}-{max_wait})"
                 )
-                for _ in range(wait_time):
+                # Re-check the spawn multiplier every second so a bread effect used
+                # mid-wait shortens the remaining wait instead of only counting if it
+                # happened to be active when this cycle started (with hour-long waits,
+                # a 20-minute effect would otherwise usually expire unseen).
+                elapsed = 0
+                while True:
+                    spawn_multiplier = self._get_active_spawn_multiplier(channel)
+                    effective_wait = base_wait
+                    if spawn_multiplier > 1.0:
+                        effective_wait = base_wait / spawn_multiplier
+                    if elapsed >= effective_wait:
+                        break
                     await asyncio.sleep(1)
+                    elapsed += 1
                 await self.spawn_duck(channel)
         except asyncio.CancelledError:
             self.logger.info(f"Spawn loop for {channel_key} cancelled")
@@ -176,11 +188,17 @@ class DuckGame:
                         if current_time - duck["spawn_time"] > effective_timeout:
                             ducks_to_remove.append(duck)
 
+                    flock_flyaways = 0
                     for duck in ducks_to_remove:
                         ducks.remove(duck)
                         duck_type = duck.get("duck_type", "normal")
                         if self._trigger_hunting_dog(channel, duck):
                             continue  # Dog retrieved it — no fly-away message
+                        if duck_type == "flock":
+                            # A flock expires all at once; collapse into one message
+                            # below instead of spamming one line per duck.
+                            flock_flyaways += 1
+                            continue
                         msg_keys = {
                             "golden": "golden_duck_flies_away",
                             "fast": "fast_duck_flies_away",
@@ -188,6 +206,18 @@ class DuckGame:
                         }
                         msg_key = msg_keys.get(duck_type, "duck_flies_away")
                         self.bot.send_message(channel, self.bot.messages.get(msg_key))
+
+                    if flock_flyaways == 1:
+                        self.bot.send_message(
+                            channel, self.bot.messages.get("duck_flies_away")
+                        )
+                    elif flock_flyaways > 1:
+                        msg = self.bot.messages.get(
+                            "duck_flock_flies_away", count=flock_flyaways
+                        )
+                        if msg.startswith("[Missing"):
+                            msg = f"The flock of {flock_flyaways} ducks flies away. ·°'`'°-.,¸¸.·°'`"
+                        self.bot.send_message(channel, msg)
 
                     if not ducks:
                         channels_to_clear.append(channel)
@@ -424,12 +454,17 @@ class DuckGame:
         # Golden duck — multi-hit
         if duck_type == "golden":
             duck["current_hp"] -= 1
-            xp_gained = int(self.bot.get_config("golden_duck_xp", 15) * xp_mod)
+            xp_gained = int(
+                self.bot.get_config(
+                    "duck_types.golden.xp", self.bot.get_config("golden_duck_xp", 15)
+                )
+                * xp_mod
+            )
             if duck["current_hp"] > 0:
                 player["accuracy"] = min(
                     player.get("accuracy", 75)
-                    + self.bot.get_config("accuracy_gain_on_hit", 1),
-                    100,
+                    + self.bot.get_config("gameplay.accuracy_gain_on_hit", 1),
+                    self.bot.get_config("gameplay.max_accuracy", 100),
                 )
                 # Grant this hit's XP immediately so the balance matches what the
                 # 'bang_hit_golden' message displays (previously this was silently
@@ -456,7 +491,12 @@ class DuckGame:
             message_key = "bang_hit_golden_killed"
         elif duck_type in ("fast",):
             self.ducks[channel_key].pop(0)
-            xp_gained = int(self.bot.get_config("fast_duck_xp", 12) * xp_mod)
+            xp_gained = int(
+                self.bot.get_config(
+                    "duck_types.fast.xp", self.bot.get_config("fast_duck_xp", 12)
+                )
+                * xp_mod
+            )
             message_key = "bang_hit_fast"
         elif duck_type == "ninja":
             self.ducks[channel_key].pop(0)
@@ -464,11 +504,21 @@ class DuckGame:
             message_key = "bang_hit_ninja"
         elif duck_type == "flock":
             self.ducks[channel_key].pop(0)
-            xp_gained = int(self.bot.get_config("normal_duck_xp", 10) * xp_mod)
+            xp_gained = int(
+                self.bot.get_config(
+                    "duck_types.normal.xp", self.bot.get_config("normal_duck_xp", 10)
+                )
+                * xp_mod
+            )
             message_key = "bang_hit_flock"
         else:  # normal
             self.ducks[channel_key].pop(0)
-            xp_gained = int(self.bot.get_config("normal_duck_xp", 10) * xp_mod)
+            xp_gained = int(
+                self.bot.get_config(
+                    "duck_types.normal.xp", self.bot.get_config("normal_duck_xp", 10)
+                )
+                * xp_mod
+            )
             message_key = "bang_hit"
 
         # Apply XP / stats
@@ -479,8 +529,9 @@ class DuckGame:
         if player["current_streak"] > player.get("best_streak", 0):
             player["best_streak"] = player["current_streak"]
         player["accuracy"] = min(
-            player.get("accuracy", 75) + self.bot.get_config("accuracy_gain_on_hit", 1),
-            self.bot.get_config("max_accuracy", 100),
+            player.get("accuracy", 75)
+            + self.bot.get_config("gameplay.accuracy_gain_on_hit", 1),
+            self.bot.get_config("gameplay.max_accuracy", 100),
         )
         new_level = self.bot.levels.calculate_player_level(player)
         if new_level != old_level:
@@ -634,7 +685,9 @@ class DuckGame:
                 "message_args": {
                     "nick": nick,
                     "xp_lost": xp_loss,
-                    "set_by": trap.get("set_by", "someone"),
+                    # `set_by` may exist as an empty string (the purchase path never
+                    # fills it in), so `or` rather than a .get default.
+                    "set_by": trap.get("set_by") or "someone",
                 },
             }
 

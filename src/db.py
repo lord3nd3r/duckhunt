@@ -43,6 +43,10 @@ class DuckDB:
         self._save_executor = ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="duckdb-save"
         )
+        # Most recently submitted save future. The single worker serializes writes,
+        # so once this future is done, every earlier queued save is done too - it's
+        # what flush_pending_saves() waits on (bounded by its timeout).
+        self._last_save_future = None
 
         data = self.load_database()
         # Hydrate in-memory state from disk.
@@ -596,6 +600,7 @@ class DuckDB:
         try:
             future = self._save_executor.submit(self._write_database_to_disk, data)
             future.add_done_callback(self._log_save_result)
+            self._last_save_future = future
             return True
         except RuntimeError as e:
             # Executor already shut down (e.g. a save was triggered after
@@ -618,16 +623,32 @@ class DuckDB:
             self.logger.error(f"Background database save failed: {e}")
 
     def flush_pending_saves(self, timeout: float = 10.0) -> None:
-        """Block until all in-flight/queued background saves complete.
+        """Block (up to `timeout` seconds) until all queued background saves complete.
 
         Call this once, during final shutdown (including immediately before an
         os.execv restart), so the last save can never be lost to a killed background
-        thread. After this returns, the executor is closed and no further saves can
-        be scheduled in the background (later `save_database()` calls will fall back
-        to writing synchronously instead - see above).
+        thread. After this returns, the executor rejects new submissions, so later
+        `save_database()` calls fall back to writing synchronously instead - see above.
+
+        Waiting on the most recently submitted future is sufficient: the executor has
+        a single worker, so all earlier queued saves necessarily finish first.
         """
         try:
-            self._save_executor.shutdown(wait=True)
+            # Stop accepting new background saves, but don't block here -
+            # shutdown(wait=True) has no timeout, which made the parameter a no-op.
+            self._save_executor.shutdown(wait=False)
+            future = self._last_save_future
+            if future is not None:
+                try:
+                    future.result(timeout=timeout)
+                except TimeoutError:
+                    self.logger.error(
+                        f"Timed out after {timeout}s waiting for pending database "
+                        "saves to finish; the last save may not have completed."
+                    )
+                except Exception:
+                    # Write failures are already logged by _log_save_result.
+                    pass
         except Exception as e:
             self.logger.error(f"Error flushing pending database saves: {e}")
 

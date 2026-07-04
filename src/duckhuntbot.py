@@ -39,6 +39,18 @@ class DuckHuntBot:
         # Retains references to fire-and-forget background tasks (see _track_task) so
         # they can't be garbage-collected mid-flight, which would silently cancel them.
         self._background_tasks = set()
+        # Chat-output pacing: PRIVMSG/NOTICE sends are serialized through a lock with
+        # a minimum gap between lines, so bursts (flock timeouts, achievement spam,
+        # shop menus) can't trip server flood limits. Control traffic (PING/PONG,
+        # JOIN, CAP/SASL, ...) still goes out immediately via send_raw.
+        self._send_pacer_lock = asyncio.Lock()
+        self._last_chat_send = 0.0
+        try:
+            self._send_gap_secs = float(
+                self.get_config("connection.send_throttle", 0.3) or 0.3
+            )
+        except (ValueError, TypeError):
+            self._send_gap_secs = 0.3
 
         self.logger.info("Initializing DuckHunt Bot components...")
 
@@ -479,6 +491,21 @@ class DuckHuntBot:
         except Exception as e:
             self.logger.error(f"Error pruning rate limiters: {e}")
 
+    async def _paced_send_raw(self, msg) -> bool:
+        """Send one raw line, enforcing a minimum gap between chat lines.
+
+        The lock's FIFO wakeup order means messages go out in the order their send
+        tasks were created, so pacing never reorders a burst.
+        """
+        async with self._send_pacer_lock:
+            now = time.monotonic()
+            wait = self._last_chat_send + self._send_gap_secs - now
+            if wait > 0:
+                await asyncio.sleep(wait)
+            ok = self.send_raw(msg)
+            self._last_chat_send = time.monotonic()
+            return ok
+
     def send_message(self, target, msg):
         """Send message to target (channel or user) with enhanced error handling"""
         if not isinstance(target, str) or not isinstance(msg, str):
@@ -534,13 +561,10 @@ class DuckHuntBot:
                 if current_msg:
                     messages.append(current_msg)
 
-            # Send all message parts
+            # Send all message parts (pacing between lines handled by _paced_send_raw)
             success_count = 0
             for i, message_part in enumerate(messages):
-                if i > 0:  # Small delay between messages to avoid flooding
-                    await asyncio.sleep(0.1)
-
-                if self.send_raw(f"PRIVMSG {safe_target} :{message_part}"):
+                if await self._paced_send_raw(f"PRIVMSG {safe_target} :{message_part}"):
                     success_count += 1
                 else:
                     self.logger.error(
@@ -568,7 +592,13 @@ class DuckHuntBot:
             safe_msg = sanitize_user_input(msg, max_length=400)
             if not safe_target or not safe_msg:
                 return False
-            return self.send_raw(f"NOTICE {safe_target} :{safe_msg}")
+            # Route through the paced sender like send_message does, so notice
+            # bursts (e.g. the full !shop menu) are flood-throttled too. Return
+            # value now means "scheduled", matching send_message's semantics.
+            self._track_task(
+                self._paced_send_raw(f"NOTICE {safe_target} :{safe_msg}")
+            )
+            return True
         except Exception as e:
             self.logger.error(f"Error sending notice to {target}: {e}")
             return False
@@ -1271,6 +1301,12 @@ class DuckHuntBot:
                 )
             elif result["error"] == "target_required":
                 message = f"{nick} > {result['message']}"
+            elif result["error"] == "cannot_target":
+                message = (
+                    f"{nick} > {result['item_name']} can't be bought for another player. "
+                    f"Buy it into your inventory ({self.command_prefix}shop buy {item_id}), "
+                    f"then {self.command_prefix}give {item_id} {target_nick}."
+                )
             elif result["error"] == "invalid_storage":
                 message = f"{nick} > {result['message']}"
             else:
@@ -1975,13 +2011,30 @@ class DuckHuntBot:
 
             item = shop_items[item_id]
 
+            # Enforce the same inventory caps the shop (and item drops) enforce, so
+            # gifting can't be used to push a player past the limits.
+            target_inventory = target_player.get("inventory", {})
+            max_total = int(self.get_config("limits.max_inventory_items", 20))
+            max_per_item = int(self.get_config("limits.max_per_item_type", 99))
+            if sum(target_inventory.values()) >= max_total:
+                self.send_message(
+                    channel,
+                    f"{nick} > {target_nick}'s inventory is full (max {max_total} items).",
+                )
+                return
+            if target_inventory.get(str(item_id), 0) >= max_per_item:
+                self.send_message(
+                    channel,
+                    f"{nick} > {target_nick} already has the maximum of {max_per_item} {item['name']}s.",
+                )
+                return
+
             # Remove from giver's inventory
             inventory[str(item_id)] -= 1
             if inventory[str(item_id)] <= 0:
                 del inventory[str(item_id)]
 
             # Add to receiver's inventory
-            target_inventory = target_player.get("inventory", {})
             target_inventory[str(item_id)] = target_inventory.get(str(item_id), 0) + 1
             target_player["inventory"] = target_inventory
 

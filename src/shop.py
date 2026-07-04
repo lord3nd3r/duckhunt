@@ -348,6 +348,16 @@ class ShopManager:
                     "target_affected": True,
                 }
             else:
+                # A target was named but this item isn't targetable at purchase time.
+                # Reject instead of silently applying the effect to the buyer (who
+                # believes they just gifted it) - gifting goes through !give.
+                if target_player is not None and target_player is not player:
+                    return {
+                        "success": False,
+                        "error": "cannot_target",
+                        "message": f"{item['name']} cannot be bought for another player",
+                        "item_name": item["name"],
+                    }
                 # Apply effect to purchaser
                 try:
                     effect_result = self._apply_item_effect(player, item)

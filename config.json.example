@@ -12,6 +12,8 @@
     "max_retries": 3,
     "retry_delay": 5,
     "timeout": 30,
+    "_comment_send_throttle": "Minimum seconds between outgoing chat lines (PRIVMSG/NOTICE) to avoid server flood limits",
+    "send_throttle": 0.3,
     "auto_rejoin": {
       "enabled": true,
       "retry_interval": 20,
@@ -85,6 +87,12 @@
       {"item_id": 2, "weight": 25},
       {"item_id": 4, "weight": 20},
       {"item_id": 13, "weight": 15}
+    ],
+    "ninja_duck_drops": [
+      {"item_id": 13, "weight": 30},
+      {"item_id": 1, "weight": 30},
+      {"item_id": 2, "weight": 20},
+      {"item_id": 4, "weight": 20}
     ],
     "golden_duck_drops": [
       {"item_id": 5, "weight": 25},
