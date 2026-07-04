@@ -45,7 +45,15 @@ Then edit `config.json`:
 - `connection.server`, `connection.port`, `connection.nick`
 - `connection.channels` (list of channels to join on connect)
 - `connection.ssl` and optional password/SASL settings
-- `admins` (list of admin nicks)
+- `connection.ssl_verify` (default `true`) validates the server's TLS certificate.
+  Only set to `false` for testing or trusted self-signed certificates; disabling it
+  removes protection against man-in-the-middle attacks.
+- `admins` (list of admin nicks). Each entry can be either:
+  - a plain string nick, e.g. `"colby"` — simple, but authenticates by nick alone, so
+    anyone who takes that nick on the server (e.g. after the real admin disconnects) is
+    granted admin access. The bot logs a startup warning for any admin configured this way.
+  - a dict with a hostmask, e.g. `{"nick": "colby", "hostmask": "*!colby@trusted.host"}` —
+    recommended, since it also requires the connecting user/host to match.
 
 Duck spawning is controlled by `duck_spawning.spawn_min` and `duck_spawning.spawn_max` (in seconds). Default is 1–2 hours (`3600`–`7200`).
 

@@ -52,6 +52,7 @@
   "bang_gun_jammed": "{nick} > *click* Your gun jammed! [AMMO WASTED]",
   "bang_not_armed": "{nick} > Your gun has been confiscated. Buy it back from the shop.",
   "bef_success": "{nick} > *befriend* You befriended the duck! [+{xp_gained} xp] [Ducks befriended: {ducks_befriended}]",
+  "bef_success_golden": "{nick} > *befriend* The {gold}GOLDEN DUCK{reset} warms up to you a little, but isn't tamed yet. It has {hp_remaining} HP left. {green}[+{xp_gained} xp]{reset}",
   "bef_failed": "{nick} > *gentle approach* The duck doesn't trust you.",
   "bef_no_duck": "{nick} > *gentle approach* There is no duck to befriend in the area...",
   "bef_duck_shot": "{nick} > *gentle approach* The duck is already dead! You can't befriend it now...",

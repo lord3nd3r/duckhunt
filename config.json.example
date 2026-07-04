@@ -7,6 +7,7 @@
       "#duckhunt"
     ],
     "ssl": true,
+    "ssl_verify": true,
     "password": "",
     "max_retries": 3,
     "retry_delay": 5,
@@ -25,6 +26,7 @@
   "admins": [
     "yourNickHere"
   ],
+  "_comment_admins": "For stronger security than nick-only auth (spoofable if someone else takes that nick), use hostmask entries instead, e.g.: \"admins\": [{\"nick\": \"yourNickHere\", \"hostmask\": \"*!youruser@your.host\"}]",
   "duck_spawning": {
     "spawn_min": 1200,
     "spawn_max": 3600,
@@ -114,6 +116,7 @@
   },
   "limits": {
     "max_inventory_items": 20,
+    "max_per_item_type": 99,
     "max_temp_effects": 20
   },
   "debug": {

@@ -4,27 +4,40 @@ Handles duck spawning, shooting, befriending, and other game actions
 """
 
 import asyncio
+import logging
 import random
 import time
-import logging
 
 # ---------------------------------------------------------------------------
 # Achievement definitions
 # ---------------------------------------------------------------------------
 ACHIEVEMENTS = {
-    'first_blood':    {'name': 'First Blood',      'description': 'Shot your first duck'},
-    'century_hunter': {'name': 'Century Hunter',   'description': 'Shot 100 ducks'},
-    'legendary':      {'name': 'Legendary Hunter', 'description': 'Shot 500 ducks'},
-    'duck_whisperer': {'name': 'Duck Whisperer',   'description': 'Befriended 50 ducks'},
-    'sharpshooter':   {'name': 'Sharpshooter',     'description': 'Hit 10 ducks in a row without missing'},
-    'golden_slayer':  {'name': 'Golden Slayer',    'description': 'Killed a golden duck'},
-    'ninja_slayer':   {'name': 'Ninja Slayer',     'description': 'Shot a ninja duck'},
-    'trigger_happy':  {'name': 'Trigger Happy',    'description': 'Got your gun confiscated 10 times'},
-    'high_roller':    {'name': 'High Roller',       'description': 'Spent 500 XP in the shop'},
-    'daily_devotee':  {'name': 'Daily Devotee',    'description': 'Claimed daily bonus 7 days in a row'},
-    'survivor':       {'name': 'Survivor',          'description': 'Was protected by body armor'},
-    'flock_master':   {'name': 'Flock Master',      'description': 'Shot during a flock event'},
+    "first_blood": {"name": "First Blood", "description": "Shot your first duck"},
+    "century_hunter": {"name": "Century Hunter", "description": "Shot 100 ducks"},
+    "legendary": {"name": "Legendary Hunter", "description": "Shot 500 ducks"},
+    "duck_whisperer": {"name": "Duck Whisperer", "description": "Befriended 50 ducks"},
+    "sharpshooter": {
+        "name": "Sharpshooter",
+        "description": "Hit 10 ducks in a row without missing",
+    },
+    "golden_slayer": {"name": "Golden Slayer", "description": "Killed a golden duck"},
+    "ninja_slayer": {"name": "Ninja Slayer", "description": "Shot a ninja duck"},
+    "trigger_happy": {
+        "name": "Trigger Happy",
+        "description": "Got your gun confiscated 10 times",
+    },
+    "high_roller": {"name": "High Roller", "description": "Spent 500 XP in the shop"},
+    "daily_devotee": {
+        "name": "Daily Devotee",
+        "description": "Claimed daily bonus 7 days in a row",
+    },
+    "survivor": {"name": "Survivor", "description": "Was protected by body armor"},
+    "flock_master": {
+        "name": "Flock Master",
+        "description": "Shot during a flock event",
+    },
 }
+
 
 class DuckGame:
     """Game mechanics for DuckHunt - shooting, befriending, reloading"""
@@ -32,8 +45,8 @@ class DuckGame:
     def __init__(self, bot, db):
         self.bot = bot
         self.db = db
-        self.ducks = {}          # {channel_key: [duck_dict, ...]}
-        self.logger = logging.getLogger('DuckHuntBot.Game')
+        self.ducks = {}  # {channel_key: [duck_dict, ...]}
+        self.logger = logging.getLogger("DuckHuntBot.Game")
         self.spawn_task = None
         self.timeout_task = None
         # Per-channel spawn tasks: {channel_key: asyncio.Task}
@@ -45,7 +58,7 @@ class DuckGame:
         if not isinstance(channel, str):
             return ""
         channel = channel.strip()
-        if channel.startswith('#') or channel.startswith('&'):
+        if channel.startswith("#") or channel.startswith("&"):
             return channel.lower()
         return channel
 
@@ -55,7 +68,7 @@ class DuckGame:
 
     async def start_game_loops(self):
         """Start all game loops"""
-        self.spawn_task   = asyncio.create_task(self._spawn_manager_loop())
+        self.spawn_task = asyncio.create_task(self._spawn_manager_loop())
         self.timeout_task = asyncio.create_task(self.duck_timeout_loop())
         try:
             await asyncio.gather(self.spawn_task, self.timeout_task)
@@ -74,10 +87,14 @@ class DuckGame:
         """
         ck = self._channel_key(channel)
         # Try channel-specific override
-        override_min = self.bot.get_config(f'channel_overrides.{ck}.duck_spawning.spawn_min')
-        override_max = self.bot.get_config(f'channel_overrides.{ck}.duck_spawning.spawn_max')
-        global_min = self.bot.get_config('duck_spawning.spawn_min', 300)
-        global_max = self.bot.get_config('duck_spawning.spawn_max', 900)
+        override_min = self.bot.get_config(
+            f"channel_overrides.{ck}.duck_spawning.spawn_min"
+        )
+        override_max = self.bot.get_config(
+            f"channel_overrides.{ck}.duck_spawning.spawn_max"
+        )
+        global_min = self.bot.get_config("duck_spawning.spawn_min", 300)
+        global_max = self.bot.get_config("duck_spawning.spawn_max", 900)
         spawn_min = override_min if override_min is not None else global_min
         spawn_max = override_max if override_max is not None else global_max
         return int(spawn_min), int(spawn_max)
@@ -94,7 +111,10 @@ class DuckGame:
                 # Start tasks for newly joined channels
                 for ch in current_channels:
                     ck = self._channel_key(ch)
-                    if ck not in self._channel_spawn_tasks or self._channel_spawn_tasks[ck].done():
+                    if (
+                        ck not in self._channel_spawn_tasks
+                        or self._channel_spawn_tasks[ck].done()
+                    ):
                         self.logger.info(f"Starting spawn task for {ck}")
                         self._channel_spawn_tasks[ck] = asyncio.create_task(
                             self._channel_spawn_loop(ch)
@@ -102,7 +122,9 @@ class DuckGame:
                 # Cancel tasks for channels we've left
                 for ck, task in list(self._channel_spawn_tasks.items()):
                     if ck not in {self._channel_key(c) for c in current_channels}:
-                        self.logger.info(f"Stopping spawn task for {ck} (no longer in channel)")
+                        self.logger.info(
+                            f"Stopping spawn task for {ck} (no longer in channel)"
+                        )
                         task.cancel()
                         del self._channel_spawn_tasks[ck]
                 await asyncio.sleep(5)  # Re-check every 5 seconds
@@ -127,7 +149,9 @@ class DuckGame:
                 if min_wait > max_wait:
                     min_wait, max_wait = max_wait, min_wait
                 wait_time = random.randint(min_wait, max(min_wait, max_wait))
-                self.logger.debug(f"Next spawn in {channel_key} in {wait_time}s (range {min_wait}-{max_wait})")
+                self.logger.debug(
+                    f"Next spawn in {channel_key} in {wait_time}s (range {min_wait}-{max_wait})"
+                )
                 for _ in range(wait_time):
                     await asyncio.sleep(1)
                 await self.spawn_duck(channel)
@@ -145,22 +169,24 @@ class DuckGame:
                 for channel, ducks in self.ducks.items():
                     ducks_to_remove = []
                     for duck in ducks:
-                        duck_type = duck.get('duck_type', 'normal')
-                        effective_timeout = self.bot.get_config(f'duck_types.{duck_type}.timeout', 60)
-                        if current_time - duck['spawn_time'] > effective_timeout:
+                        duck_type = duck.get("duck_type", "normal")
+                        effective_timeout = self.bot.get_config(
+                            f"duck_types.{duck_type}.timeout", 60
+                        )
+                        if current_time - duck["spawn_time"] > effective_timeout:
                             ducks_to_remove.append(duck)
 
                     for duck in ducks_to_remove:
                         ducks.remove(duck)
-                        duck_type = duck.get('duck_type', 'normal')
+                        duck_type = duck.get("duck_type", "normal")
                         if self._trigger_hunting_dog(channel, duck):
                             continue  # Dog retrieved it — no fly-away message
                         msg_keys = {
-                            'golden': 'golden_duck_flies_away',
-                            'fast':   'fast_duck_flies_away',
-                            'ninja':  'ninja_duck_flies_away',
+                            "golden": "golden_duck_flies_away",
+                            "fast": "fast_duck_flies_away",
+                            "ninja": "ninja_duck_flies_away",
                         }
-                        msg_key = msg_keys.get(duck_type, 'duck_flies_away')
+                        msg_key = msg_keys.get(duck_type, "duck_flies_away")
                         self.bot.send_message(channel, self.bot.messages.get(msg_key))
 
                     if not ducks:
@@ -181,9 +207,12 @@ class DuckGame:
     def _make_duck(self, duck_type, channel, channel_key, t, **extra):
         prefix = duck_type
         base = {
-            'id': f"{prefix}_duck_{int(t)}_{random.randint(1000,9999)}",
-            'spawn_time': t, 'channel': channel, 'duck_type': duck_type,
-            'max_hp': 1, 'current_hp': 1,
+            "id": f"{prefix}_duck_{int(t)}_{random.randint(1000, 9999)}",
+            "spawn_time": t,
+            "channel": channel,
+            "duck_type": duck_type,
+            "max_hp": 1,
+            "current_hp": 1,
         }
         base.update(extra)
         return base
@@ -201,14 +230,18 @@ class DuckGame:
             return
 
         t = time.time()
-        flock_chance = self.bot.get_config('duck_spawning.flock_chance', 0.08)
+        flock_chance = self.bot.get_config("duck_spawning.flock_chance", 0.08)
         if random.random() < flock_chance:
             await self._spawn_flock(channel, channel_key, t)
             return
 
-        golden_chance = self.bot.get_config('duck_types.golden.chance',  self.bot.get_config('golden_duck_chance', 0.15))
-        fast_chance   = self.bot.get_config('duck_types.fast.chance',    self.bot.get_config('fast_duck_chance', 0.20))
-        ninja_chance  = self.bot.get_config('duck_types.ninja.chance',   0.10)
+        golden_chance = self.bot.get_config(
+            "duck_types.golden.chance", self.bot.get_config("golden_duck_chance", 0.15)
+        )
+        fast_chance = self.bot.get_config(
+            "duck_types.fast.chance", self.bot.get_config("fast_duck_chance", 0.20)
+        )
+        ninja_chance = self.bot.get_config("duck_types.ninja.chance", 0.10)
 
         rand = random.random()
         cumulative = 0
@@ -219,24 +252,36 @@ class DuckGame:
             return rand < cumulative
 
         if _hit(golden_chance):
-            min_hp = int(self.bot.get_config('duck_types.golden.min_hp', self.bot.get_config('golden_duck_min_hp', 3)))
-            max_hp = int(self.bot.get_config('duck_types.golden.max_hp', self.bot.get_config('golden_duck_max_hp', 5)))
+            min_hp = int(
+                self.bot.get_config(
+                    "duck_types.golden.min_hp",
+                    self.bot.get_config("golden_duck_min_hp", 3),
+                )
+            )
+            max_hp = int(
+                self.bot.get_config(
+                    "duck_types.golden.max_hp",
+                    self.bot.get_config("golden_duck_max_hp", 5),
+                )
+            )
             hp = random.randint(min_hp, max_hp)
-            duck = self._make_duck('golden', channel, channel_key, t, max_hp=hp, current_hp=hp)
+            duck = self._make_duck(
+                "golden", channel, channel_key, t, max_hp=hp, current_hp=hp
+            )
             self.logger.info(f"Golden duck spawned in {channel_key} with {hp} HP")
         elif _hit(fast_chance):
-            duck = self._make_duck('fast', channel, channel_key, t)
+            duck = self._make_duck("fast", channel, channel_key, t)
             self.logger.info(f"Fast duck spawned in {channel_key}")
         elif _hit(ninja_chance):
-            dodge = float(self.bot.get_config('duck_types.ninja.dodge_chance', 0.35))
-            duck = self._make_duck('ninja', channel, channel_key, t, dodge_chance=dodge)
+            dodge = float(self.bot.get_config("duck_types.ninja.dodge_chance", 0.35))
+            duck = self._make_duck("ninja", channel, channel_key, t, dodge_chance=dodge)
             self.logger.info(f"Ninja duck spawned in {channel_key}")
         else:
-            duck = self._make_duck('normal', channel, channel_key, t)
+            duck = self._make_duck("normal", channel, channel_key, t)
             self.logger.info(f"Normal duck spawned in {channel_key}")
 
         self.ducks[channel_key].append(duck)
-        msg = self.bot.messages.get_choice('duck_spawn', match='·.¸¸.·´¯`·.¸¸.·´¯`·.')
+        msg = self.bot.messages.get_choice("duck_spawn", match="·.¸¸.·´¯`·.¸¸.·´¯`·.")
         self.bot.send_message(channel, msg)
 
     async def _spawn_flock(self, channel, channel_key, t):
@@ -244,13 +289,17 @@ class DuckGame:
         flock_size = random.randint(2, 4)
         for i in range(flock_size):
             duck = {
-                'id': f"flock_duck_{int(t)}_{i}_{random.randint(100,999)}",
-                'spawn_time': t, 'channel': channel,
-                'duck_type': 'flock', 'max_hp': 1, 'current_hp': 1, 'is_flock': True,
+                "id": f"flock_duck_{int(t)}_{i}_{random.randint(100, 999)}",
+                "spawn_time": t,
+                "channel": channel,
+                "duck_type": "flock",
+                "max_hp": 1,
+                "current_hp": 1,
+                "is_flock": True,
             }
             self.ducks[channel_key].append(duck)
-        msg = self.bot.messages.get('duck_flock', count=flock_size)
-        if msg.startswith('[Missing'):
+        msg = self.bot.messages.get("duck_flock", count=flock_size)
+        if msg.startswith("[Missing"):
             msg = f"A flock of {flock_size} ducks has landed! Type !bang to pick them off!"
         self.bot.send_message(channel, msg)
         self.logger.info(f"Flock of {flock_size} ducks spawned in {channel_key}")
@@ -264,218 +313,293 @@ class DuckGame:
         channel_key = self._channel_key(channel)
 
         # Bang cooldown
-        cooldown = float(self.bot.get_config('gameplay.bang_cooldown', 1.5) or 1.5)
-        if time.time() - player.get('last_bang_time', 0) < cooldown:
-            return {'success': False, 'message_key': 'bang_cooldown',
-                    'message_args': {'nick': nick}}
-        player['last_bang_time'] = time.time()
+        cooldown = float(self.bot.get_config("gameplay.bang_cooldown", 1.5) or 1.5)
+        if time.time() - player.get("last_bang_time", 0) < cooldown:
+            return {
+                "success": False,
+                "message_key": "bang_cooldown",
+                "message_args": {"nick": nick},
+            }
+        player["last_bang_time"] = time.time()
 
         # Pre-shot checks
-        if player.get('gun_confiscated', False):
-            return {'success': False, 'message_key': 'bang_not_armed', 'message_args': {'nick': nick}}
+        if player.get("gun_confiscated", False):
+            return {
+                "success": False,
+                "message_key": "bang_not_armed",
+                "message_args": {"nick": nick},
+            }
         if self._is_player_wet(player):
-            return {'success': False, 'message_key': 'bang_wet_clothes', 'message_args': {'nick': nick}}
-        if player.get('current_ammo', 0) <= 0:
-            return {'success': False, 'message_key': 'bang_no_ammo', 'message_args': {'nick': nick}}
+            return {
+                "success": False,
+                "message_key": "bang_wet_clothes",
+                "message_args": {"nick": nick},
+            }
+        if player.get("current_ammo", 0) <= 0:
+            return {
+                "success": False,
+                "message_key": "bang_no_ammo",
+                "message_args": {"nick": nick},
+            }
 
         # Gun jam check
         base_jam = self.bot.levels.get_jam_chance(player)
         if random.random() < max(0, min(100, base_jam)) / 100.0:
-            player['current_ammo'] = player.get('current_ammo', 1) - 1
+            player["current_ammo"] = player.get("current_ammo", 1) - 1
             self.db.save_database()
-            return {'success': False, 'message_key': 'bang_gun_jammed', 'message_args': {'nick': nick}}
+            return {
+                "success": False,
+                "message_key": "bang_gun_jammed",
+                "message_args": {"nick": nick},
+            }
 
         # Wild shot (no duck)?
         if channel_key not in self.ducks or not self.ducks[channel_key]:
-            player['shots_fired']  = player.get('shots_fired', 0) + 1
-            player['shots_missed'] = player.get('shots_missed', 0) + 1
-            player['confiscated_ammo']      = player.get('current_ammo', 1) - 1
-            player['confiscated_magazines'] = player.get('magazines', 0)
-            player['current_ammo']    = 0
-            player['gun_confiscated'] = True
-            player['gun_confiscated_count'] = player.get('gun_confiscated_count', 0) + 1
-            player['current_streak'] = 0
+            player["shots_fired"] = player.get("shots_fired", 0) + 1
+            player["shots_missed"] = player.get("shots_missed", 0) + 1
+            player["confiscated_ammo"] = player.get("current_ammo", 1) - 1
+            player["confiscated_magazines"] = player.get("magazines", 0)
+            player["current_ammo"] = 0
+            player["gun_confiscated"] = True
+            player["gun_confiscated_count"] = player.get("gun_confiscated_count", 0) + 1
+            player["current_streak"] = 0
             self.db.save_database()
-            result = {'success': False, 'message_key': 'bang_no_duck', 'message_args': {'nick': nick}}
-            new_ach = self._check_achievements(player, 'confiscated')
+            result = {
+                "success": False,
+                "message_key": "bang_no_duck",
+                "message_args": {"nick": nick},
+            }
+            new_ach = self._check_achievements(player, "confiscated")
             if new_ach:
-                result['new_achievements'] = new_ach
+                result["new_achievements"] = new_ach
             return result
 
         duck = self.ducks[channel_key][0]
-        duck_type = duck.get('duck_type', 'normal')
+        duck_type = duck.get("duck_type", "normal")
 
-        player['current_ammo'] = player.get('current_ammo', 1) - 1
-        player['shots_fired']  = player.get('shots_fired', 0) + 1
+        player["current_ammo"] = player.get("current_ammo", 1) - 1
+        player["shots_fired"] = player.get("shots_fired", 0) + 1
 
         # Accuracy calculation
-        base_acc   = self.bot.levels.get_modified_accuracy(player)
+        base_acc = self.bot.levels.get_modified_accuracy(player)
         scope_bonus = self._apply_scope_effect(player)
-        hit_chance  = max(5, min(100, base_acc + scope_bonus)) / 100.0
+        hit_chance = max(5, min(100, base_acc + scope_bonus)) / 100.0
 
-        clover = self._get_active_effect(player, 'clover_luck')
+        clover = self._get_active_effect(player, "clover_luck")
         if clover:
             try:
-                min_hit = float(clover.get('min_hit_chance', 0.0) or 0.0)
+                min_hit = float(clover.get("min_hit_chance", 0.0) or 0.0)
             except (ValueError, TypeError):
                 min_hit = 0.0
             hit_chance = max(hit_chance, max(0.0, min(min_hit, 1.0)))
 
         # Ninja dodge
-        if duck_type == 'ninja':
-            dodge = float(duck.get('dodge_chance', 0.35))
+        if duck_type == "ninja":
+            dodge = float(duck.get("dodge_chance", 0.35))
             if random.random() < dodge:
-                player['shots_missed'] = player.get('shots_missed', 0) + 1
-                player['xp'] = max(0, player.get('xp', 0) - 1)
-                player['current_streak'] = 0
+                player["shots_missed"] = player.get("shots_missed", 0) + 1
+                player["xp"] = max(0, player.get("xp", 0) - 1)
+                player["current_streak"] = 0
                 self.db.save_database()
-                return {'success': True, 'hit': False,
-                        'message_key': 'bang_ninja_dodge',
-                        'message_args': {'nick': nick}}
+                return {
+                    "success": True,
+                    "hit": False,
+                    "message_key": "bang_ninja_dodge",
+                    "message_args": {"nick": nick},
+                }
 
         if random.random() < hit_chance:
-            return self._process_hit(nick, channel, channel_key, player, duck, duck_type)
+            return self._process_hit(
+                nick, channel, channel_key, player, duck, duck_type
+            )
         else:
             return self._process_miss(nick, channel, channel_key, player)
 
     def _process_hit(self, nick, channel, channel_key, player, duck, duck_type):
         """Handle a successful shot."""
         xp_mod = 1.0
-        is_flock = duck.get('is_flock', False)
+        is_flock = duck.get("is_flock", False)
 
         # Boss duck — multi-contributor logic removed; boss duck no longer spawns.
         # Golden duck — multi-hit
-        if duck_type == 'golden':
-            duck['current_hp'] -= 1
-            xp_gained = int(self.bot.get_config('golden_duck_xp', 15) * xp_mod)
-            if duck['current_hp'] > 0:
-                player['accuracy'] = min(player.get('accuracy', 75) +
-                                         self.bot.get_config('accuracy_gain_on_hit', 1), 100)
+        if duck_type == "golden":
+            duck["current_hp"] -= 1
+            xp_gained = int(self.bot.get_config("golden_duck_xp", 15) * xp_mod)
+            if duck["current_hp"] > 0:
+                player["accuracy"] = min(
+                    player.get("accuracy", 75)
+                    + self.bot.get_config("accuracy_gain_on_hit", 1),
+                    100,
+                )
+                # Grant this hit's XP immediately so the balance matches what the
+                # 'bang_hit_golden' message displays (previously this was silently
+                # withheld until the killing blow, which then granted xp_gained * max_hp
+                # in one lump sum - making every earlier "+xp" message a lie).
+                player["xp"] = player.get("xp", 0) + xp_gained
                 self.db.save_database()
-                return {'success': True, 'hit': True, 'message_key': 'bang_hit_golden',
-                        'message_args': {'nick': nick,
-                                         'hp_remaining': duck['current_hp'], 'xp_gained': xp_gained,
-                                         'ducks_shot': player.get('ducks_shot', 0)}}
-            # Killed golden duck
+                return {
+                    "success": True,
+                    "hit": True,
+                    "message_key": "bang_hit_golden",
+                    "message_args": {
+                        "nick": nick,
+                        "hp_remaining": duck["current_hp"],
+                        "xp_gained": xp_gained,
+                        "ducks_shot": player.get("ducks_shot", 0),
+                    },
+                }
+            # Killed golden duck. Earlier hits already granted their own xp_gained above,
+            # so the killing blow only grants xp_gained for this one hit (via the common
+            # "Apply XP / stats" block below) - not xp_gained * max_hp, which would double
+            # up the XP already credited for prior hits on the same duck.
             self.ducks[channel_key].pop(0)
-            xp_gained *= duck['max_hp']
-            message_key = 'bang_hit_golden_killed'
-        elif duck_type in ('fast',):
+            message_key = "bang_hit_golden_killed"
+        elif duck_type in ("fast",):
             self.ducks[channel_key].pop(0)
-            xp_gained = int(self.bot.get_config('fast_duck_xp', 12) * xp_mod)
-            message_key = 'bang_hit_fast'
-        elif duck_type == 'ninja':
+            xp_gained = int(self.bot.get_config("fast_duck_xp", 12) * xp_mod)
+            message_key = "bang_hit_fast"
+        elif duck_type == "ninja":
             self.ducks[channel_key].pop(0)
-            xp_gained = int(self.bot.get_config('duck_types.ninja.xp', 14) * xp_mod)
-            message_key = 'bang_hit_ninja'
-        elif duck_type == 'flock':
+            xp_gained = int(self.bot.get_config("duck_types.ninja.xp", 14) * xp_mod)
+            message_key = "bang_hit_ninja"
+        elif duck_type == "flock":
             self.ducks[channel_key].pop(0)
-            xp_gained = int(self.bot.get_config('normal_duck_xp', 10) * xp_mod)
-            message_key = 'bang_hit_flock'
+            xp_gained = int(self.bot.get_config("normal_duck_xp", 10) * xp_mod)
+            message_key = "bang_hit_flock"
         else:  # normal
             self.ducks[channel_key].pop(0)
-            xp_gained = int(self.bot.get_config('normal_duck_xp', 10) * xp_mod)
-            message_key = 'bang_hit'
+            xp_gained = int(self.bot.get_config("normal_duck_xp", 10) * xp_mod)
+            message_key = "bang_hit"
 
         # Apply XP / stats
         old_level = self.bot.levels.calculate_player_level(player)
-        player['xp'] = player.get('xp', 0) + xp_gained
-        player['ducks_shot'] = player.get('ducks_shot', 0) + 1
-        player['current_streak'] = player.get('current_streak', 0) + 1
-        if player['current_streak'] > player.get('best_streak', 0):
-            player['best_streak'] = player['current_streak']
-        player['accuracy'] = min(
-            player.get('accuracy', 75) + self.bot.get_config('accuracy_gain_on_hit', 1),
-            self.bot.get_config('max_accuracy', 100)
+        player["xp"] = player.get("xp", 0) + xp_gained
+        player["ducks_shot"] = player.get("ducks_shot", 0) + 1
+        player["current_streak"] = player.get("current_streak", 0) + 1
+        if player["current_streak"] > player.get("best_streak", 0):
+            player["best_streak"] = player["current_streak"]
+        player["accuracy"] = min(
+            player.get("accuracy", 75) + self.bot.get_config("accuracy_gain_on_hit", 1),
+            self.bot.get_config("max_accuracy", 100),
         )
         new_level = self.bot.levels.calculate_player_level(player)
         if new_level != old_level:
             self.bot.levels.update_player_magazines(player)
-        if self.bot.get_config('duck_spawning.rearm_on_duck_shot', False):
+        if self.bot.get_config("duck_spawning.rearm_on_duck_shot", False):
             self._rearm_all_disarmed_players(channel)
 
         dropped_item = self._check_item_drop(player, duck_type)
-        new_ach = self._check_achievements(player, 'duck_shot', duck_type=duck_type)
+        new_ach = self._check_achievements(player, "duck_shot", duck_type=duck_type)
         self.db.save_database()
 
         # Global announcement for golden duck kill
-        if duck_type == 'golden' and message_key == 'bang_hit_golden_killed':
-            if self.bot.get_config('gameplay.global_announcements', False):
+        if duck_type == "golden" and message_key == "bang_hit_golden_killed":
+            if self.bot.get_config("gameplay.global_announcements", False):
                 for ch in list(self.bot.channels_joined):
                     if self._channel_key(ch) != self._channel_key(channel):
-                        self.bot.send_message(ch,
-                            f"[Global] {nick} just slayed a Golden Duck in {channel}!")
+                        self.bot.send_message(
+                            ch,
+                            f"[Global] {nick} just slayed a Golden Duck in {channel}!",
+                        )
 
         result = {
-            'success': True, 'hit': True,
-            'message_key': message_key,
-            'message_args': {
-                'nick': nick, 'xp_gained': xp_gained,
-                'ducks_shot': player['ducks_shot'],
+            "success": True,
+            "hit": True,
+            "message_key": message_key,
+            "message_args": {
+                "nick": nick,
+                "xp_gained": xp_gained,
+                "ducks_shot": player["ducks_shot"],
             },
         }
-        if is_flock or duck_type == 'flock':
-            result['message_args']['remaining_flock'] = len(self.ducks.get(channel_key, []))
+        if is_flock or duck_type == "flock":
+            result["message_args"]["remaining_flock"] = len(
+                self.ducks.get(channel_key, [])
+            )
         if dropped_item:
-            result['dropped_item'] = dropped_item
+            result["dropped_item"] = dropped_item
         if new_ach:
-            result['new_achievements'] = new_ach
+            result["new_achievements"] = new_ach
         return result
 
     def _process_miss(self, nick, channel, channel_key, player):
         """Handle a miss."""
-        player['shots_missed'] = player.get('shots_missed', 0) + 1
-        player['current_streak'] = 0
+        player["shots_missed"] = player.get("shots_missed", 0) + 1
+        player["current_streak"] = 0
 
         # Check body armor before applying XP loss
         if self._consume_body_armor(player):
             self.db.save_database()
-            new_ach = self._check_achievements(player, 'armor_used')
-            result = {'success': True, 'hit': False,
-                      'message_key': 'bang_miss_armored',
-                      'message_args': {'nick': nick}}
+            new_ach = self._check_achievements(player, "armor_used")
+            result = {
+                "success": True,
+                "hit": False,
+                "message_key": "bang_miss_armored",
+                "message_args": {"nick": nick},
+            }
             if new_ach:
-                result['new_achievements'] = new_ach
+                result["new_achievements"] = new_ach
             return result
 
-        player['xp'] = max(0, player.get('xp', 0) - 1)
-        accuracy_loss = self.bot.get_config('gameplay.accuracy_loss_on_miss', 2)
-        min_accuracy  = self.bot.get_config('gameplay.min_accuracy', 10)
-        player['accuracy'] = max(player.get('accuracy', 75) - accuracy_loss, min_accuracy)
+        player["xp"] = max(0, player.get("xp", 0) - 1)
+        accuracy_loss = self.bot.get_config("gameplay.accuracy_loss_on_miss", 2)
+        min_accuracy = self.bot.get_config("gameplay.min_accuracy", 10)
+        player["accuracy"] = max(
+            player.get("accuracy", 75) - accuracy_loss, min_accuracy
+        )
 
         # Friendly fire chance
         friendly_fire_chance = 0.15
         if random.random() < friendly_fire_chance:
             armed_players = [
-                (n, p) for n, p in self.db.get_players_for_channel(channel).items()
+                (n, p)
+                for n, p in self.db.get_players_for_channel(channel).items()
                 if str(n).lower() != nick.lower()
-                and not p.get('gun_confiscated', False)
-                and p.get('current_ammo', 0) > 0
+                and not p.get("gun_confiscated", False)
+                and p.get("current_ammo", 0) > 0
             ]
             if armed_players:
                 victim_nick, victim_player = random.choice(armed_players)
-                if self._check_insurance_protection(player, 'friendly_fire'):
+                if self._check_insurance_protection(player, "friendly_fire"):
                     self.db.save_database()
-                    return {'success': True, 'hit': False, 'friendly_fire': True,
-                            'victim': victim_nick,
-                            'message_key': 'bang_friendly_fire_insured',
-                            'message_args': {'nick': nick, 'victim': victim_nick}}
-                xp_loss = min(player.get('xp', 0) // 4, 25)
-                player['xp'] = max(0, player.get('xp', 0) - xp_loss)
-                player['confiscated_ammo']      = player.get('current_ammo', 0)
-                player['confiscated_magazines'] = player.get('magazines', 0)
-                player['current_ammo']    = 0
-                player['gun_confiscated'] = True
-                player['gun_confiscated_count'] = player.get('gun_confiscated_count', 0) + 1
+                    return {
+                        "success": True,
+                        "hit": False,
+                        "friendly_fire": True,
+                        "victim": victim_nick,
+                        "message_key": "bang_friendly_fire_insured",
+                        "message_args": {"nick": nick, "victim": victim_nick},
+                    }
+                xp_loss = min(player.get("xp", 0) // 4, 25)
+                player["xp"] = max(0, player.get("xp", 0) - xp_loss)
+                player["confiscated_ammo"] = player.get("current_ammo", 0)
+                player["confiscated_magazines"] = player.get("magazines", 0)
+                player["current_ammo"] = 0
+                player["gun_confiscated"] = True
+                player["gun_confiscated_count"] = (
+                    player.get("gun_confiscated_count", 0) + 1
+                )
                 self.db.save_database()
-                return {'success': True, 'hit': False, 'friendly_fire': True,
-                        'victim': victim_nick,
-                        'message_key': 'bang_friendly_fire_penalty',
-                        'message_args': {'nick': nick, 'victim': victim_nick, 'xp_lost': xp_loss}}
+                return {
+                    "success": True,
+                    "hit": False,
+                    "friendly_fire": True,
+                    "victim": victim_nick,
+                    "message_key": "bang_friendly_fire_penalty",
+                    "message_args": {
+                        "nick": nick,
+                        "victim": victim_nick,
+                        "xp_lost": xp_loss,
+                    },
+                }
 
         self.db.save_database()
-        return {'success': True, 'hit': False,
-                'message_key': 'bang_miss', 'message_args': {'nick': nick}}
+        return {
+            "success": True,
+            "hit": False,
+            "message_key": "bang_miss",
+            "message_args": {"nick": nick},
+        }
 
     # -----------------------------------------------------------------------
     # Befriending
@@ -486,69 +610,112 @@ class DuckGame:
         channel_key = self._channel_key(channel)
 
         if channel_key not in self.ducks or not self.ducks[channel_key]:
-            return {'success': False, 'message_key': 'bef_no_duck', 'message_args': {'nick': nick}}
+            return {
+                "success": False,
+                "message_key": "bef_no_duck",
+                "message_args": {"nick": nick},
+            }
 
         duck = self.ducks[channel_key][0]
-        duck_type = duck.get('duck_type', 'normal')
+        duck_type = duck.get("duck_type", "normal")
 
         # Trap effect on player: !bef fails, XP penalty
-        trap = self._get_active_effect(player, 'trap')
+        trap = self._get_active_effect(player, "trap")
         if trap:
-            player['temporary_effects'] = [
-                e for e in player.get('temporary_effects', []) if e is not trap
+            player["temporary_effects"] = [
+                e for e in player.get("temporary_effects", []) if e is not trap
             ]
-            xp_loss = int(self.bot.get_config('duck_types.trap.xp_penalty', 5))
-            player['xp'] = max(0, player.get('xp', 0) - xp_loss)
+            xp_loss = int(self.bot.get_config("duck_types.trap.xp_penalty", 5))
+            player["xp"] = max(0, player.get("xp", 0) - xp_loss)
             self.db.save_database()
-            return {'success': False,
-                    'message_key': 'bef_trapped',
-                    'message_args': {'nick': nick, 'xp_lost': xp_loss,
-                                     'set_by': trap.get('set_by', 'someone')}}
+            return {
+                "success": False,
+                "message_key": "bef_trapped",
+                "message_args": {
+                    "nick": nick,
+                    "xp_lost": xp_loss,
+                    "set_by": trap.get("set_by", "someone"),
+                },
+            }
 
-        base_rate = self.bot.get_config('gameplay.befriend_success_rate', 75)
+        base_rate = self.bot.get_config("gameplay.befriend_success_rate", 75)
         try:
             base_rate = float(base_rate) if base_rate is not None else 75.0
         except (ValueError, TypeError):
             base_rate = 75.0
-        level_modified_rate = self.bot.levels.get_modified_befriend_rate(player, base_rate)
+        level_modified_rate = self.bot.levels.get_modified_befriend_rate(
+            player, base_rate
+        )
         success_rate = level_modified_rate / 100.0
 
-        clover = self._get_active_effect(player, 'clover_luck')
+        clover = self._get_active_effect(player, "clover_luck")
         if clover:
             try:
-                min_bef = float(clover.get('min_befriend_chance', 0.0) or 0.0)
+                min_bef = float(clover.get("min_befriend_chance", 0.0) or 0.0)
             except (ValueError, TypeError):
                 min_bef = 0.0
             success_rate = max(success_rate, max(0.0, min(min_bef, 1.0)))
 
         if random.random() < success_rate:
+            xp_gained = self.bot.get_config("gameplay.befriend_xp", 5)
+
+            if duck_type == "golden":
+                # Golden ducks require multiple successful befriend rolls to fully tame,
+                # mirroring !bang's multi-hit HP mechanic. Previously a single successful
+                # roll instantly befriended the duck regardless of its remaining HP.
+                duck["current_hp"] = duck.get("current_hp", 1) - 1
+                if duck["current_hp"] > 0:
+                    player["xp"] = player.get("xp", 0) + xp_gained
+                    self.db.save_database()
+                    return {
+                        "success": True,
+                        "befriended": False,
+                        "message_key": "bef_success_golden",
+                        "message_args": {
+                            "nick": nick,
+                            "xp_gained": xp_gained,
+                            "hp_remaining": duck["current_hp"],
+                        },
+                    }
+
             self.ducks[channel_key].pop(0)
-            xp_gained = self.bot.get_config('gameplay.befriend_xp', 5)
             old_level = self.bot.levels.calculate_player_level(player)
-            player['xp'] = player.get('xp', 0) + xp_gained
-            player['ducks_befriended'] = player.get('ducks_befriended', 0) + 1
-            player['current_streak'] = player.get('current_streak', 0) + 1
-            if player['current_streak'] > player.get('best_streak', 0):
-                player['best_streak'] = player['current_streak']
+            player["xp"] = player.get("xp", 0) + xp_gained
+            player["ducks_befriended"] = player.get("ducks_befriended", 0) + 1
+            player["current_streak"] = player.get("current_streak", 0) + 1
+            if player["current_streak"] > player.get("best_streak", 0):
+                player["best_streak"] = player["current_streak"]
             new_level = self.bot.levels.calculate_player_level(player)
             if new_level != old_level:
                 self.bot.levels.update_player_magazines(player)
-            if self.bot.get_config('duck_spawning.rearm_on_duck_shot', False):
+            if self.bot.get_config("duck_spawning.rearm_on_duck_shot", False):
                 self._rearm_all_disarmed_players(channel)
-            new_ach = self._check_achievements(player, 'duck_befriended', duck_type=duck_type)
+            new_ach = self._check_achievements(
+                player, "duck_befriended", duck_type=duck_type
+            )
             self.db.save_database()
-            result = {'success': True, 'befriended': True,
-                      'message_key': 'bef_success',
-                      'message_args': {'nick': nick, 'xp_gained': xp_gained,
-                                       'ducks_befriended': player['ducks_befriended']}}
+            result = {
+                "success": True,
+                "befriended": True,
+                "message_key": "bef_success",
+                "message_args": {
+                    "nick": nick,
+                    "xp_gained": xp_gained,
+                    "ducks_befriended": player["ducks_befriended"],
+                },
+            }
             if new_ach:
-                result['new_achievements'] = new_ach
+                result["new_achievements"] = new_ach
             return result
         else:
-            player['current_streak'] = 0
+            player["current_streak"] = 0
             self.db.save_database()
-            return {'success': True, 'befriended': False,
-                    'message_key': 'bef_failed', 'message_args': {'nick': nick}}
+            return {
+                "success": True,
+                "befriended": False,
+                "message_key": "bef_failed",
+                "message_args": {"nick": nick},
+            }
 
     # -----------------------------------------------------------------------
     # Reloading
@@ -556,63 +723,83 @@ class DuckGame:
 
     def reload_gun(self, nick, channel, player):
         """Handle !reload command"""
-        if player.get('gun_confiscated', False):
-            return {'success': False, 'message_key': 'reload_not_armed', 'message_args': {'nick': nick}}
-        current_ammo    = player.get('current_ammo', 0)
-        bullets_per_mag = player.get('bullets_per_magazine', 6)
+        if player.get("gun_confiscated", False):
+            return {
+                "success": False,
+                "message_key": "reload_not_armed",
+                "message_args": {"nick": nick},
+            }
+        current_ammo = player.get("current_ammo", 0)
+        bullets_per_mag = player.get("bullets_per_magazine", 6)
         if current_ammo >= bullets_per_mag:
-            return {'success': False, 'message_key': 'reload_already_loaded', 'message_args': {'nick': nick}}
-        
+            return {
+                "success": False,
+                "message_key": "reload_already_loaded",
+                "message_args": {"nick": nick},
+            }
+
         # Check if we need to auto-use a magazine from inventory
-        if player.get('magazines', 1) <= 1:
-            inventory = player.get('inventory', {})
+        if player.get("magazines", 1) <= 1:
+            inventory = player.get("inventory", {})
             magazine_item_id = None
-            if hasattr(self.bot, 'shop') and self.bot.shop:
+            if hasattr(self.bot, "shop") and self.bot.shop:
                 for item_id_str, qty in inventory.items():
                     if qty > 0:
                         try:
                             item = self.bot.shop.get_item(int(item_id_str))
-                            if item and item.get('type') == 'magazine':
+                            if item and item.get("type") == "magazine":
                                 magazine_item_id = item_id_str
                                 break
                         except ValueError:
                             pass
-            
+
             if magazine_item_id:
                 # Auto consume 1 magazine item
                 inventory[magazine_item_id] -= 1
                 if inventory[magazine_item_id] <= 0:
                     del inventory[magazine_item_id]
-                player['inventory'] = inventory
-                
-                item_amount = self.bot.shop.get_item(int(magazine_item_id)).get('amount', 1)
-                player['magazines'] = player.get('magazines', 1) + item_amount
+                player["inventory"] = inventory
+
+                item_amount = self.bot.shop.get_item(int(magazine_item_id)).get(
+                    "amount", 1
+                )
+                player["magazines"] = player.get("magazines", 1) + item_amount
             else:
-                return {'success': False, 'message_key': 'reload_no_chargers', 'message_args': {'nick': nick}}
-                
-        player['current_ammo'] = bullets_per_mag
-        player['magazines'] = player.get('magazines', 1) - 1
-        
+                return {
+                    "success": False,
+                    "message_key": "reload_no_chargers",
+                    "message_args": {"nick": nick},
+                }
+
+        player["current_ammo"] = bullets_per_mag
+        player["magazines"] = player.get("magazines", 1) - 1
+
         # Count spare magazines after reload: level-slots + inventory Magazine items (by count, not amount)
-        active_spares = max(0, player.get('magazines', 1) - 1)
+        active_spares = max(0, player.get("magazines", 1) - 1)
         inv_mags = 0
-        if hasattr(self.bot, 'shop') and self.bot.shop:
-            inventory = player.get('inventory', {})
+        if hasattr(self.bot, "shop") and self.bot.shop:
+            inventory = player.get("inventory", {})
             for item_id_str, qty in inventory.items():
                 if qty > 0:
                     try:
                         item = self.bot.shop.get_item(int(item_id_str))
-                        if item and item.get('type') == 'magazine':
+                        if item and item.get("type") == "magazine":
                             inv_mags += qty
                     except ValueError:
                         pass
         total_spares = active_spares + inv_mags
-        
+
         self.db.save_database()
-        return {'success': True, 'message_key': 'reload_success',
-                'message_args': {'nick': nick, 'ammo': player['current_ammo'],
-                                 'max_ammo': bullets_per_mag,
-                                 'chargers': total_spares}}
+        return {
+            "success": True,
+            "message_key": "reload_success",
+            "message_args": {
+                "nick": nick,
+                "ammo": player["current_ammo"],
+                "max_ammo": bullets_per_mag,
+                "chargers": total_spares,
+            },
+        }
 
     # -----------------------------------------------------------------------
     # Achievement system
@@ -620,47 +807,62 @@ class DuckGame:
 
     def _check_achievements(self, player, event: str, **context) -> list:
         """Check and award any newly earned achievements. Returns list of new achievement dicts."""
-        earned_ids = {a['id'] for a in player.get('achievements', []) if isinstance(a, dict)}
+        earned_ids = {
+            a["id"] for a in player.get("achievements", []) if isinstance(a, dict)
+        }
         new_achievements = []
 
         def _award(ach_id):
             if ach_id not in earned_ids and ach_id in ACHIEVEMENTS:
                 ach = dict(ACHIEVEMENTS[ach_id])
-                ach['id'] = ach_id
-                ach['earned_at'] = time.time()
-                player.setdefault('achievements', []).append(ach)
+                ach["id"] = ach_id
+                ach["earned_at"] = time.time()
+                player.setdefault("achievements", []).append(ach)
                 earned_ids.add(ach_id)
                 new_achievements.append(ach)
-                self.logger.info(f"Achievement unlocked for {player.get('nick', '?')}: {ach['name']}")
+                self.logger.info(
+                    f"Achievement unlocked for {player.get('nick', '?')}: {ach['name']}"
+                )
 
-        ducks_shot      = player.get('ducks_shot', 0)
-        ducks_befriended= player.get('ducks_befriended', 0)
-        streak          = player.get('current_streak', 0)
-        confiscations   = player.get('gun_confiscated_count', 0)
-        xp_spent        = player.get('total_xp_spent', 0)
-        daily_streak    = player.get('daily_streak', 0)
-        duck_type       = context.get('duck_type', '')
+        ducks_shot = player.get("ducks_shot", 0)
+        ducks_befriended = player.get("ducks_befriended", 0)
+        streak = player.get("current_streak", 0)
+        confiscations = player.get("gun_confiscated_count", 0)
+        xp_spent = player.get("total_xp_spent", 0)
+        daily_streak = player.get("daily_streak", 0)
+        duck_type = context.get("duck_type", "")
 
-        if event == 'duck_shot':
-            if ducks_shot >= 1:   _award('first_blood')
-            if ducks_shot >= 100: _award('century_hunter')
-            if ducks_shot >= 500: _award('legendary')
-            if streak >= 10:      _award('sharpshooter')
-            if duck_type == 'golden': _award('golden_slayer')
-            if duck_type == 'ninja':  _award('ninja_slayer')
-            if duck_type in ('flock',): _award('flock_master')
-        elif event == 'duck_befriended':
-            if ducks_befriended >= 50: _award('duck_whisperer')
-        elif event == 'confiscated':
-            if confiscations >= 10: _award('trigger_happy')
-        elif event == 'xp_spent':
-            if xp_spent >= 500: _award('high_roller')
-        elif event == 'daily':
-            if daily_streak >= 7: _award('daily_devotee')
-        elif event == 'armor_used':
-            _award('survivor')
-        elif event == 'mystery_box':
-            _award('mystery_lover')
+        if event == "duck_shot":
+            if ducks_shot >= 1:
+                _award("first_blood")
+            if ducks_shot >= 100:
+                _award("century_hunter")
+            if ducks_shot >= 500:
+                _award("legendary")
+            if streak >= 10:
+                _award("sharpshooter")
+            if duck_type == "golden":
+                _award("golden_slayer")
+            if duck_type == "ninja":
+                _award("ninja_slayer")
+            if duck_type in ("flock",):
+                _award("flock_master")
+        elif event == "duck_befriended":
+            if ducks_befriended >= 50:
+                _award("duck_whisperer")
+        elif event == "confiscated":
+            if confiscations >= 10:
+                _award("trigger_happy")
+        elif event == "xp_spent":
+            if xp_spent >= 500:
+                _award("high_roller")
+        elif event == "daily":
+            if daily_streak >= 7:
+                _award("daily_devotee")
+        elif event == "armor_used":
+            _award("survivor")
+        elif event == "mystery_box":
+            _award("mystery_lover")
 
         return new_achievements
 
@@ -677,12 +879,14 @@ class DuckGame:
         try:
             current_time = time.time()
             for _nick, player_data in self.db.get_players_for_channel(channel).items():
-                effects = player_data.get('temporary_effects', [])
+                effects = player_data.get("temporary_effects", [])
                 for effect in effects:
-                    if (effect.get('type') == 'second_chance'
-                            and effect.get('expires_at', 0) > current_time):
+                    if (
+                        effect.get("type") == "second_chance"
+                        and effect.get("expires_at", 0) > current_time
+                    ):
                         # Consume the dog
-                        player_data['temporary_effects'] = [
+                        player_data["temporary_effects"] = [
                             e for e in effects if e is not effect
                         ]
                         # Re-add the duck to the channel
@@ -690,10 +894,10 @@ class DuckGame:
                         if channel_key not in self.ducks:
                             self.ducks[channel_key] = []
                         new_duck = dict(duck)
-                        new_duck['spawn_time'] = current_time  # Reset timeout
+                        new_duck["spawn_time"] = current_time  # Reset timeout
                         self.ducks[channel_key].append(new_duck)
-                        msg = self.bot.messages.get('hunting_dog_retrieves')
-                        if msg.startswith('[Missing'):
+                        msg = self.bot.messages.get("hunting_dog_retrieves")
+                        if msg.startswith("[Missing"):
                             msg = "A hunting dog fetches the duck back! It's still out there!"
                         self.bot.send_message(channel, msg)
                         return True
@@ -707,26 +911,26 @@ class DuckGame:
 
     def _apply_scope_effect(self, player) -> int:
         """Return scope accuracy bonus and decrement shots_remaining."""
-        effect = self._get_active_effect(player, 'temporary_accuracy')
+        effect = self._get_active_effect(player, "temporary_accuracy")
         if not effect:
             return 0
-        bonus = int(effect.get('accuracy_bonus', 20))
-        shots_left = effect.get('shots_remaining', 0) - 1
+        bonus = int(effect.get("accuracy_bonus", 20))
+        shots_left = effect.get("shots_remaining", 0) - 1
         if shots_left <= 0:
-            player['temporary_effects'] = [
-                e for e in player.get('temporary_effects', []) if e is not effect
+            player["temporary_effects"] = [
+                e for e in player.get("temporary_effects", []) if e is not effect
             ]
         else:
-            effect['shots_remaining'] = shots_left
+            effect["shots_remaining"] = shots_left
         return bonus
 
     def _consume_body_armor(self, player) -> bool:
         """If player has active body armor, consume it and return True."""
-        effect = self._get_active_effect(player, 'xp_shield')
+        effect = self._get_active_effect(player, "xp_shield")
         if not effect:
             return False
-        player['temporary_effects'] = [
-            e for e in player.get('temporary_effects', []) if e is not effect
+        player["temporary_effects"] = [
+            e for e in player.get("temporary_effects", []) if e is not effect
         ]
         return True
 
@@ -736,29 +940,37 @@ class DuckGame:
         current_time = time.time()
         try:
             for _ch, _pn, player_data in self.db.iter_all_players():
-                for effect in player_data.get('temporary_effects', []):
-                    if (effect.get('type') == 'attract_ducks'
-                            and effect.get('expires_at', 0) > current_time):
-                        max_multiplier = max(max_multiplier,
-                                             effect.get('spawn_multiplier', 1.0))
+                for effect in player_data.get("temporary_effects", []):
+                    if (
+                        effect.get("type") == "attract_ducks"
+                        and effect.get("expires_at", 0) > current_time
+                    ):
+                        max_multiplier = max(
+                            max_multiplier, effect.get("spawn_multiplier", 1.0)
+                        )
         except Exception as e:
             self.logger.error(f"Error getting spawn multiplier: {e}")
         return max_multiplier
 
     def _is_player_wet(self, player):
         current_time = time.time()
-        for effect in player.get('temporary_effects', []):
-            if effect.get('type') == 'wet_clothes' and effect.get('expires_at', 0) > current_time:
+        for effect in player.get("temporary_effects", []):
+            if (
+                effect.get("type") == "wet_clothes"
+                and effect.get("expires_at", 0) > current_time
+            ):
                 return True
         return False
 
     def _check_insurance_protection(self, player, protection_type):
         current_time = time.time()
         try:
-            for effect in player.get('temporary_effects', []):
-                if (effect.get('type') == 'insurance'
-                        and effect.get('protection') == protection_type
-                        and effect.get('expires_at', 0) > current_time):
+            for effect in player.get("temporary_effects", []):
+                if (
+                    effect.get("type") == "insurance"
+                    and effect.get("protection") == protection_type
+                    and effect.get("expires_at", 0) > current_time
+                ):
                     return True
         except Exception as e:
             self.logger.error(f"Error checking insurance: {e}")
@@ -769,10 +981,10 @@ class DuckGame:
         current_time = time.time()
         try:
             for _ch, player_name, player_data in self.db.iter_all_players():
-                effects = player_data.get('temporary_effects', [])
-                active = [e for e in effects if e.get('expires_at', 0) > current_time]
+                effects = player_data.get("temporary_effects", [])
+                active = [e for e in effects if e.get("expires_at", 0) > current_time]
                 if len(active) != len(effects):
-                    player_data['temporary_effects'] = active
+                    player_data["temporary_effects"] = active
                     self.logger.debug(f"Cleaned expired effects for {player_name}")
         except Exception as e:
             self.logger.error(f"Error cleaning expired effects: {e}")
@@ -781,10 +993,12 @@ class DuckGame:
         """Return the first active effect matching effect_type, or None."""
         try:
             current_time = time.time()
-            for effect in player.get('temporary_effects', []):
-                if (isinstance(effect, dict)
-                        and effect.get('type') == effect_type
-                        and effect.get('expires_at', 0) > current_time):
+            for effect in player.get("temporary_effects", []):
+                if (
+                    isinstance(effect, dict)
+                    and effect.get("type") == effect_type
+                    and effect.get("expires_at", 0) > current_time
+                ):
                     return effect
         except Exception:
             pass
@@ -797,29 +1011,41 @@ class DuckGame:
     def _check_item_drop(self, player, duck_type):
         """Check for item drops and add to player inventory. Returns drop info or None."""
         try:
-            drop_chance = self.bot.get_config(f'duck_types.{duck_type}.drop_chance', 0.0)
+            drop_chance = self.bot.get_config(
+                f"duck_types.{duck_type}.drop_chance", 0.0
+            )
             if random.random() > drop_chance:
                 return None
-            drop_table = self.bot.get_config(f'item_drops.{duck_type}_duck_drops', [])
+            drop_table = self.bot.get_config(f"item_drops.{duck_type}_duck_drops", [])
             if not drop_table:
                 return None
-            total_weight = sum(item.get('weight', 1) for item in drop_table)
+            total_weight = sum(item.get("weight", 1) for item in drop_table)
             if total_weight <= 0:
                 return None
             random_weight = random.randint(1, total_weight)
             current_weight = 0
             for drop_item in drop_table:
-                current_weight += drop_item.get('weight', 1)
+                current_weight += drop_item.get("weight", 1)
                 if random_weight <= current_weight:
-                    item_id = drop_item.get('item_id')
+                    item_id = drop_item.get("item_id")
                     if item_id:
-                        inventory = player.get('inventory', {})
+                        inventory = player.get("inventory", {})
                         inventory[str(item_id)] = inventory.get(str(item_id), 0) + 1
-                        player['inventory'] = inventory
+                        player["inventory"] = inventory
                         item_info = self.bot.shop.get_item(item_id)
-                        item_name = item_info.get('name', f'Item {item_id}') if item_info else f'Item {item_id}'
-                        self.logger.info(f"Duck dropped {item_name} for {player.get('nick', '?')}")
-                        return {'item_id': item_id, 'item_name': item_name, 'duck_type': duck_type}
+                        item_name = (
+                            item_info.get("name", f"Item {item_id}")
+                            if item_info
+                            else f"Item {item_id}"
+                        )
+                        self.logger.info(
+                            f"Duck dropped {item_name} for {player.get('nick', '?')}"
+                        )
+                        return {
+                            "item_id": item_id,
+                            "item_name": item_name,
+                            "duck_type": duck_type,
+                        }
                     break
         except Exception as e:
             self.logger.error(f"Error in _check_item_drop: {e}")
@@ -833,10 +1059,14 @@ class DuckGame:
         try:
             rearmed = 0
             for _pn, player_data in self.db.get_players_for_channel(channel).items():
-                if player_data.get('gun_confiscated', False):
-                    player_data['gun_confiscated'] = False
-                    self.bot.levels.update_player_magazines(player_data)
-                    player_data['current_ammo'] = player_data.get('bullets_per_magazine', 6)
+                if player_data.get("gun_confiscated", False):
+                    player_data["gun_confiscated"] = False
+                    self.bot.levels.update_player_magazines(
+                        player_data, full_reload=True
+                    )
+                    player_data["current_ammo"] = player_data.get(
+                        "bullets_per_magazine", 6
+                    )
                     rearmed += 1
             if rearmed > 0:
                 self.logger.info(f"Auto-rearmed {rearmed} players after duck shot")
