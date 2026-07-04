@@ -1469,17 +1469,17 @@ class DuckHuntBot:
             bold = self.messages.messages.get("colours", {}).get("bold", "")
             reset = self.messages.messages.get("colours", {}).get("reset", "")
 
-            # Get top 3 by XP
-            top_xp = self.db.get_leaderboard(channel, "xp", 3)
+            # Get top 5 by XP
+            top_xp = self.db.get_leaderboard(channel, "xp", 5)
 
-            # Get top 3 by ducks shot
-            top_ducks = self.db.get_leaderboard(channel, "ducks_shot", 3)
+            # Get top 5 by ducks shot
+            top_ducks = self.db.get_leaderboard(channel, "ducks_shot", 5)
 
             # Format XP leaderboard as single line
             if top_xp:
                 xp_rankings = []
                 for i, (player_nick, xp) in enumerate(top_xp, 1):
-                    medal = "#1" if i == 1 else "#2" if i == 2 else "#3"
+                    medal = f"#{i}"
                     xp_rankings.append(f"{medal} {player_nick}:{xp}XP")
                 xp_line = f"Top XP: {bold}{reset} " + " | ".join(xp_rankings)
                 self.send_message(channel, xp_line)
@@ -1490,7 +1490,7 @@ class DuckHuntBot:
             if top_ducks:
                 duck_rankings = []
                 for i, (player_nick, ducks) in enumerate(top_ducks, 1):
-                    medal = "#1" if i == 1 else "#2" if i == 2 else "#3"
+                    medal = f"#{i}"
                     duck_rankings.append(f"{medal} {player_nick}:{ducks}")
                 duck_line = f"Top Hunters: {bold}{reset} " + " | ".join(duck_rankings)
                 self.send_message(channel, duck_line)
