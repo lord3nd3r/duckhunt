@@ -1497,6 +1497,20 @@ class DuckHuntBot:
             else:
                 self.send_message(channel, "No duck hunting data available yet!")
 
+            # Get top 5 by ducks befriended
+            top_friends = self.db.get_leaderboard(channel, "ducks_befriended", 5)
+
+            # Format befriended leaderboard as single line
+            if top_friends:
+                friend_rankings = []
+                for i, (player_nick, friends) in enumerate(top_friends, 1):
+                    medal = f"#{i}"
+                    friend_rankings.append(f"{medal} {player_nick}:{friends}")
+                friend_line = f"Top Befrienders: {bold}{reset} " + " | ".join(friend_rankings)
+                self.send_message(channel, friend_line)
+            else:
+                self.send_message(channel, "No befriending data available yet!")
+
         except Exception as e:
             self.logger.error(f"Error in handle_topduck: {e}")
             self.send_message(channel, f"{nick} > Error retrieving leaderboard data.")
