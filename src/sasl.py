@@ -30,6 +30,17 @@ class SASLHandler:
         self.cap_negotiating = False
         self._timeout_task = None
 
+    def reset(self):
+        """Reset per-connection negotiation state.
+
+        Called by the bot's reconnect loop before each new connection so a stale
+        `authenticated`/`cap_negotiating` flag from a previous connection can't
+        short-circuit or confuse the fresh negotiation.
+        """
+        self._cancel_timeout_watchdog()
+        self.authenticated = False
+        self.cap_negotiating = False
+
     def is_enabled(self):
         """Check if SASL is enabled and properly configured."""
         return (

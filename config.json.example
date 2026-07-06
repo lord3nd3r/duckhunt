@@ -14,6 +14,15 @@
     "timeout": 30,
     "_comment_send_throttle": "Minimum seconds between outgoing chat lines (PRIVMSG/NOTICE) to avoid server flood limits",
     "send_throttle": 0.3,
+    "_comment_reconnect": "Automatic reconnection after an established connection drops. The delay starts at initial_delay and doubles up to max_delay between attempts.",
+    "reconnect": {
+      "enabled": true,
+      "initial_delay": 5,
+      "max_delay": 300
+    },
+    "_comment_ping": "Lag watchdog: if no server traffic arrives for ping_interval seconds, send a PING; if that goes unanswered for ping_timeout more seconds, the connection is treated as dead and reconnected.",
+    "ping_interval": 120,
+    "ping_timeout": 60,
     "auto_rejoin": {
       "enabled": true,
       "retry_interval": 20,

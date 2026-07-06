@@ -1,0 +1,5 @@
+[project]
+name = "duckhunt-bot"
+version = "1.0.0"
+description = "IRC DuckHunt game bot (asyncio, stdlib-only)"
+requires-python = ">=3.9"

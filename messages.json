@@ -97,6 +97,8 @@
   "duck_drop_normal": "{nick} > The duck dropped a {green}{item_name}{reset}! [Added to inventory]",
   "duck_drop_fast": "{nick} > The {cyan}fast duck{reset} dropped a {green}{item_name}{reset}! [Added to inventory]",
   "duck_drop_golden": "{nick} > The {gold}golden duck{reset} dropped a {green}{item_name}{reset}! [Added to inventory]",
+  "duck_drop_ninja": "{nick} > The {purple}ninja duck{reset} dropped a {green}{item_name}{reset}! [Added to inventory]",
+  "hunting_dog_retrieves": "A hunting dog dashes out and fetches the duck back! It's still out there!",
   "duck_flock": "A flock of {count} ducks has landed! Type {prefix}bang to pick them off!",
   "rate_limited": "{nick} > You're doing that too quickly - slow down!",
   "ninja_duck_flies_away": "The ninja duck drops a smoke bomb and vanishes! *poof*",

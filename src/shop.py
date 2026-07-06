@@ -930,8 +930,15 @@ class ShopManager:
                 "item_name": item["name"],
             }
 
-        # Items that must have targets when used (but can be stored in inventory)
-        target_required_items = ["sabotage_jam", "splash_water"]
+        # Items that must have targets when used (but can be stored in inventory).
+        # trap is included so `!use` without a target can't trap the user themselves.
+        target_required_items = [
+            "sabotage_jam",
+            "sabotage_accuracy",
+            "splash_water",
+            "steal_ammo",
+            "trap",
+        ]
         if item["type"] in target_required_items and not target_player:
             return {
                 "success": False,
@@ -959,12 +966,17 @@ class ShopManager:
 
         # Determine who gets the effect
         if target_player:
-            # Special handling for harmful effects
+            # Special handling for harmful effects - applied to the target and never
+            # marked as a gift. steal_ammo also needs the user passed as `buyer` so
+            # the stolen ammo actually gets credited to them.
+            harmful_types = {"sabotage_jam", "sabotage_accuracy", "steal_ammo", "trap"}
             if item["type"] == "splash_water":
                 effect_result = self._apply_splash_water_effect(target_player, item)
                 target_affected = True
-            elif item["type"] == "sabotage_jam":
-                effect_result = self._apply_item_effect(target_player, item)
+            elif item["type"] in harmful_types:
+                effect_result = self._apply_item_effect(
+                    target_player, item, buyer=player
+                )
                 target_affected = True
             else:
                 # Beneficial items - give to target (gifting)

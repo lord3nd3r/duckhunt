@@ -95,6 +95,18 @@ class DuckHuntBot:
 
         self.sasl_handler = SASLHandler(self, config)
 
+        # The nick actually in use on the server. May differ from the configured nick
+        # if it was taken and a fallback was negotiated via 433/436 handling.
+        self.current_nick = self.get_config("connection.nick", "DuckHunt") or "DuckHunt"
+        self._nick_attempts = 0
+
+        # Connection liveness tracking (lag watchdog). Every received line counts as
+        # activity; if the server goes quiet past connection.ping_interval we PING it,
+        # and if that goes unanswered past connection.ping_timeout the connection is
+        # treated as dead so the reconnect loop in run() can replace it.
+        self._last_activity = time.monotonic()
+        self._lag_ping_sent = None
+
         # Set up health checks
         self._setup_health_checks()
 
@@ -136,6 +148,51 @@ class DuckHuntBot:
             os.path.dirname(os.path.dirname(__file__)), "shop.json"
         )
         self.shop = ShopManager(shop_file, self.levels)
+
+        # Command dispatch table: cmd -> (admin_only, handler). Built last so every
+        # subsystem the handlers reference already exists.
+        self.command_handlers = self._build_command_table()
+
+    def _build_command_table(self):
+        """Map command name -> (admin_only, handler).
+
+        All handlers share the signature (nick, channel, player, args, user) so
+        dispatch stays uniform; each lambda adapts to the real handler's arguments.
+        """
+        return {
+            "bang": (False, lambda n, c, p, a, u: self.handle_bang(n, c, p)),
+            "bef": (False, lambda n, c, p, a, u: self.handle_bef(n, c, p)),
+            "befriend": (False, lambda n, c, p, a, u: self.handle_bef(n, c, p)),
+            "reload": (False, lambda n, c, p, a, u: self.handle_reload(n, c, p)),
+            "shop": (False, lambda n, c, p, a, u: self.handle_shop(n, c, p, a)),
+            "duckstats": (
+                False,
+                lambda n, c, p, a, u: self.handle_duckstats(n, c, p, a),
+            ),
+            "topduck": (False, lambda n, c, p, a, u: self.handle_topduck(n, c)),
+            "globaltop": (False, lambda n, c, p, a, u: self.handle_globaltop(n, c)),
+            "use": (False, lambda n, c, p, a, u: self.handle_use(n, c, p, a)),
+            "give": (False, lambda n, c, p, a, u: self.handle_give(n, c, p, a)),
+            "duckhelp": (False, lambda n, c, p, a, u: self.handle_duckhelp(n, c, p)),
+            "daily": (False, lambda n, c, p, a, u: self.handle_daily(n, c, p)),
+            "effects": (False, lambda n, c, p, a, u: self.handle_effects(n, c, p)),
+            "achievements": (
+                False,
+                lambda n, c, p, a, u: self.handle_achievements(n, c, p),
+            ),
+            "inv": (False, lambda n, c, p, a, u: self.handle_inv(n, c, p)),
+            "profile": (False, lambda n, c, p, a, u: self.handle_profile(n, c, p)),
+            "rearm": (True, lambda n, c, p, a, u: self.handle_rearm(n, c, a)),
+            "disarm": (True, lambda n, c, p, a, u: self.handle_disarm(n, c, a)),
+            "ignore": (True, lambda n, c, p, a, u: self.handle_ignore(n, c, a)),
+            "unignore": (True, lambda n, c, p, a, u: self.handle_unignore(n, c, a)),
+            "ducklaunch": (
+                True,
+                lambda n, c, p, a, u: self.handle_ducklaunch(n, c, a),
+            ),
+            "join": (True, lambda n, c, p, a, u: self.handle_join_channel(n, c, a)),
+            "part": (True, lambda n, c, p, a, u: self.handle_part_channel(n, c, a)),
+        }
 
     def _setup_health_checks(self):
         """Set up health monitoring checks"""
@@ -545,18 +602,26 @@ class DuckHuntBot:
             if len(safe_msg) <= max_msg_length:
                 messages = [safe_msg]
             else:
-                # Split into chunks
+                # Split into chunks. Words longer than the limit are hard-wrapped
+                # across chunks rather than silently truncated.
                 messages = []
-                words = safe_msg.split(" ")
                 current_msg = ""
 
-                for word in words:
+                for word in safe_msg.split(" "):
+                    while len(word) > max_msg_length:
+                        if current_msg:
+                            messages.append(current_msg)
+                            current_msg = ""
+                        messages.append(word[:max_msg_length])
+                        word = word[max_msg_length:]
+                    if not word:
+                        continue
                     if len(current_msg + " " + word) <= max_msg_length:
                         current_msg += (" " if current_msg else "") + word
                     else:
                         if current_msg:
                             messages.append(current_msg)
-                        current_msg = word[:max_msg_length]  # Truncate very long words
+                        current_msg = word
 
                 if current_msg:
                     messages.append(current_msg)
@@ -615,6 +680,7 @@ class DuckHuntBot:
     async def register_user(self):
         """Register user with IRC server (NICK/USER commands)"""
         nick = self.get_config("connection.nick", "DuckHunt")
+        self.current_nick = nick
         self.send_raw(f"NICK {nick}")
         self.send_raw(f"USER {nick} 0 * :{nick}")
 
@@ -651,7 +717,14 @@ class DuckHuntBot:
 
             elif command == "001":
                 self.registered = True
-                self.logger.info("Successfully registered with IRC server")
+                self._nick_attempts = 0
+                # The server tells us the nick we actually registered with (it may
+                # differ from config if a 433 fallback was used).
+                if params and isinstance(params[0], str) and params[0]:
+                    self.current_nick = params[0]
+                self.logger.info(
+                    f"Successfully registered with IRC server as {self.current_nick}"
+                )
 
                 channels = self.get_config("connection.channels", []) or []
                 for channel in channels:
@@ -665,6 +738,26 @@ class DuckHuntBot:
                         self.pending_joins[self._channel_key(channel)] = None
                     except Exception as e:
                         self.logger.error(f"Error joining channel {channel}: {e}")
+
+            elif command in {"433", "436"}:
+                # Nickname in use / nick collision. Without this the bot would never
+                # register (NICK is only sent once) and hang silently forever.
+                if not self.registered:
+                    self._nick_attempts += 1
+                    base = self.get_config("connection.nick", "DuckHunt") or "DuckHunt"
+                    if self._nick_attempts > 10:
+                        self.logger.error(
+                            f"Nickname {base!r} and {self._nick_attempts - 1} fallbacks "
+                            "all in use; giving up on this connection attempt"
+                        )
+                        return
+                    alt_nick = f"{base[:12]}{self._nick_attempts}"
+                    self.logger.warning(
+                        f"Nickname in use ({command}); trying fallback nick {alt_nick!r}"
+                    )
+                    self.current_nick = alt_nick
+                    self.send_raw(f"NICK {alt_nick}")
+                return
 
             # JOIN failures (numeric replies)
             elif command in {
@@ -683,7 +776,7 @@ class DuckHuntBot:
                 # 471 <me> <#chan> :Cannot join channel (+l)
                 # 474 <me> <#chan> :Cannot join channel (+b)
                 # 477 <me> <#chan> :You need to be identified...
-                our_nick = self.get_config("connection.nick", "DuckHunt") or "DuckHunt"
+                our_nick = self.current_nick
                 if (
                     params
                     and len(params) >= 2
@@ -728,9 +821,7 @@ class DuckHuntBot:
                     )
                     channel_key = self._channel_key(safe_channel)
                     joiner_nick = prefix.split("!")[0] if "!" in prefix else prefix
-                    our_nick = (
-                        self.get_config("connection.nick", "DuckHunt") or "DuckHunt"
-                    )
+                    our_nick = self.current_nick
 
                     # Check if we successfully joined (or rejoined) a channel
                     if joiner_nick and joiner_nick.lower() == our_nick.lower():
@@ -768,9 +859,7 @@ class DuckHuntBot:
                     reason = trailing or "No reason given"
 
                     # Check if we were the one kicked
-                    our_nick = (
-                        self.get_config("connection.nick", "DuckHunt") or "DuckHunt"
-                    )
+                    our_nick = self.current_nick
                     if kicked_nick and kicked_nick.lower() == our_nick.lower():
                         self.logger.warning(
                             f"Kicked from {channel} by {kicker}: {reason}"
@@ -837,6 +926,18 @@ class DuckHuntBot:
             cmd = parts[0].lower()
             args = parts[1:] if len(parts) > 1 else []
 
+            # Unknown commands are dropped BEFORE any database access, so random
+            # "!whatever" spam from arbitrary nicks can no longer create persistent
+            # player records. Admin-only commands from non-admins are dropped the
+            # same way (matching the previous silent-ignore behavior).
+            entry = self.command_handlers.get(cmd)
+            if entry is None:
+                self.logger.debug(f"Unknown command '{cmd}' ignored")
+                return
+            if entry[0] and not self.is_admin(safe_user):
+                self.logger.debug(f"Non-admin attempted admin command '{cmd}'")
+                return
+
             # Extract and validate nick with enhanced error handling
             nick = self.error_recovery.safe_execute(
                 lambda: safe_user.split("!")[0] if "!" in safe_user else safe_user,
@@ -856,6 +957,17 @@ class DuckHuntBot:
                 max_length=50,
                 allowed_chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\",
             )
+
+            # Ignore check BEFORE creating/fetching the player record (is_ignored
+            # only reads existing records, it never creates one).
+            try:
+                if self.db.is_ignored(nick, safe_channel) and not self.is_admin(
+                    safe_user
+                ):
+                    return
+            except Exception as e:
+                self.logger.error(f"Error checking admin/ignore status: {e}")
+                return
 
             # Get player data with error recovery
             player = self.error_recovery.safe_execute(
@@ -887,13 +999,6 @@ class DuckHuntBot:
                         f"Error updating player activity for {nick}: {e}"
                     )
 
-            try:
-                if self.db.is_ignored(nick, safe_channel) and not self.is_admin(user):
-                    return
-            except Exception as e:
-                self.logger.error(f"Error checking admin/ignore status: {e}")
-                return
-
             await self._execute_command_safely(
                 cmd, nick, safe_channel, player, args, safe_user
             )
@@ -902,7 +1007,7 @@ class DuckHuntBot:
             self.logger.error(f"Critical error in handle_command: {e}")
 
     async def _execute_command_safely(self, cmd, nick, channel, player, args, user):
-        """Execute individual commands with enhanced error isolation and user feedback"""
+        """Execute a command via the dispatch table with error isolation."""
         try:
             # Sanitize command arguments
             safe_args = []
@@ -910,9 +1015,6 @@ class DuckHuntBot:
                 safe_arg = sanitize_user_input(str(arg), max_length=100)
                 if safe_arg:
                     safe_args.append(safe_arg)
-
-            # Execute command with error recovery
-            command_executed = False
 
             # Rate-limited command set
             limited_cmds = {"bang", "bef", "befriend", "shop", "use"}
@@ -955,174 +1057,26 @@ class DuckHuntBot:
             # Special case: admin PM-only bot restart uses !reload.
             # In channels, !reload remains the gameplay reload command.
             if cmd == "reload" and not channel.startswith("#") and self.is_admin(user):
-                command_executed = True
                 await self.error_recovery.safe_execute_async(
                     lambda: self.handle_reloadbot(nick, channel),
                     fallback=None,
                     logger=self.logger,
                 )
-
-            if command_executed:
                 return
 
-            if cmd == "bang":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_bang(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "bef" or cmd == "befriend":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_bef(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "reload":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_reload(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "shop":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_shop(nick, channel, player, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "duckstats":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_duckstats(nick, channel, player, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "topduck":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_topduck(nick, channel),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "globaltop":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_globaltop(nick, channel),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "use":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_use(nick, channel, player, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "give":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_give(nick, channel, player, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "duckhelp":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_duckhelp(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "rearm" and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_rearm(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "disarm" and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_disarm(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "ignore" and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_ignore(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "unignore" and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_unignore(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "ducklaunch" and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_ducklaunch(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "join" and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_join_channel(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "part" and self.is_admin(user):
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_part_channel(nick, channel, safe_args),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "daily":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_daily(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "effects":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_effects(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "achievements":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_achievements(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "inv":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_inv(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-            elif cmd == "profile":
-                command_executed = True
-                await self.error_recovery.safe_execute_async(
-                    lambda: self.handle_profile(nick, channel, player),
-                    fallback=None,
-                    logger=self.logger,
-                )
-
-            # If no command was executed, it might be an unknown command
-            if not command_executed:
+            entry = self.command_handlers.get(cmd)
+            if entry is None:
                 self.logger.debug(f"Unknown command '{cmd}' from {nick}")
+                return
+            admin_only, handler = entry
+            if admin_only and not self.is_admin(user):
+                return
+
+            await self.error_recovery.safe_execute_async(
+                lambda: handler(nick, channel, player, safe_args, user),
+                fallback=None,
+                logger=self.logger,
+            )
 
         except Exception as e:
             self.logger.error(
@@ -1329,6 +1283,19 @@ class DuckHuntBot:
             )
 
         self.send_message(channel, message)
+
+        # Achievement checks: XP was just spent (High Roller), and an immediately
+        # applied mystery box counts toward Mystery Lover. Previously these events
+        # were never fired anywhere, making both achievements unobtainable.
+        new_ach = self.game._check_achievements(player, "xp_spent")
+        if (result.get("effect") or {}).get("type") == "mystery":
+            new_ach += self.game._check_achievements(player, "mystery_box")
+        for ach in new_ach:
+            self.send_message(
+                channel,
+                f"[Achievement] {nick} unlocked: {ach['name']} - {ach['description']}",
+            )
+
         self.db.save_database()
 
     async def handle_duckstats(self, nick, channel, player, args=None):
@@ -1481,7 +1448,7 @@ class DuckHuntBot:
                 for i, (player_nick, xp) in enumerate(top_xp, 1):
                     medal = f"#{i}"
                     xp_rankings.append(f"{medal} {player_nick}:{xp}XP")
-                xp_line = f"Top XP: {bold}{reset} " + " | ".join(xp_rankings)
+                xp_line = f"{bold}Top XP:{reset} " + " | ".join(xp_rankings)
                 self.send_message(channel, xp_line)
             else:
                 self.send_message(channel, "No XP data available yet!")
@@ -1492,7 +1459,7 @@ class DuckHuntBot:
                 for i, (player_nick, ducks) in enumerate(top_ducks, 1):
                     medal = f"#{i}"
                     duck_rankings.append(f"{medal} {player_nick}:{ducks}")
-                duck_line = f"Top Hunters: {bold}{reset} " + " | ".join(duck_rankings)
+                duck_line = f"{bold}Top Hunters:{reset} " + " | ".join(duck_rankings)
                 self.send_message(channel, duck_line)
             else:
                 self.send_message(channel, "No duck hunting data available yet!")
@@ -1506,7 +1473,7 @@ class DuckHuntBot:
                 for i, (player_nick, friends) in enumerate(top_friends, 1):
                     medal = f"#{i}"
                     friend_rankings.append(f"{medal} {player_nick}:{friends}")
-                friend_line = f"Top Befrienders: {bold}{reset} " + " | ".join(friend_rankings)
+                friend_line = f"{bold}Top Befrienders:{reset} " + " | ".join(friend_rankings)
                 self.send_message(channel, friend_line)
             else:
                 self.send_message(channel, "No befriending data available yet!")
@@ -1561,7 +1528,7 @@ class DuckHuntBot:
                 channel_label = _display_channel_key(channel_key)
                 parts.append(f"{prefix} {player_nick} {xp}XP {channel_label}")
 
-            line = f"Top XP: {bold}{reset} " + " | ".join(parts)
+            line = f"{bold}Top XP:{reset} " + " | ".join(parts)
             self.send_message(channel, line)
         except Exception as e:
             self.logger.error(f"Error in handle_globaltop: {e}")
@@ -1978,6 +1945,18 @@ class DuckHuntBot:
                     message += f" ({result['remaining_in_inventory']} remaining)"
 
             self.send_message(channel, message)
+
+            # Mystery box used from inventory counts toward Mystery Lover
+            if (
+                result.get("success")
+                and (result.get("effect") or {}).get("type") == "mystery"
+            ):
+                for ach in self.game._check_achievements(player, "mystery_box"):
+                    self.send_message(
+                        channel,
+                        f"[Achievement] {nick} unlocked: {ach['name']} - {ach['description']}",
+                    )
+
             self.db.save_database()
 
         except ValueError:
@@ -2540,6 +2519,58 @@ class DuckHuntBot:
                 reply_target, f"{nick} > Failed to leave {target_channel}"
             )
 
+    def _check_connection_stale(self) -> bool:
+        """Lag watchdog: PING the server after a quiet period, and report the
+        connection dead if the PING goes unanswered. Returns True when the
+        message loop should give up on this connection.
+        """
+        try:
+            ping_interval = float(
+                self.get_config("connection.ping_interval", 120) or 120
+            )
+            ping_timeout = float(self.get_config("connection.ping_timeout", 60) or 60)
+            now = time.monotonic()
+            if self._lag_ping_sent is not None:
+                if now - self._lag_ping_sent > ping_timeout:
+                    self.logger.error(
+                        f"No server response to keepalive PING within {ping_timeout:.0f}s; "
+                        "treating connection as dead"
+                    )
+                    return True
+            elif now - self._last_activity > ping_interval:
+                self.logger.debug("Server quiet; sending keepalive PING")
+                self.send_raw("PING :duckhunt-keepalive")
+                self._lag_ping_sent = now
+        except Exception as e:
+            self.logger.error(f"Error in lag watchdog: {e}")
+        return False
+
+    async def _health_check_loop(self):
+        """Periodically run the registered health checks.
+
+        The checks were previously configured in _setup_health_checks but never
+        executed; HealthChecker.run_checks itself logs an error once a critical
+        check has failed 3 times in a row.
+        """
+        try:
+            while not self.shutdown_requested:
+                await asyncio.sleep(self.health_checker.check_interval)
+                try:
+                    results = await self.health_checker.run_checks()
+                    unhealthy = [
+                        name
+                        for name, res in results.items()
+                        if res.get("status") != "healthy"
+                    ]
+                    if unhealthy:
+                        self.logger.debug(
+                            f"Unhealthy checks: {', '.join(unhealthy)}"
+                        )
+                except Exception as e:
+                    self.logger.error(f"Error running health checks: {e}")
+        except asyncio.CancelledError:
+            pass
+
     async def message_loop(self):
         """Main message processing loop with comprehensive error handling"""
         consecutive_errors = 0
@@ -2553,9 +2584,16 @@ class DuckHuntBot:
 
                     # Reset error counter on successful read
                     consecutive_errors = 0
+                    # Any received line (including PONG) counts as server activity
+                    self._last_activity = time.monotonic()
+                    self._lag_ping_sent = None
 
                 except asyncio.TimeoutError:
-                    # Check shutdown flag and continue
+                    # Idle: run the lag watchdog. A half-dead TCP connection (no RST)
+                    # never returns EOF, so without this the bot would sit here
+                    # forever as a zombie after a silent network drop.
+                    if self._check_connection_stale():
+                        break
                     continue
                 except ConnectionResetError:
                     self.logger.error("Connection reset by peer")
@@ -2620,40 +2658,124 @@ class DuckHuntBot:
             self.logger.info("Message loop ended")
 
     async def run(self):
-        """Main bot loop with fast shutdown handling"""
+        """Main bot loop: connect, run, and automatically reconnect on connection loss.
+
+        The in-memory database (self.db) is created once and is never reloaded or
+        replaced across reconnects - player data survives every connection cycle,
+        and is additionally saved to disk before each reconnect attempt.
+        """
         self.setup_signal_handlers()
 
         game_task = None
         message_task = None
+        health_task = None
 
         try:
-            await self.connect()
-
-            # Send server password immediately after connection (RFC requirement)
-            await self.send_server_password()
-
-            # Check if SASL should be used
-            if self.sasl_handler.should_authenticate():
-                await self.sasl_handler.start_negotiation()
-            else:
-                await self.register_user()
-
-            # Start game loops
+            # Game loops and health monitoring run for the life of the process,
+            # across reconnects (spawn tasks self-pause while no channels are joined).
             game_task = asyncio.create_task(self.game.start_game_loops())
-            message_task = asyncio.create_task(self.message_loop())
+            health_task = asyncio.create_task(self._health_check_loop())
 
-            self.logger.info("Bot is now running! Press Ctrl+C to stop.")
-            # Wait for shutdown signal or task completion with frequent checks
+            reconnect_enabled = bool(
+                self.get_config("connection.reconnect.enabled", True)
+            )
+            initial_delay = float(
+                self.get_config("connection.reconnect.initial_delay", 5) or 5
+            )
+            max_delay = float(
+                self.get_config("connection.reconnect.max_delay", 300) or 300
+            )
+            reconnect_delay = initial_delay
+
             while not self.shutdown_requested:
-                done, _pending = await asyncio.wait(
-                    [game_task, message_task],
-                    timeout=0.1,  # Check every 100ms for shutdown
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
+                try:
+                    await self.connect()
+                except (ConnectionError, OSError) as e:
+                    self.logger.error(f"Connection failed: {e}")
+                    if not reconnect_enabled or self.shutdown_requested:
+                        break
+                    self.logger.info(
+                        f"Retrying connection in {reconnect_delay:.0f}s..."
+                    )
+                    await asyncio.sleep(reconnect_delay)
+                    reconnect_delay = min(reconnect_delay * 2, max_delay)
+                    continue
 
-                # If any task completed, break out
-                if done:
+                reconnect_delay = initial_delay
+
+                # Reset per-connection state (never the database)
+                self.registered = False
+                self.channels_joined.clear()
+                self.pending_joins = {}
+                self._last_activity = time.monotonic()
+                self._lag_ping_sent = None
+                self._nick_attempts = 0
+                self.current_nick = (
+                    self.get_config("connection.nick", "DuckHunt") or "DuckHunt"
+                )
+                self.sasl_handler.reset()
+                for _ch, task in list(self.rejoin_tasks.items()):
+                    task.cancel()
+                self.rejoin_tasks.clear()
+                self.rejoin_attempts.clear()
+
+                # Send server password immediately after connection (RFC requirement)
+                await self.send_server_password()
+
+                # Check if SASL should be used
+                if self.sasl_handler.should_authenticate():
+                    await self.sasl_handler.start_negotiation()
+                else:
+                    await self.register_user()
+
+                message_task = asyncio.create_task(self.message_loop())
+
+                self.logger.info("Bot is now running! Press Ctrl+C to stop.")
+                # Wait for shutdown signal or task completion with frequent checks
+                while not self.shutdown_requested:
+                    done, _pending = await asyncio.wait(
+                        [game_task, message_task],
+                        timeout=0.1,  # Check every 100ms for shutdown
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+
+                    # If any task completed, break out
+                    if done:
+                        break
+
+                # Connection ended (or shutdown). Tear down this connection cleanly.
+                if not message_task.done():
+                    message_task.cancel()
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.gather(message_task, return_exceptions=True),
+                            timeout=1.0,
+                        )
+                    except asyncio.TimeoutError:
+                        pass
+                await self._close_connection()
+
+                if self.shutdown_requested:
                     break
+                if game_task.done():
+                    self.logger.error("Game loops ended unexpectedly; shutting down")
+                    break
+
+                # Persist player data before attempting to reconnect
+                try:
+                    self.db.save_database()
+                except Exception as e:
+                    self.logger.error(f"Error saving database before reconnect: {e}")
+
+                if not reconnect_enabled:
+                    self.logger.info("Connection lost and reconnect is disabled")
+                    break
+
+                self.logger.warning(
+                    f"Connection lost; reconnecting in {reconnect_delay:.0f}s..."
+                )
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(reconnect_delay * 2, max_delay)
 
             self.logger.info("Shutdown initiated, cleaning up...")
 
@@ -2664,7 +2786,9 @@ class DuckHuntBot:
         finally:
             # Fast cleanup - cancel tasks immediately with short timeout
             tasks_to_cancel = [
-                task for task in [game_task, message_task] if task and not task.done()
+                task
+                for task in [game_task, message_task, health_task]
+                if task and not task.done()
             ]
 
             # Cancel all rejoin tasks

@@ -560,6 +560,12 @@ class DuckDB:
             "total_xp_spent": 0,
             # Confiscation counter (for Trigger Happy achievement)
             "gun_confiscated_count": 0,
+            # Shop effect fields (luck, critical_hit, duck_attraction item types).
+            # Must be whitelisted here or the sanitize pass silently strips them
+            # from the player on every get_player call and every save.
+            "luck_bonus": 0,
+            "critical_chance": 0,
+            "duck_attraction": 0,
         }
 
         for field, default_value in additional_fields.items():
@@ -975,19 +981,16 @@ class DuckDB:
         try:
             leaderboard = []
 
+            if category not in ("xp", "ducks_shot", "ducks_befriended"):
+                return []
+
             players = self.get_players_for_channel(channel)
             for nick, player_data in players.items():
-                sanitized_data = self._sanitize_player_data(player_data)
-
-                if category == "xp":
-                    value = sanitized_data.get("xp", 0)
-                elif category == "ducks_shot":
-                    value = sanitized_data.get("ducks_shot", 0)
-                elif category == "ducks_befriended":
-                    value = sanitized_data.get("ducks_befriended", 0)
-                else:
+                if not isinstance(player_data, dict):
                     continue
-
+                # Read the one field directly instead of running the full sanitize
+                # pass over every player on every leaderboard request.
+                value = self._safe_int(player_data.get(category, 0), 0, min_val=0)
                 leaderboard.append((nick, value))
 
             leaderboard.sort(key=lambda x: x[1], reverse=True)
