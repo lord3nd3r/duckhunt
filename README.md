@@ -10,6 +10,8 @@ DuckHunt is an asyncio-based IRC bot that runs a classic "duck hunting" mini-gam
 ## Features
 
 - **Multi-channel support** - Bot can be in multiple channels simultaneously
+- **Per-channel game toggle** - Admins can enable or disable the game per channel (`!dh on` / `!dh off`)
+- **Persistent channel membership** - Remembers and rejoins dynamically joined channels across disconnects and restarts
 - **Per-channel player stats** - Stats are tracked separately per channel
 - **Global leaderboard** - View the global top 5 across all channels
 - **Achievement System** - Earn badges for milestones (e.g., First Blood, Sharpshooter, Golden Slayer)
@@ -106,9 +108,9 @@ in `config.json` (see [Configuration](#configuration)) — if you set it to e.g.
 ### Shop Commands
 
 - `!shop` - View available items
-- `!shop buy <item_id>` - Purchase an item from the shop
-- `!use <item_id> [target]` - Use an item from your inventory
-- `!give <item_id> <player>` - Give an inventory item to another player
+- `!shop buy <item_name|id>` - Purchase an item from the shop (by name or ID)
+- `!use <item_name|id> [target]` - Use an item from your inventory (by name or ID)
+- `!give <item_name|id> <player>` - Give an inventory item to another player (by name or ID)
 
 ### Admin Commands
 
@@ -180,6 +182,9 @@ duckhunt/
 
 ### Recent Fixes & Enhancements
 
+- **Per-Channel Game Toggle (`!dh on` / `!dh off` / `!dh status`)** - Bot admins can enable or disable DuckHunt on a per-channel basis. Duck spawning pauses and gameplay commands are blocked in disabled channels while admin commands remain active.
+- **Persistent Channel Membership** - Channels joined via `!join` or parted via `!part` persist in the database, ensuring the bot automatically rejoins all active channels across IRC lag/ping timeouts and full bot restarts.
+- **Item Name Support & Display Fixes** - Commands (`!use`, `!give`, `!shop buy`) now support full item names (e.g. `!use scope`, `!give bread Alice`), and all output across inventory, profile, and duck drops strictly uses real item names instead of generic item numbers.
 - **Asynchronous Non-blocking Message Loops** - Converted the bot message-sending queue to run asynchronously, resolving loop blocking issues caused by synchronous message-throttling delay sleep.
 - **Config & Duck Types Syncing** - Removed dead/unimplemented duck types from the configuration template and added proper config schema for the `ninja` duck.
 - **Decoy Duck Removal** - Completely removed vestigial decoy duck references, comments, and handling branches from the shooting and befriending mechanics.
