@@ -4,7 +4,7 @@ import signal
 import ssl
 import sys
 import time
-from typing import Optional
+from typing import List, Optional
 
 from .db import DuckDB
 from .error_handling import (
@@ -192,6 +192,7 @@ class DuckHuntBot:
             ),
             "join": (True, lambda n, c, p, a, u: self.handle_join_channel(n, c, a)),
             "part": (True, lambda n, c, p, a, u: self.handle_part_channel(n, c, a)),
+            "dh": (True, lambda n, c, p, a, u: self.handle_dh(n, c, a)),
         }
 
     def _setup_health_checks(self):
@@ -240,6 +241,50 @@ class DuckHuntBot:
         if channel.startswith("#") or channel.startswith("&"):
             return channel.lower()
         return channel
+
+    def is_channel_enabled(self, channel: str) -> bool:
+        """Check if DuckHunt is enabled for a given channel (defaults to True)."""
+        if not channel:
+            return True
+        channel_key = self._channel_key(channel)
+        if not (channel_key.startswith("#") or channel_key.startswith("&")):
+            return True
+        if hasattr(self, "db") and self.db:
+            return self.db.is_channel_enabled(channel_key)
+        return True
+
+    def get_channels_to_join(self) -> List[str]:
+        """Determine channels the bot should join on connect/reconnect.
+
+        Combines:
+        1. Channels marked joined in the persistent database.
+        2. Any active channels recorded prior to a disconnect/reconnect.
+        3. Channels in config.json that haven't been explicitly parted by an admin.
+        """
+        channels = {}
+        # 1. Channels from database that are marked joined
+        if hasattr(self, "db") and self.db:
+            for ch in self.db.get_joined_channels():
+                ck = self._channel_key(ch)
+                channels[ck] = ch
+
+        # 2. In-memory channels before a disconnect (if any)
+        if hasattr(self, "_active_channels_before_disconnect"):
+            for ch in self._active_channels_before_disconnect:
+                ck = self._channel_key(ch)
+                channels[ck] = ch
+
+        # 3. Channels from config.json, as long as they were not explicitly parted
+        config_channels = self.get_config("connection.channels", []) or []
+        for ch in config_channels:
+            ck = self._channel_key(ch)
+            if hasattr(self, "db") and self.db:
+                if self.db.is_channel_joined(ck) is False:
+                    continue  # Explicitly parted by admin
+            if ck not in channels:
+                channels[ck] = ch
+
+        return list(channels.values())
 
     def is_admin(self, user):
         if "!" not in user:
@@ -726,7 +771,7 @@ class DuckHuntBot:
                     f"Successfully registered with IRC server as {self.current_nick}"
                 )
 
-                channels = self.get_config("connection.channels", []) or []
+                channels = self.get_channels_to_join()
                 for channel in channels:
                     try:
                         self.send_raw(f"JOIN {channel}")
@@ -827,6 +872,9 @@ class DuckHuntBot:
                     if joiner_nick and joiner_nick.lower() == our_nick.lower():
                         self.channels_joined.add(channel_key)
                         self.logger.info(f"Successfully joined channel {channel}")
+                        if hasattr(self, "db") and self.db:
+                            self.db.set_channel_joined(channel, True)
+                            self.db.save_database()
 
                         # Clear pending join marker
                         if hasattr(self, "pending_joins") and isinstance(
@@ -957,6 +1005,19 @@ class DuckHuntBot:
                 max_length=50,
                 allowed_chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\",
             )
+
+            # Check if DuckHunt is disabled in this channel.
+            # Admin commands (entry[0] is True) are always permitted so admins can manage/re-enable.
+            is_channel_context = safe_channel.startswith("#") or safe_channel.startswith("&")
+            if is_channel_context and not entry[0] and not self.is_channel_enabled(safe_channel):
+                self.logger.debug(
+                    f"Command '{cmd}' ignored in {safe_channel}: DuckHunt is disabled in this channel"
+                )
+                self.send_message(
+                    safe_channel,
+                    f"{nick} > DuckHunt is currently disabled in this channel.",
+                )
+                return
 
             # Ignore check BEFORE creating/fetching the player record (is_ignored
             # only reads existing records, it never creates one).
@@ -1188,26 +1249,33 @@ class DuckHuntBot:
                 start_idx = 1
 
             if len(args) > start_idx:
-                try:
-                    item_id = int(args[start_idx])
-                    target_nick = (
-                        args[start_idx + 1] if len(args) > start_idx + 1 else None
-                    )
+                buy_args = args[start_idx:]
+                found = None
+                target_nick = None
+                if len(buy_args) > 1:
+                    found = self.shop.find_item(" ".join(buy_args))
+                    if not found:
+                        found = self.shop.find_item(" ".join(buy_args[:-1]))
+                        if found:
+                            target_nick = buy_args[-1]
+                else:
+                    found = self.shop.find_item(buy_args[0])
 
+                if found:
+                    item_id, item_obj = found
                     store_in_inventory = target_nick is None
                     await self.handle_shop_buy(
                         nick, channel, player, item_id, target_nick, store_in_inventory
                     )
                     return
-                except (ValueError, IndexError):
-                    # Show available items so the player knows which ID to use
+                else:
                     items_list = " | ".join(
-                        f"({iid}) {it['name']} {it['price']}XP"
+                        f"{it['name']} ({it['price']} XP)"
                         for iid, it in sorted(self.shop.get_items().items())
                     )
                     self.send_message(
                         channel,
-                        f"{nick} > Usage: {self.command_prefix}shop buy <id>. Items: {items_list}",
+                        f"{nick} > Usage: {self.command_prefix}shop buy <item> [target]. Items: {items_list}",
                     )
                     return
 
@@ -1217,9 +1285,9 @@ class DuckHuntBot:
         for item_id, item in sorted(self.shop.get_items().items()):
             self.send_notice(
                 nick,
-                f"  ({item_id}) {item['name']} - {item['price']} XP — {item.get('description', '')}",
+                f"  {item['name']} (ID: {item_id}) - {item['price']} XP — {item.get('description', '')}",
             )
-        self.send_notice(nick, f"Use: {self.command_prefix}shop buy <id> [target]")
+        self.send_notice(nick, f"Use: {self.command_prefix}shop buy <item> [target]")
         if channel.startswith("#"):
             self.send_message(
                 channel, f"{nick} > Check your notices for the shop menu."
@@ -1256,10 +1324,11 @@ class DuckHuntBot:
             elif result["error"] == "target_required":
                 message = f"{nick} > {result['message']}"
             elif result["error"] == "cannot_target":
+                item_name_lower = result["item_name"].lower()
                 message = (
                     f"{nick} > {result['item_name']} can't be bought for another player. "
-                    f"Buy it into your inventory ({self.command_prefix}shop buy {item_id}), "
-                    f"then {self.command_prefix}give {item_id} {target_nick}."
+                    f"Buy it into your inventory ({self.command_prefix}shop buy {item_name_lower}), "
+                    f"then {self.command_prefix}give {item_name_lower} {target_nick}."
                 )
             elif result["error"] == "invalid_storage":
                 message = f"{nick} > {result['message']}"
@@ -1408,9 +1477,11 @@ class DuckHuntBot:
         if inventory:
             items = []
             for item_id, quantity in inventory.items():
-                item = self.shop.get_item(int(item_id))
-                if item:
-                    items.append(f"{item['name']} x{quantity}")
+                if quantity <= 0:
+                    continue
+                name = self.shop.get_item_name(item_id)
+                if name:
+                    items.append(f"{name} x{quantity}")
             if items:
                 stats_parts.append(f"Items: {', '.join(items)}")
 
@@ -1566,9 +1637,9 @@ class DuckHuntBot:
             "",
             "SHOP COMMANDS:",
             f"  {p}shop - View available items",
-            f"  {p}shop buy <item_id> - Purchase an item from the shop",
-            f"  {p}use <item_id> - Use an item from your inventory",
-            f"  {p}give <item_id> <player> - Give an inventory item to another player",
+            f"  {p}shop buy <item> - Purchase an item from the shop",
+            f"  {p}use <item> - Use an item from your inventory",
+            f"  {p}give <item> <player> - Give an inventory item to another player",
             "",
             "DUCK TYPES:",
             "  Normal duck  - Standard XP",
@@ -1587,6 +1658,7 @@ class DuckHuntBot:
             "  (14) Body Armor     - 100 XP - Absorbs your next XP loss event",
             "",
             "ADMIN COMMANDS:",
+            f"  {p}dh <on|off|status> [#channel] - Enable or disable DuckHunt in a channel",
             f"  {p}rearm <player|all> - Give player a gun",
             f"  {p}disarm <player> - Confiscate player's gun",
             f"  {p}ignore <player> - Ignore player's commands",
@@ -1738,11 +1810,17 @@ class DuckHuntBot:
             return
         parts = []
         for item_id_str, qty in inventory.items():
-            item = self.shop.get_item(int(item_id_str))
-            if item:
-                parts.append(f"{item['name']} x{qty} (#{item_id_str})")
-            else:
-                parts.append(f"Item #{item_id_str} x{qty}")
+            if qty <= 0:
+                continue
+            name = self.shop.get_item_name(item_id_str)
+            if name:
+                parts.append(f"{name} x{qty}")
+        if not parts:
+            self.send_message(
+                channel,
+                f"{nick} > Inventory empty. Use {self.command_prefix}shop to buy items!",
+            )
+            return
         self.send_message(channel, f"{nick} > Inventory: {' | '.join(parts)}")
 
     async def handle_profile(self, nick, channel, player):
@@ -1792,9 +1870,13 @@ class DuckHuntBot:
         if inventory:
             inv_parts = []
             for iid, qty in inventory.items():
-                item = self.shop.get_item(int(iid))
-                inv_parts.append(f"{item['name']} x{qty}" if item else f"#{iid} x{qty}")
-            lines.append(f"  Items   : {' | '.join(inv_parts)}")
+                if qty <= 0:
+                    continue
+                name = self.shop.get_item_name(iid)
+                if name:
+                    inv_parts.append(f"{name} x{qty}")
+            if inv_parts:
+                lines.append(f"  Items   : {' | '.join(inv_parts)}")
         # Active effects
         now = time.time()
         active_fx = [
@@ -1813,22 +1895,52 @@ class DuckHuntBot:
     async def handle_use(self, nick, channel, player, args):
         """Handle !use command"""
         if not args:
-            message = f"{nick} > Usage: {self.command_prefix}use <item_id> [target]"
+            message = f"{nick} > Usage: {self.command_prefix}use <item> [target]"
             self.send_message(channel, message)
             return
 
         try:
-            item_id = int(args[0])
-            target_nick = args[1] if len(args) > 1 else None
+            found_item = None
+            target_nick = None
+
+            # 1. Try first argument as item (e.g. "!use 5", "!use bread", "!use bread bob")
+            res = self.shop.find_item(args[0])
+            if res:
+                item_id, item_obj = res
+                target_nick = args[1] if len(args) > 1 else None
+                found_item = (item_id, item_obj)
+            else:
+                # 2. Multi-word item name with target (e.g. "!use gun brush bob")
+                if len(args) > 1:
+                    res = self.shop.find_item(" ".join(args[:-1]))
+                    if res:
+                        item_id, item_obj = res
+                        target_nick = args[-1]
+                        found_item = (item_id, item_obj)
+                # 3. Full argument string as item name without target (e.g. "!use gun brush")
+                if not found_item:
+                    res = self.shop.find_item(" ".join(args))
+                    if res:
+                        item_id, item_obj = res
+                        target_nick = None
+                        found_item = (item_id, item_obj)
+
+            if not found_item:
+                message = f"{nick} > Unknown item '{' '.join(args)}'. Use {self.command_prefix}duckstats to see your items."
+                self.send_message(channel, message)
+                return
+
+            item_id, _ = found_item
             target_player = None
 
             # Get target player if specified
-            target_player, error_message = self._get_validated_target_player(
-                nick, channel, target_nick
-            )
-            if error_message:
-                self.send_message(channel, error_message)
-                return
+            if target_nick:
+                target_player, error_message = self._get_validated_target_player(
+                    nick, channel, target_nick
+                )
+                if error_message:
+                    self.send_message(channel, error_message)
+                    return
 
             # Use item from inventory
             result = self.shop.use_inventory_item(player, item_id, target_player)
@@ -1959,21 +2071,37 @@ class DuckHuntBot:
 
             self.db.save_database()
 
-        except ValueError:
-            message = f"{nick} > Invalid item ID. Use {self.command_prefix}duckstats to see your items."
+        except Exception as e:
+            self.logger.error(f"Error in handle_use: {e}")
+            message = f"{nick} > Usage: {self.command_prefix}use <item> [target]"
             self.send_message(channel, message)
 
     async def handle_give(self, nick, channel, player, args):
         """Handle !give command - give inventory items to other players"""
         if not args or len(args) < 2:
             self.send_message(
-                channel, f"{nick} > Usage: {self.command_prefix}give <item_id> <player>"
+                channel, f"{nick} > Usage: {self.command_prefix}give <item> <player>"
             )
             return
 
         try:
-            item_id = int(args[0])
-            target_nick = args[1]
+            target_nick = args[-1]
+            item_query = " ".join(args[:-1])
+
+            found = self.shop.find_item(item_query)
+            if not found:
+                found = self.shop.find_item(args[0])
+                if found:
+                    target_nick = args[1]
+
+            if not found:
+                self.send_message(
+                    channel,
+                    f"{nick} > Unknown item '{item_query}'. Use {self.command_prefix}duckstats to check your inventory.",
+                )
+                return
+
+            item_id, item = found
 
             # Validate target player
             target_player, error_message = self._get_validated_target_player(
@@ -1995,14 +2123,6 @@ class DuckHuntBot:
                     f"{nick} > You don't have that item. Use {self.command_prefix}duckstats to check your inventory.",
                 )
                 return
-
-            # Get item info from shop
-            shop_items = self.shop.get_items()
-            if item_id not in shop_items:
-                self.send_message(channel, f"{nick} > Invalid item ID.")
-                return
-
-            item = shop_items[item_id]
 
             # Enforce the same inventory caps the shop (and item drops) enforce, so
             # gifting can't be used to push a player past the limits.
@@ -2067,9 +2187,10 @@ class DuckHuntBot:
             self.send_message(channel, message)
             self.db.save_database()
 
-        except ValueError:
+        except Exception as e:
+            self.logger.error(f"Error in handle_give: {e}")
             self.send_message(
-                channel, f"{nick} > Usage: {self.command_prefix}give <item_id> <player>"
+                channel, f"{nick} > Usage: {self.command_prefix}give <item> <player>"
             )
 
     async def handle_rearm(self, nick, channel, args):
@@ -2355,6 +2476,13 @@ class DuckHuntBot:
                 self.send_message(reply_target, message)
             return
 
+        if not self.is_channel_enabled(target_channel_key):
+            self.send_message(
+                reply_target,
+                f"{nick} > DuckHunt is disabled in {target_channel}. Use {self.command_prefix}dh on {target_channel} first.",
+            )
+            return
+
         # Validate duck type
         duck_type_arg = duck_type_arg.lower()
         valid_types = ["normal", "golden", "fast", "ninja", "flock"]
@@ -2512,12 +2640,125 @@ class DuckHuntBot:
         # Send PART command and remove from joined set
         if self.send_raw(f"PART {target_channel_key}"):
             self.channels_joined.discard(target_channel_key)
+            if hasattr(self, "_active_channels_before_disconnect"):
+                self._active_channels_before_disconnect.discard(target_channel_key)
+            if hasattr(self, "db") and self.db:
+                self.db.set_channel_joined(target_channel_key, False)
+                self.db.save_database()
             self.send_message(reply_target, f"{nick} > Left {target_channel}")
             self.logger.info(f"Admin {nick} made bot leave {target_channel}")
         else:
             self.send_message(
                 reply_target, f"{nick} > Failed to leave {target_channel}"
             )
+
+    async def handle_dh(self, nick, channel, args):
+        """Handle !dh command (admin only) - enable/disable DuckHunt per channel."""
+        is_private_msg = not (channel.startswith("#") or channel.startswith("&"))
+        reply_target = nick if is_private_msg else channel
+
+        if not args:
+            self.send_message(
+                reply_target,
+                f"{nick} > Usage: {self.command_prefix}dh <on|off|status> [#channel]",
+            )
+            return
+
+        action = args[0].lower()
+        if action not in ("on", "off", "status"):
+            self.send_message(
+                reply_target,
+                f"{nick} > Usage: {self.command_prefix}dh <on|off|status> [#channel]",
+            )
+            return
+
+        # Determine target channel
+        if len(args) > 1:
+            target_channel = args[1]
+        elif not is_private_msg:
+            target_channel = channel
+        else:
+            self.send_message(
+                reply_target,
+                f"{nick} > In private message, please specify a channel: {self.command_prefix}dh {action} <#channel>",
+            )
+            return
+
+        target_channel = sanitize_user_input(
+            target_channel,
+            max_length=100,
+            allowed_chars="#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\",
+        )
+        if not (target_channel.startswith("#") or target_channel.startswith("&")):
+            self.send_message(
+                reply_target,
+                f"{nick} > Invalid channel name '{target_channel}'. Channel names must start with # or &.",
+            )
+            return
+
+        target_key = self._channel_key(target_channel)
+
+        if action == "status":
+            enabled = self.is_channel_enabled(target_key)
+            status_str = "enabled" if enabled else "disabled"
+            self.send_message(
+                reply_target,
+                f"{nick} > DuckHunt is currently {status_str} in {target_channel}.",
+            )
+            return
+
+        if action == "on":
+            if self.is_channel_enabled(target_key):
+                self.send_message(
+                    reply_target,
+                    f"{nick} > DuckHunt is already enabled in {target_channel}.",
+                )
+                return
+            self.db.set_channel_enabled(target_key, True)
+            self.db.save_database()
+            # If bot is joined in target channel and spawn task is not running, start it
+            if target_key in self.channels_joined and hasattr(self, "game") and self.game:
+                if (
+                    target_key not in self.game._channel_spawn_tasks
+                    or self.game._channel_spawn_tasks[target_key].done()
+                ):
+                    self.game._channel_spawn_tasks[target_key] = asyncio.create_task(
+                        self.game._channel_spawn_loop(target_channel)
+                    )
+            self.send_message(
+                reply_target,
+                f"{nick} > DuckHunt has been enabled in {target_channel}.",
+            )
+            if is_private_msg and target_key in self.channels_joined:
+                self.send_message(
+                    target_channel,
+                    f"DuckHunt has been enabled in this channel by {nick}.",
+                )
+        elif action == "off":
+            if not self.is_channel_enabled(target_key):
+                self.send_message(
+                    reply_target,
+                    f"{nick} > DuckHunt is already disabled in {target_channel}.",
+                )
+                return
+            self.db.set_channel_enabled(target_key, False)
+            self.db.save_database()
+            # Stop spawn task for that channel
+            if hasattr(self, "game") and self.game:
+                task = self.game._channel_spawn_tasks.pop(target_key, None)
+                if task and not task.done():
+                    task.cancel()
+                # Clear active ducks in that channel
+                self.game.ducks.pop(target_key, None)
+            self.send_message(
+                reply_target,
+                f"{nick} > DuckHunt has been disabled in {target_channel}.",
+            )
+            if is_private_msg and target_key in self.channels_joined:
+                self.send_message(
+                    target_channel,
+                    f"DuckHunt has been disabled in this channel by {nick}.",
+                )
 
     def _check_connection_stale(self) -> bool:
         """Lag watchdog: PING the server after a quiet period, and report the
@@ -2702,6 +2943,10 @@ class DuckHuntBot:
                     continue
 
                 reconnect_delay = initial_delay
+
+                # Preserve active channels so reconnect rejoins them
+                if self.channels_joined:
+                    self._active_channels_before_disconnect = set(self.channels_joined)
 
                 # Reset per-connection state (never the database)
                 self.registered = False

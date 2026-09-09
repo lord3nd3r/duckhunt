@@ -10,7 +10,7 @@ import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from typing import Any, Dict, Generator, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from .error_handling import ErrorRecovery, RetryConfig, sanitize_user_input, with_retry
 
@@ -112,6 +112,87 @@ class DuckDB:
             return True
         except Exception:
             return False
+
+    def is_channel_enabled(self, channel: str) -> bool:
+        """Check if DuckHunt is enabled in the specified channel (default True)."""
+        try:
+            channel_key = self._normalize_channel(channel)
+            if channel_key in ("__pm__", "__unknown__", "__global__"):
+                return True
+            bucket = self.channels.get(channel_key)
+            if isinstance(bucket, dict):
+                return bool(bucket.get("enabled", True))
+            return True
+        except Exception:
+            return True
+
+    def set_channel_enabled(self, channel: str, enabled: bool) -> bool:
+        """Enable or disable DuckHunt in the specified channel.
+
+        NOTE: Does not write to disk directly; save_database() should be called
+        afterwards for the change to persist.
+        """
+        try:
+            channel_key = self._normalize_channel(channel)
+            if channel_key in ("__pm__", "__unknown__", "__global__"):
+                return False
+            bucket = self.channels.setdefault(channel_key, {"players": {}})
+            if not isinstance(bucket, dict):
+                bucket = {"players": {}}
+                self.channels[channel_key] = bucket
+            bucket["enabled"] = bool(enabled)
+            return True
+        except Exception as e:
+            self.logger.error(f"Error setting channel enabled for {channel}: {e}")
+            return False
+
+    def set_channel_joined(self, channel: str, joined: bool) -> bool:
+        """Record whether the bot is joined to the specified channel.
+
+        NOTE: Does not write to disk directly; save_database() should be called
+        afterwards for the change to persist.
+        """
+        try:
+            channel_key = self._normalize_channel(channel)
+            if channel_key in ("__pm__", "__unknown__", "__global__"):
+                return False
+            bucket = self.channels.setdefault(channel_key, {"players": {}})
+            if not isinstance(bucket, dict):
+                bucket = {"players": {}}
+                self.channels[channel_key] = bucket
+            bucket["joined"] = bool(joined)
+            if joined and str(channel).startswith(("#", "&", "+", "!")):
+                bucket["display_name"] = str(channel)
+            return True
+        except Exception as e:
+            self.logger.error(f"Error setting channel joined for {channel}: {e}")
+            return False
+
+    def is_channel_joined(self, channel: str) -> Optional[bool]:
+        """Check if the channel is marked joined in the database.
+
+        Returns True if joined, False if explicitly parted, None if unrecorded.
+        """
+        try:
+            channel_key = self._normalize_channel(channel)
+            bucket = self.channels.get(channel_key)
+            if isinstance(bucket, dict) and "joined" in bucket:
+                return bool(bucket["joined"])
+            return None
+        except Exception:
+            return None
+
+    def get_joined_channels(self) -> List[str]:
+        """Get list of channels marked as joined in the database."""
+        result = []
+        try:
+            for channel_key, bucket in (self.channels or {}).items():
+                if isinstance(bucket, dict) and bucket.get("joined") is True:
+                    display = bucket.get("display_name", channel_key)
+                    result.append(display)
+        except Exception as e:
+            self.logger.error(f"Error getting joined channels: {e}")
+        return result
 
     @property
     def players(self):
@@ -488,7 +569,10 @@ class DuckDB:
             valid_ids = None
             if self.bot and hasattr(self.bot, "shop") and self.bot.shop:
                 try:
-                    valid_ids = {str(k) for k in self.bot.shop.get_items().keys()}
+                    if hasattr(self.bot.shop, "get_all_valid_ids"):
+                        valid_ids = self.bot.shop.get_all_valid_ids()
+                    else:
+                        valid_ids = {str(k) for k in self.bot.shop.get_items().keys()}
                 except Exception:
                     valid_ids = None
 
@@ -501,14 +585,33 @@ class DuckDB:
                     with open(shop_path, "r", encoding="utf-8") as f:
                         shop_data = json.load(f)
                     valid_ids = {str(k) for k in shop_data.get("items", {}).keys()}
+                    # Include known legacy item IDs so existing players don't lose items
+                    valid_ids.update(
+                        {"3", "6", "8", "9", "10", "11", "12", "15", "16"}
+                    )
                 except Exception:
                     valid_ids = None
 
             if not valid_ids:
-                # Last-resort fallback if shop.json is also unavailable. Keep in sync with
-                # shop.json's item IDs (1: ammo, 2: magazine, 4: clean_gun, 5: attract_ducks,
-                # 7: buy_gun_back, 13: temporary_accuracy, 14: xp_shield).
-                valid_ids = {"1", "2", "4", "5", "7", "13", "14"}
+                # Last-resort fallback if shop.json is also unavailable. Includes active and legacy IDs.
+                valid_ids = {
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                    "9",
+                    "10",
+                    "11",
+                    "12",
+                    "13",
+                    "14",
+                    "15",
+                    "16",
+                }
 
             for k, v in inventory.items():
                 try:
@@ -676,6 +779,18 @@ class DuckDB:
 
             out_channel_key = str(channel_key)
             data["channels"].setdefault(out_channel_key, {"players": {}})
+            if "enabled" in channel_data:
+                data["channels"][out_channel_key]["enabled"] = bool(
+                    channel_data["enabled"]
+                )
+            if "joined" in channel_data:
+                data["channels"][out_channel_key]["joined"] = bool(
+                    channel_data["joined"]
+                )
+            if "display_name" in channel_data:
+                data["channels"][out_channel_key]["display_name"] = str(
+                    channel_data["display_name"]
+                )
             for nick, player_data in players.items():
                 if isinstance(nick, str) and isinstance(player_data, dict):
                     try:

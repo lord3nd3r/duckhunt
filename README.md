@@ -112,6 +112,7 @@ in `config.json` (see [Configuration](#configuration)) — if you set it to e.g.
 
 ### Admin Commands
 
+- `!dh <on|off|status> [#channel]` - Enable or disable DuckHunt in a channel (per-channel toggle)
 - `!rearm <player|all>` - Give a player a gun
 - `!disarm <player>` - Confiscate a player's gun
 - `!ignore <player>` / `!unignore <player>` - Ignore/unignore commands from a player

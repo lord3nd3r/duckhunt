@@ -108,12 +108,14 @@ class DuckGame:
     # -----------------------------------------------------------------------
 
     async def _spawn_manager_loop(self):
-        """Reconcile per-channel spawn tasks with the current set of joined channels."""
+        """Reconcile per-channel spawn tasks with the current set of joined and enabled channels."""
         try:
             while True:
                 current_channels = set(self.bot.channels_joined)
-                # Start tasks for newly joined channels
-                for ch in current_channels:
+                is_enabled = getattr(self.bot, "is_channel_enabled", lambda c: True)
+                enabled_channels = {ch for ch in current_channels if is_enabled(ch)}
+                # Start tasks for newly joined and enabled channels
+                for ch in enabled_channels:
                     ck = self._channel_key(ch)
                     if (
                         ck not in self._channel_spawn_tasks
@@ -123,11 +125,11 @@ class DuckGame:
                         self._channel_spawn_tasks[ck] = asyncio.create_task(
                             self._channel_spawn_loop(ch)
                         )
-                # Cancel tasks for channels we've left
+                # Cancel tasks for channels we've left or that are disabled
                 for ck, task in list(self._channel_spawn_tasks.items()):
-                    if ck not in {self._channel_key(c) for c in current_channels}:
+                    if ck not in {self._channel_key(c) for c in enabled_channels}:
                         self.logger.info(
-                            f"Stopping spawn task for {ck} (no longer in channel)"
+                            f"Stopping spawn task for {ck} (no longer in channel or disabled)"
                         )
                         task.cancel()
                         del self._channel_spawn_tasks[ck]
@@ -144,6 +146,12 @@ class DuckGame:
         channel_key = self._channel_key(channel)
         try:
             while True:
+                is_enabled = getattr(self.bot, "is_channel_enabled", lambda c: True)
+                if not is_enabled(channel):
+                    self.logger.info(
+                        f"Spawn loop for {channel_key} stopped (channel disabled)"
+                    )
+                    break
                 min_wait, max_wait = self._get_channel_spawn_config(channel)
                 # Ensure min <= max
                 if min_wait > max_wait:
@@ -158,6 +166,11 @@ class DuckGame:
                 # a 20-minute effect would otherwise usually expire unseen).
                 elapsed = 0
                 while True:
+                    if not is_enabled(channel):
+                        self.logger.info(
+                            f"Spawn loop for {channel_key} stopped (channel disabled)"
+                        )
+                        return
                     spawn_multiplier = self._get_active_spawn_multiplier(channel)
                     effective_wait = base_wait
                     if spawn_multiplier > 1.0:
@@ -1093,6 +1106,16 @@ class DuckGame:
                 if random_weight <= current_weight:
                     item_id = drop_item.get("item_id")
                     if item_id:
+                        item_info = (
+                            self.bot.shop.get_item(item_id)
+                            if hasattr(self.bot, "shop") and self.bot.shop
+                            else None
+                        )
+                        if not item_info or not item_info.get("name"):
+                            self.logger.warning(
+                                f"Drop table for {duck_type} contains item_id {item_id} with no valid shop item name; skipping drop."
+                            )
+                            return None
                         inventory = player.get("inventory", {})
                         # Respect inventory limits (same caps the shop enforces)
                         max_total = int(
@@ -1105,12 +1128,7 @@ class DuckGame:
                             return None
                         inventory[str(item_id)] = inventory.get(str(item_id), 0) + 1
                         player["inventory"] = inventory
-                        item_info = self.bot.shop.get_item(item_id)
-                        item_name = (
-                            item_info.get("name", f"Item {item_id}")
-                            if item_info
-                            else f"Item {item_id}"
-                        )
+                        item_name = item_info["name"]
                         self.logger.info(
                             f"Duck dropped {item_name} for {player.get('nick', '?')}"
                         )

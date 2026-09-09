@@ -7,11 +7,40 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set, Tuple, Union
 
 
 class ShopManager:
     """Manages the DuckHunt shop system"""
+
+    # Known legacy item definitions so existing inventories preserve real names
+    # instead of displaying generic numbers like 'Item #6'.
+    LEGACY_ITEMS: Dict[int, Dict[str, Any]] = {
+        3: {"name": "Sand", "type": "sabotage_jam", "amount": 15},
+        6: {
+            "name": "Hunter's Insurance",
+            "type": "insurance",
+            "duration": 86400,
+            "protection": "friendly_fire",
+        },
+        8: {"name": "Bucket of Water", "type": "splash_water"},
+        9: {"name": "Dry Clothes", "type": "dry_clothes"},
+        10: {
+            "name": "4-Leaf Clover",
+            "type": "clover_luck",
+            "duration": 600,
+            "min_hit_chance": 0.95,
+            "min_befriend_chance": 0.95,
+        },
+        11: {"name": "Binoculars", "type": "reveal_duck"},
+        12: {
+            "name": "Hunting Dog",
+            "type": "second_chance",
+            "duration": 43200,
+        },
+        15: {"name": "Decoy Trap", "type": "trap", "duration": 1800},
+        16: {"name": "Mystery Box", "type": "mystery"},
+    }
 
     def __init__(self, shop_file: str = "shop.json", levels_manager=None):
         self.shop_file = shop_file
@@ -123,9 +152,72 @@ class ShopManager:
         """Get all shop items"""
         return self.items.copy()
 
-    def get_item(self, item_id: int) -> Optional[Dict[str, Any]]:
-        """Get a specific shop item by ID"""
-        return self.items.get(item_id)
+    def get_item(self, item_id: Any) -> Optional[Dict[str, Any]]:
+        """Get a specific shop item by ID (checks active shop items, then legacy items)."""
+        try:
+            iid = int(item_id)
+        except (ValueError, TypeError):
+            return None
+        if iid in self.items:
+            return self.items[iid]
+        return self.LEGACY_ITEMS.get(iid)
+
+    def get_item_name(self, item_id: Any) -> Optional[str]:
+        """Get the human-readable name of an item by ID, or None if unknown."""
+        item = self.get_item(item_id)
+        if item and "name" in item:
+            return item["name"]
+        return None
+
+    def find_item(self, query: Any) -> Optional[Tuple[int, Dict[str, Any]]]:
+        """Find an item by integer ID or by name (case-insensitive substring/exact match).
+
+        Returns (item_id, item_dict) or None.
+        """
+        if query is None:
+            return None
+        q_str = str(query).strip()
+        if not q_str:
+            return None
+
+        # Check if numeric ID
+        if q_str.isdigit():
+            iid = int(q_str)
+            item = self.get_item(iid)
+            if item:
+                return (iid, item)
+
+        q_lower = q_str.lower()
+
+        # 1. Exact match on name in active items
+        for iid, item in self.items.items():
+            if item.get("name", "").lower() == q_lower:
+                return (iid, item)
+
+        # 2. Exact match on type in active items
+        for iid, item in self.items.items():
+            if item.get("type", "").lower() == q_lower:
+                return (iid, item)
+
+        # 3. Substring / alias match in active items
+        for iid, item in self.items.items():
+            name_lower = item.get("name", "").lower()
+            if q_lower in name_lower or name_lower in q_lower:
+                return (iid, item)
+
+        # 4. Check legacy items
+        for iid, item in self.LEGACY_ITEMS.items():
+            name_lower = item.get("name", "").lower()
+            if q_lower == name_lower or q_lower in name_lower or name_lower in q_lower:
+                return (iid, item)
+
+        return None
+
+    def get_all_valid_ids(self) -> Set[str]:
+        """Return all valid item IDs (active and legacy) as strings."""
+        return {str(k) for k in self.items.keys()} | {
+            str(k) for k in self.LEGACY_ITEMS.keys()
+        }
 
     def is_valid_item(self, item_id: int) -> bool:
         """Check if item ID exists"""
@@ -220,13 +312,13 @@ class ShopManager:
         Purchase an item and either store in inventory or apply immediately
         Returns a result dictionary with success status and details
         """
-        item = self.get_item(item_id)
-        if not item:
+        if item_id not in self.items:
             return {
                 "success": False,
                 "error": "invalid_id",
                 "message": "Invalid item ID",
             }
+        item = self.items[item_id]
 
         # If storing in inventory and item requires a target, that's invalid
         if store_in_inventory and item.get("target_required", False):
