@@ -43,7 +43,8 @@ class DuckHuntBot:
         # a minimum gap between lines, so bursts (flock timeouts, achievement spam,
         # shop menus) can't trip server flood limits. Control traffic (PING/PONG,
         # JOIN, CAP/SASL, ...) still goes out immediately via send_raw.
-        self._send_pacer_lock = asyncio.Lock()
+        # Lazily bound to the running event loop via the _send_pacer_lock property.
+        self._pacer_lock = None
         self._last_chat_send = 0.0
         try:
             self._send_gap_secs = float(
@@ -593,6 +594,21 @@ class DuckHuntBot:
         except Exception as e:
             self.logger.error(f"Error pruning rate limiters: {e}")
 
+    @property
+    def _send_pacer_lock(self) -> asyncio.Lock:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if self._pacer_lock is None:
+            self._pacer_lock = asyncio.Lock()
+        elif loop is not None:
+            lock_loop = getattr(self._pacer_lock, "_loop", None)
+            if lock_loop is not None and lock_loop is not loop:
+                self._pacer_lock = asyncio.Lock()
+        return self._pacer_lock
+
     async def _paced_send_raw(self, msg) -> bool:
         """Send one raw line, enforcing a minimum gap between chat lines.
 
@@ -706,7 +722,13 @@ class DuckHuntBot:
             # bursts (e.g. the full !shop menu) are flood-throttled too. Return
             # value now means "scheduled", matching send_message's semantics.
             self._track_task(
-                self._paced_send_raw(f"NOTICE {safe_target} :{safe_msg}")
+                self.error_recovery.safe_execute_async(
+                    lambda t=safe_target, m=safe_msg: self._paced_send_raw(
+                        f"NOTICE {t} :{m}"
+                    ),
+                    fallback=False,
+                    logger=self.logger,
+                )
             )
             return True
         except Exception as e:
@@ -1271,7 +1293,10 @@ class DuckHuntBot:
                 else:
                     items_list = " | ".join(
                         f"{it['name']} ({it['price']} XP)"
-                        for iid, it in sorted(self.shop.get_items().items())
+                        for iid, it in sorted(
+                            self.shop.get_items().items(),
+                            key=lambda x: int(x[0]) if str(x[0]).isdigit() else 9999,
+                        )
                     )
                     self.send_message(
                         channel,
@@ -1282,7 +1307,10 @@ class DuckHuntBot:
         # Send full shop menu via NOTICE to the user
         xp = player.get("xp", 0)
         self.send_notice(nick, f"=== DuckHunt Shop === (You have {xp} XP)")
-        for item_id, item in sorted(self.shop.get_items().items()):
+        for item_id, item in sorted(
+            self.shop.get_items().items(),
+            key=lambda x: int(x[0]) if str(x[0]).isdigit() else 9999,
+        ):
             self.send_notice(
                 nick,
                 f"  {item['name']} (ID: {item_id}) - {item['price']} XP — {item.get('description', '')}",
@@ -2906,6 +2934,7 @@ class DuckHuntBot:
         and is additionally saved to disk before each reconnect attempt.
         """
         self.setup_signal_handlers()
+        self._pacer_lock = asyncio.Lock()
 
         game_task = None
         message_task = None

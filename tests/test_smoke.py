@@ -720,7 +720,66 @@ class TestChannelPersistence(unittest.TestCase):
             bot.db.flush_pending_saves(timeout=2.0)
 
 
+class TestShopAndPacer(unittest.TestCase):
+    def test_pacer_lock_multi_loop_compatibility(self):
+        import asyncio
+
+        bot = object.__new__(DuckHuntBot)
+        bot._pacer_lock = None
+        bot._last_chat_send = 0.0
+        bot._send_gap_secs = 0.0
+        bot.raw_messages = []
+        bot.send_raw = lambda msg: bot.raw_messages.append(msg) or True
+
+        async def run_in_loop():
+            # Trigger multiple concurrent calls to _paced_send_raw
+            tasks = [bot._paced_send_raw(f"NOTICE test :msg{i}") for i in range(5)]
+            await asyncio.gather(*tasks)
+
+        # Run on first event loop
+        asyncio.run(run_in_loop())
+        self.assertEqual(len(bot.raw_messages), 5)
+
+        # Run on second event loop (should not crash with different loop error)
+        bot.raw_messages.clear()
+        asyncio.run(run_in_loop())
+        self.assertEqual(len(bot.raw_messages), 5)
+
+    def test_shop_items_numeric_ordering(self):
+        import asyncio
+
+        bot = object.__new__(DuckHuntBot)
+        bot.command_prefix = "!"
+        bot._background_tasks = set()
+        bot.notices = []
+        bot.channel_messages = []
+        bot.send_notice = lambda target, msg: bot.notices.append((target, msg))
+        bot.send_message = lambda target, msg: bot.channel_messages.append((target, msg))
+
+        # Mock shop with unordered string keys
+        class MockShop:
+            def get_items(self):
+                return {
+                    "13": {"name": "Duck Greener", "price": 15, "description": "descr 13"},
+                    "1": {"name": "Single Bullet", "price": 5, "description": "descr 1"},
+                    "2": {"name": "Bullet Magazine", "price": 10, "description": "descr 2"},
+                    "14": {"name": "XP Shield", "price": 10, "description": "descr 14"},
+                    "4": {"name": "Clean Gun", "price": 25, "description": "descr 4"},
+                }
+
+        bot.shop = MockShop()
+        player = {"xp": 50}
+
+        asyncio.run(bot.handle_shop("Player1", "#channel", player, args=None))
+
+        # Check item ordering in notices
+        item_notices = [msg for target, msg in bot.notices if "ID: " in msg]
+        item_ids = [int(msg.split("ID: ")[1].split(")")[0]) for msg in item_notices]
+        self.assertEqual(item_ids, [1, 2, 4, 13, 14])
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
 
