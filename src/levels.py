@@ -9,6 +9,50 @@ import os
 from typing import Any, Dict, Optional, Tuple
 
 
+# Historical player_defaults.jam_chance. Saved player records stored an absolute
+# jam percentage (15 untouched, lower after a Gun Brush). Level tables later became
+# the base jam rate, but brushes kept writing the old absolute field. The delta
+# from this baseline is the permanent modifier so already-purchased brushes still
+# count, and an untouched 15 does not add jam on top of the level.
+LEGACY_JAM_BASELINE = 15
+
+
+def legacy_jam_modifier(player: Dict[str, Any]) -> int:
+    """Permanent jam adjustment implied by a pre-modifier player record.
+
+    Returns 0 when the record has no legacy absolute (or it is still the
+    historical baseline). A stored 0 — the floor a brush can reach — is -15,
+    i.e. the brushes that player already paid for.
+    """
+    if not isinstance(player, dict):
+        return 0
+    if "jam_chance" not in player or player.get("jam_chance") is None:
+        return 0
+    try:
+        legacy = int(float(player.get("jam_chance")))
+    except (TypeError, ValueError):
+        return 0
+    legacy = max(0, min(100, legacy))
+    return max(-100, min(100, legacy - LEGACY_JAM_BASELINE))
+
+
+def coerce_jam_modifier(player: Dict[str, Any]) -> int:
+    """Return the player's permanent jam modifier, migrating the legacy field once."""
+    if not isinstance(player, dict):
+        return 0
+    if "jam_modifier" in player:
+        try:
+            modifier = int(float(player.get("jam_modifier")))
+        except (TypeError, ValueError):
+            modifier = 0
+    else:
+        modifier = legacy_jam_modifier(player)
+        player["jam_modifier"] = modifier
+    modifier = max(-100, min(100, modifier))
+    player["jam_modifier"] = modifier
+    return modifier
+
+
 class LevelManager:
     """Manages the DuckHunt level system and difficulty scaling"""
 
@@ -177,15 +221,33 @@ class LevelManager:
         return max(5.0, min(95.0, level_rate))
 
     def get_jam_chance(self, player: Dict[str, Any]) -> float:
-        """Get player's gun jam chance based on their level"""
+        """Effective jam chance used for both the !bang roll and stat display.
+
+        Level tables supply the base chance. Gun brushes, jam resistance, and
+        sabotage persist as ``jam_modifier`` (a percentage-point delta, negative
+        when the gun is cleaner). The roll clamps at 0, so 0 means the gun
+        cannot jam. The modifier is kept in full when the current level's base
+        is already lower than the brush, so it still applies after leveling.
+        """
+        player = player if isinstance(player, dict) else {}
         level_info = self.get_player_level_info(player)
         level_data = self.get_level_data(level_info["level"])
+        has_level_jam = isinstance(level_data, dict) and "jam_chance" in level_data
 
-        if level_data and "jam_chance" in level_data:
-            return level_data["jam_chance"]
+        if not has_level_jam:
+            # No level base: the stored absolute (legacy field) is the whole chance.
+            try:
+                absolute = float(player.get("jam_chance", 5))
+            except (TypeError, ValueError):
+                absolute = 5.0
+            return max(0.0, min(100.0, absolute))
 
-        # Fallback to old system if no level-specific jam chance
-        return player.get("jam_chance", 5)
+        try:
+            base = float(level_data["jam_chance"])
+        except (TypeError, ValueError):
+            base = 0.0
+        modifier = coerce_jam_modifier(player)
+        return max(0.0, min(100.0, base + modifier))
 
     def get_duck_spawn_modifier(self, player_levels: list) -> float:
         """Get duck spawn speed modifier based on highest level player in channel"""

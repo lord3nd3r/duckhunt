@@ -295,6 +295,47 @@ def safe_format_message(template: str, **kwargs) -> str:
         return f"[Message error: {template[:50]}...]"
 
 
+def sanitize_hostmask(value: str, max_length: int = 300) -> str:
+    """Strip control characters from an IRC prefix without dropping ``~`` or ``/``.
+
+    Those characters are normal in ident and host (``nick!~user@host/irc``).
+    A whitelist that removes them makes a configured hostmask never match.
+    Spaces and C0/DEL controls are removed so the prefix cannot inject a new line.
+    """
+    if not isinstance(value, str):
+        return ""
+    out = []
+    for ch in value:
+        code = ord(ch)
+        if code < 32 or code == 127 or ch.isspace():
+            continue
+        out.append(ch)
+        if len(out) >= max_length:
+            break
+    return "".join(out)
+
+
+def sanitize_irc_target(value: str, max_length: int = 100) -> str:
+    """One IRC target (channel or nick), keeping legal punctuation such as ``.``.
+
+    Channels like ``#foo.bar`` must survive. CR, LF, NUL, other controls, spaces,
+    commas, and colons are removed so the target cannot break out of one parameter.
+    """
+    if not isinstance(value, str):
+        return ""
+    out = []
+    for ch in value:
+        code = ord(ch)
+        if code < 32 or code == 127:
+            continue
+        if ch in " ,:":
+            continue
+        out.append(ch)
+        if len(out) >= max_length:
+            break
+    return "".join(out).strip()
+
+
 def sanitize_user_input(
     value: str, max_length: int = 100, allowed_chars: Optional[str] = None
 ) -> str:

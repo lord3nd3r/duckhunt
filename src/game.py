@@ -78,6 +78,29 @@ class DuckGame:
             await asyncio.gather(self.spawn_task, self.timeout_task)
         except asyncio.CancelledError:
             self.logger.info("Game loops cancelled")
+            for task in (self.spawn_task, self.timeout_task):
+                if task and not task.done():
+                    task.cancel()
+            raise
+
+    def pause_for_disconnect(self):
+        """Stop per-channel spawn loops and drop ducks from a dead connection.
+
+        Ducks that spawn or time out while the socket is down are announced into
+        the void and then reappear after reconnect. Clearing them here matches
+        the fact that the channel never saw them.
+        """
+        for task in list(self._channel_spawn_tasks.values()):
+            if task and not task.done():
+                task.cancel()
+        self._channel_spawn_tasks.clear()
+        self.ducks.clear()
+
+    def _spawn_channel_still_joined(self, channel_key: str) -> bool:
+        joined = getattr(self.bot, "channels_joined", None)
+        if joined is None:
+            return True
+        return channel_key in joined
 
     # -----------------------------------------------------------------------
     # Per-channel spawn configuration
@@ -111,28 +134,34 @@ class DuckGame:
         """Reconcile per-channel spawn tasks with the current set of joined and enabled channels."""
         try:
             while True:
-                current_channels = set(self.bot.channels_joined)
-                is_enabled = getattr(self.bot, "is_channel_enabled", lambda c: True)
-                enabled_channels = {ch for ch in current_channels if is_enabled(ch)}
-                # Start tasks for newly joined and enabled channels
-                for ch in enabled_channels:
-                    ck = self._channel_key(ch)
-                    if (
-                        ck not in self._channel_spawn_tasks
-                        or self._channel_spawn_tasks[ck].done()
-                    ):
-                        self.logger.info(f"Starting spawn task for {ck}")
-                        self._channel_spawn_tasks[ck] = asyncio.create_task(
-                            self._channel_spawn_loop(ch)
-                        )
-                # Cancel tasks for channels we've left or that are disabled
-                for ck, task in list(self._channel_spawn_tasks.items()):
-                    if ck not in {self._channel_key(c) for c in enabled_channels}:
-                        self.logger.info(
-                            f"Stopping spawn task for {ck} (no longer in channel or disabled)"
-                        )
-                        task.cancel()
-                        del self._channel_spawn_tasks[ck]
+                try:
+                    current_channels = set(self.bot.channels_joined)
+                    is_enabled = getattr(self.bot, "is_channel_enabled", lambda c: True)
+                    enabled_channels = {ch for ch in current_channels if is_enabled(ch)}
+                    # Start tasks for newly joined and enabled channels
+                    for ch in enabled_channels:
+                        ck = self._channel_key(ch)
+                        if (
+                            ck not in self._channel_spawn_tasks
+                            or self._channel_spawn_tasks[ck].done()
+                        ):
+                            self.logger.info(f"Starting spawn task for {ck}")
+                            self._channel_spawn_tasks[ck] = asyncio.create_task(
+                                self._channel_spawn_loop(ch)
+                            )
+                    # Cancel tasks for channels we've left or that are disabled
+                    enabled_keys = {self._channel_key(c) for c in enabled_channels}
+                    for ck, task in list(self._channel_spawn_tasks.items()):
+                        if ck not in enabled_keys:
+                            self.logger.info(
+                                f"Stopping spawn task for {ck} (no longer in channel or disabled)"
+                            )
+                            task.cancel()
+                            del self._channel_spawn_tasks[ck]
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    self.logger.exception("Spawn manager iteration failed")
                 await asyncio.sleep(5)  # Re-check every 5 seconds
         except asyncio.CancelledError:
             # Shut down all per-channel tasks
@@ -140,12 +169,14 @@ class DuckGame:
                 task.cancel()
             self._channel_spawn_tasks.clear()
             self.logger.info("Spawn manager loop cancelled")
+            raise
 
     async def _channel_spawn_loop(self, channel: str):
         """Independent spawn loop for a single channel."""
         channel_key = self._channel_key(channel)
         try:
             while True:
+              try:
                 is_enabled = getattr(self.bot, "is_channel_enabled", lambda c: True)
                 if not is_enabled(channel):
                     self.logger.info(
@@ -171,6 +202,11 @@ class DuckGame:
                             f"Spawn loop for {channel_key} stopped (channel disabled)"
                         )
                         return
+                    if not self._spawn_channel_still_joined(channel_key):
+                        self.logger.info(
+                            f"Spawn loop for {channel_key} stopped (disconnected)"
+                        )
+                        return
                     spawn_multiplier = self._get_active_spawn_multiplier(channel)
                     effective_wait = base_wait
                     if spawn_multiplier > 1.0:
@@ -179,69 +215,90 @@ class DuckGame:
                         break
                     await asyncio.sleep(1)
                     elapsed += 1
+                if not self._spawn_channel_still_joined(channel_key):
+                    self.logger.info(
+                        f"Spawn loop for {channel_key} stopped (disconnected)"
+                    )
+                    return
                 await self.spawn_duck(channel)
+              except asyncio.CancelledError:
+                raise
+              except Exception:
+                self.logger.exception(f"Spawn loop for {channel_key} failed")
+                await asyncio.sleep(5)
         except asyncio.CancelledError:
             self.logger.info(f"Spawn loop for {channel_key} cancelled")
+            raise
 
     async def duck_timeout_loop(self):
         """Remove expired ducks, trigger hunting dog, clean effects"""
         try:
             while True:
                 await asyncio.sleep(2)
-                current_time = time.time()
-                channels_to_clear = []
-
-                for channel, ducks in self.ducks.items():
-                    ducks_to_remove = []
-                    for duck in ducks:
-                        duck_type = duck.get("duck_type", "normal")
-                        effective_timeout = self.bot.get_config(
-                            f"duck_types.{duck_type}.timeout", 60
-                        )
-                        if current_time - duck["spawn_time"] > effective_timeout:
-                            ducks_to_remove.append(duck)
-
-                    flock_flyaways = 0
-                    for duck in ducks_to_remove:
-                        ducks.remove(duck)
-                        duck_type = duck.get("duck_type", "normal")
-                        if self._trigger_hunting_dog(channel, duck):
-                            continue  # Dog retrieved it — no fly-away message
-                        if duck_type == "flock":
-                            # A flock expires all at once; collapse into one message
-                            # below instead of spamming one line per duck.
-                            flock_flyaways += 1
-                            continue
-                        msg_keys = {
-                            "golden": "golden_duck_flies_away",
-                            "fast": "fast_duck_flies_away",
-                            "ninja": "ninja_duck_flies_away",
-                        }
-                        msg_key = msg_keys.get(duck_type, "duck_flies_away")
-                        self.bot.send_message(channel, self.bot.messages.get(msg_key))
-
-                    if flock_flyaways == 1:
-                        self.bot.send_message(
-                            channel, self.bot.messages.get("duck_flies_away")
-                        )
-                    elif flock_flyaways > 1:
-                        msg = self.bot.messages.get(
-                            "duck_flock_flies_away", count=flock_flyaways
-                        )
-                        if msg.startswith("[Missing"):
-                            msg = f"The flock of {flock_flyaways} ducks flies away. ·°'`'°-.,¸¸.·°'`"
-                        self.bot.send_message(channel, msg)
-
-                    if not ducks:
-                        channels_to_clear.append(channel)
-
-                for channel in channels_to_clear:
-                    if channel in self.ducks and not self.ducks[channel]:
-                        del self.ducks[channel]
-
-                self._clean_expired_effects()
+                try:
+                    self._expire_ducks()
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    self.logger.exception("Duck timeout iteration failed")
         except asyncio.CancelledError:
             self.logger.info("Duck timeout loop cancelled")
+            raise
+
+    def _expire_ducks(self):
+        """One pass of duck expiry, fly-away messages, and effect cleanup."""
+        current_time = time.time()
+        channels_to_clear = []
+
+        for channel, ducks in list(self.ducks.items()):
+            ducks_to_remove = []
+            for duck in ducks:
+                duck_type = duck.get("duck_type", "normal")
+                effective_timeout = self.bot.get_config(
+                    f"duck_types.{duck_type}.timeout", 60
+                )
+                if current_time - duck["spawn_time"] > effective_timeout:
+                    ducks_to_remove.append(duck)
+
+            flock_flyaways = 0
+            for duck in ducks_to_remove:
+                ducks.remove(duck)
+                duck_type = duck.get("duck_type", "normal")
+                if self._trigger_hunting_dog(channel, duck):
+                    continue  # Dog retrieved it — no fly-away message
+                if duck_type == "flock":
+                    # A flock expires all at once; collapse into one message
+                    # below instead of spamming one line per duck.
+                    flock_flyaways += 1
+                    continue
+                msg_keys = {
+                    "golden": "golden_duck_flies_away",
+                    "fast": "fast_duck_flies_away",
+                    "ninja": "ninja_duck_flies_away",
+                }
+                msg_key = msg_keys.get(duck_type, "duck_flies_away")
+                self.bot.send_message(channel, self.bot.messages.get(msg_key))
+
+            if flock_flyaways == 1:
+                self.bot.send_message(
+                    channel, self.bot.messages.get("duck_flies_away")
+                )
+            elif flock_flyaways > 1:
+                msg = self.bot.messages.get(
+                    "duck_flock_flies_away", count=flock_flyaways
+                )
+                if msg.startswith("[Missing"):
+                    msg = f"The flock of {flock_flyaways} ducks flies away. ·°'`'°-.,¸¸.·°'`"
+                self.bot.send_message(channel, msg)
+
+            if not ducks:
+                channels_to_clear.append(channel)
+
+        for channel in channels_to_clear:
+            if channel in self.ducks and not self.ducks[channel]:
+                del self.ducks[channel]
+
+        self._clean_expired_effects()
 
     # -----------------------------------------------------------------------
     # Duck factory helpers
@@ -385,9 +442,11 @@ class DuckGame:
                 "message_args": {"nick": nick},
             }
 
-        # Gun jam check
+        # Gun jam check. A chance of 0 never rolls, so a cleaned gun cannot jam
+        # even when the RNG returns 0.0 (0.0 < 0 is false, but skipping the call
+        # keeps the rule obvious).
         base_jam = self.bot.levels.get_jam_chance(player)
-        if random.random() < max(0, min(100, base_jam)) / 100.0:
+        if base_jam > 0 and random.random() < max(0.0, min(100.0, base_jam)) / 100.0:
             player["current_ammo"] = player.get("current_ammo", 1) - 1
             self.db.save_database()
             return {

@@ -11,6 +11,8 @@ from .error_handling import (
     ErrorRecovery,
     HealthChecker,
     safe_format_message,
+    sanitize_hostmask,
+    sanitize_irc_target,
     sanitize_user_input,
 )
 from .game import DuckGame
@@ -18,7 +20,7 @@ from .levels import LevelManager
 from .logging_utils import setup_logger
 from .sasl import SASLHandler
 from .shop import ShopManager
-from .utils import MessageManager, parse_irc_message
+from .utils import MessageManager, parse_irc_message, split_irc_text
 
 
 class DuckHuntBot:
@@ -33,6 +35,7 @@ class DuckHuntBot:
         # Used by auto-rejoin and (in newer revisions) admin join/leave reporting.
         self.pending_joins = {}
         self.shutdown_requested = False
+        self._shutdown_in_progress = False
         self.restart_requested = False
         self.rejoin_attempts = {}  # Track rejoin attempts per channel
         self.rejoin_tasks = {}  # Track active rejoin tasks
@@ -52,6 +55,12 @@ class DuckHuntBot:
             )
         except (ValueError, TypeError):
             self._send_gap_secs = 0.3
+        # Bound queued PRIVMSG/NOTICE tasks. The pacer already spaces lines; an
+        # unbounded set of pending sends grows without limit when the socket stalls.
+        # Protocol traffic (PONG, QUIT, JOIN) uses send_raw and is not counted here.
+        self._pending_chat_sends = 0
+        self._max_pending_chat = 100
+        self._chat_drop_count = 0
 
         self.logger.info("Initializing DuckHunt Bot components...")
 
@@ -100,6 +109,9 @@ class DuckHuntBot:
         # if it was taken and a fallback was negotiated via 433/436 handling.
         self.current_nick = self.get_config("connection.nick", "DuckHunt") or "DuckHunt"
         self._nick_attempts = 0
+        # True only after numeric 001 on this connection. Reconnect backoff resets
+        # on a real session, not on a TCP connect that dies during registration.
+        self._session_registered = False
 
         # Connection liveness tracking (lag watchdog). Every received line counts as
         # activity; if the server goes quiet past connection.ping_interval we PING it,
@@ -148,7 +160,7 @@ class DuckHuntBot:
         shop_file = os.path.join(
             os.path.dirname(os.path.dirname(__file__)), "shop.json"
         )
-        self.shop = ShopManager(shop_file, self.levels)
+        self.shop = ShopManager(shop_file, self.levels, config=self.config)
 
         # Command dispatch table: cmd -> (admin_only, handler). Built last so every
         # subsystem the handlers reference already exists.
@@ -233,6 +245,20 @@ class DuckHuntBot:
             else:
                 return default
         return value
+
+    def _format_jam_chance(self, player) -> str:
+        """The jam percentage !bang actually rolls, formatted for stats."""
+        try:
+            value = float(self.levels.get_jam_chance(player))
+        except Exception:
+            value = 0.0
+        if value < 0:
+            value = 0.0
+        if value > 100:
+            value = 100.0
+        if value == int(value):
+            return str(int(value))
+        return f"{value:.1f}"
 
     def _channel_key(self, channel: str) -> str:
         """Normalize channel for internal comparisons (IRC channels are case-insensitive)."""
@@ -370,9 +396,16 @@ class DuckHuntBot:
 
         def signal_handler(signum, _frame):
             signal_name = "SIGINT" if signum == signal.SIGINT else "SIGTERM"
+            # A second signal must not cancel the task that is flushing the database.
+            if self._shutdown_in_progress:
+                self.logger.warning(
+                    f"Received {signal_name} during shutdown; already shutting down"
+                )
+                return
             self.logger.info(
                 f"Received {signal_name} (Ctrl+C), shutting down immediately..."
             )
+            self._shutdown_in_progress = True
             self.shutdown_requested = True
             try:
                 loop = asyncio.get_running_loop()
@@ -545,17 +578,16 @@ class DuckHuntBot:
                     f"Exhausted all {max_attempts} rejoin attempts for {channel}"
                 )
 
-            # Clean up
-            if channel in self.rejoin_tasks:
-                del self.rejoin_tasks[channel]
-
         except asyncio.CancelledError:
             self.logger.debug(f"Rejoin task for {channel} was cancelled")
         except Exception as e:
             self.logger.error(f"Error in rejoin loop for {channel}: {e}")
         finally:
-            # Ensure cleanup
-            if channel in self.rejoin_tasks:
+            # Only drop this task's entry. A newer schedule_rejoin may already
+            # have stored a replacement under the same channel key; deleting
+            # unconditionally removed that new task from the map.
+            current = self.rejoin_tasks.get(channel)
+            if current is asyncio.current_task():
                 del self.rejoin_tasks[channel]
 
     def _track_task(self, coro):
@@ -632,60 +664,60 @@ class DuckHuntBot:
             )
             return False
 
-        # Schedule the message to be sent asynchronously to avoid blocking the event loop
+        # Schedule the message to be sent asynchronously to avoid blocking the event loop.
+        # Drop only chat when the queue is full. Callers of send_raw (PONG, QUIT, JOIN)
+        # never enter this path, and we do not wait here, so the read loop cannot stall.
+        if self._pending_chat_sends >= self._max_pending_chat:
+            self._note_chat_drop()
+            return False
+        self._pending_chat_sends += 1
+
+        async def _send_and_release():
+            try:
+                return await self._send_message_impl(target, msg)
+            finally:
+                self._pending_chat_sends = max(0, self._pending_chat_sends - 1)
+
         self._track_task(
             self.error_recovery.safe_execute_async(
-                lambda: self._send_message_impl(target, msg),
+                _send_and_release,
                 fallback=False,
                 logger=self.logger,
             )
         )
         return True
 
+    def _note_chat_drop(self):
+        self._chat_drop_count += 1
+        if self._chat_drop_count == 1 or self._chat_drop_count % 25 == 0:
+            self.logger.warning(
+                "Outgoing chat queue is full (%s); dropped %s message(s). "
+                "PING/PONG and quit are not queued here.",
+                self._max_pending_chat,
+                self._chat_drop_count,
+            )
+
+    def _irc_text_budget(self, target: str, command: str) -> int:
+        """Bytes left for the text of one IRC line of at most 512 bytes, including CRLF."""
+        prefix = f"{command} {target} :"
+        budget = 512 - len(prefix.encode("utf-8")) - 2
+        return max(16, budget)
+
     async def _send_message_impl(self, target, msg):
         """Internal implementation of send_message"""
         try:
-            # Sanitize target and message
-            safe_target = sanitize_user_input(
-                target,
-                max_length=100,
-                allowed_chars="#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\",
-            )
+            # Sanitize target and message. Channel names may contain '.';
+            # controls, spaces, commas, and colons are stripped instead.
+            safe_target = sanitize_irc_target(target, max_length=100)
             safe_msg = sanitize_user_input(msg, max_length=4000)
 
             if not safe_target or not safe_msg:
                 self.logger.warning(f"Empty target or message after sanitization")
                 return False
 
-            # Split long messages to prevent IRC limits
-            max_msg_length = 400  # IRC message limit minus PRIVMSG overhead
-
-            if len(safe_msg) <= max_msg_length:
-                messages = [safe_msg]
-            else:
-                # Split into chunks. Words longer than the limit are hard-wrapped
-                # across chunks rather than silently truncated.
-                messages = []
-                current_msg = ""
-
-                for word in safe_msg.split(" "):
-                    while len(word) > max_msg_length:
-                        if current_msg:
-                            messages.append(current_msg)
-                            current_msg = ""
-                        messages.append(word[:max_msg_length])
-                        word = word[max_msg_length:]
-                    if not word:
-                        continue
-                    if len(current_msg + " " + word) <= max_msg_length:
-                        current_msg += (" " if current_msg else "") + word
-                    else:
-                        if current_msg:
-                            messages.append(current_msg)
-                        current_msg = word
-
-                if current_msg:
-                    messages.append(current_msg)
+            messages = split_irc_text(
+                safe_msg, self._irc_text_budget(safe_target, "PRIVMSG")
+            )
 
             # Send all message parts (pacing between lines handled by _paced_send_raw)
             success_count = 0
@@ -710,22 +742,34 @@ class DuckHuntBot:
             )
             return False
         try:
-            safe_target = sanitize_user_input(
-                target,
-                max_length=100,
-                allowed_chars="#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\",
-            )
-            safe_msg = sanitize_user_input(msg, max_length=400)
+            safe_target = sanitize_irc_target(target, max_length=100)
+            safe_msg = sanitize_user_input(msg, max_length=4000)
             if not safe_target or not safe_msg:
                 return False
+            parts = split_irc_text(
+                safe_msg, self._irc_text_budget(safe_target, "NOTICE")
+            )
+            if self._pending_chat_sends >= self._max_pending_chat:
+                self._note_chat_drop()
+                return False
+            self._pending_chat_sends += 1
+
+            async def _send_notice_parts(t=safe_target, chunks=tuple(parts)):
+                try:
+                    ok = True
+                    for chunk in chunks:
+                        if not await self._paced_send_raw(f"NOTICE {t} :{chunk}"):
+                            ok = False
+                    return ok
+                finally:
+                    self._pending_chat_sends = max(0, self._pending_chat_sends - 1)
+
             # Route through the paced sender like send_message does, so notice
             # bursts (e.g. the full !shop menu) are flood-throttled too. Return
             # value now means "scheduled", matching send_message's semantics.
             self._track_task(
                 self.error_recovery.safe_execute_async(
-                    lambda t=safe_target, m=safe_msg: self._paced_send_raw(
-                        f"NOTICE {t} :{m}"
-                    ),
+                    _send_notice_parts,
                     fallback=False,
                     logger=self.logger,
                 )
@@ -784,6 +828,7 @@ class DuckHuntBot:
 
             elif command == "001":
                 self.registered = True
+                self._session_registered = True
                 self._nick_attempts = 0
                 # The server tells us the nick we actually registered with (it may
                 # differ from config if a 433 fallback was used).
@@ -881,11 +926,7 @@ class DuckHuntBot:
                     if not channel:
                         return
 
-                    safe_channel = sanitize_user_input(
-                        channel,
-                        max_length=100,
-                        allowed_chars="#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\",
-                    )
+                    safe_channel = sanitize_irc_target(channel, max_length=100)
                     channel_key = self._channel_key(safe_channel)
                     joiner_nick = prefix.split("!")[0] if "!" in prefix else prefix
                     our_nick = self.current_nick
@@ -943,9 +984,29 @@ class DuckHuntBot:
                         if self.get_config("connection.auto_rejoin.enabled", True):
                             self._track_task(self.schedule_rejoin(channel_key))
 
+            elif command == "NICK":
+                # Our own nick change (forced or via a fallback) must update
+                # current_nick or later self-JOIN / self-KICK checks miss.
+                old_nick = prefix.split("!")[0] if prefix and "!" in prefix else prefix
+                new_nick = trailing or (params[0] if params else "")
+                new_nick = sanitize_irc_target(new_nick or "", max_length=50)
+                if (
+                    old_nick
+                    and new_nick
+                    and self.current_nick
+                    and old_nick.lower() == self.current_nick.lower()
+                ):
+                    self.logger.info(f"Our nick changed from {old_nick} to {new_nick}")
+                    self.current_nick = new_nick
+
             elif command == "PING":
                 try:
-                    self.send_raw(f"PONG :{trailing}")
+                    token = trailing or (params[0] if params else "")
+                    token = token.replace("\r", "").replace("\n", "").strip()
+                    if token:
+                        self.send_raw(f"PONG :{token}")
+                    else:
+                        self.send_raw("PONG")
                 except Exception as e:
                     self.logger.error(f"Error responding to PING: {e}")
 
@@ -967,19 +1028,12 @@ class DuckHuntBot:
                 )
                 return
 
-            # Sanitize inputs
+            # Sanitize inputs. The hostmask keeps '~' and '/' so admin patterns
+            # still match; only controls and whitespace are removed. The nick used
+            # for the player record is still restricted to IRC nick characters.
             safe_message = sanitize_user_input(message, max_length=500)
-            # Include @, ., * so hostmask-based admin auth (nick!user@host.domain) works correctly.
-            safe_user = sanitize_user_input(
-                user,
-                max_length=200,
-                allowed_chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\!@.*:",
-            )
-            safe_channel = sanitize_user_input(
-                channel,
-                max_length=100,
-                allowed_chars="#&+!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-[]{}^`|\\",
-            )
+            auth_user = sanitize_hostmask(user)
+            safe_channel = sanitize_irc_target(channel, max_length=100)
 
             if not safe_message.startswith(self.command_prefix):
                 return
@@ -1004,13 +1058,13 @@ class DuckHuntBot:
             if entry is None:
                 self.logger.debug(f"Unknown command '{cmd}' ignored")
                 return
-            if entry[0] and not self.is_admin(safe_user):
+            if entry[0] and not self.is_admin(auth_user):
                 self.logger.debug(f"Non-admin attempted admin command '{cmd}'")
                 return
 
             # Extract and validate nick with enhanced error handling
             nick = self.error_recovery.safe_execute(
-                lambda: safe_user.split("!")[0] if "!" in safe_user else safe_user,
+                lambda: auth_user.split("!")[0] if "!" in auth_user else auth_user,
                 fallback="Unknown",
                 logger=self.logger,
             )
@@ -1031,6 +1085,14 @@ class DuckHuntBot:
             # Check if DuckHunt is disabled in this channel.
             # Admin commands (entry[0] is True) are always permitted so admins can manage/re-enable.
             is_channel_context = safe_channel.startswith("#") or safe_channel.startswith("&")
+            if not is_channel_context:
+                # A private message's target is our own nick. Replying there
+                # talks to ourselves. Game commands must not run against the
+                # shared __pm__ bucket (that would be a second, hidden player).
+                await self._handle_private_command(
+                    cmd, nick, entry, args, auth_user
+                )
+                return
             if is_channel_context and not entry[0] and not self.is_channel_enabled(safe_channel):
                 self.logger.debug(
                     f"Command '{cmd}' ignored in {safe_channel}: DuckHunt is disabled in this channel"
@@ -1045,7 +1107,7 @@ class DuckHuntBot:
             # only reads existing records, it never creates one).
             try:
                 if self.db.is_ignored(nick, safe_channel) and not self.is_admin(
-                    safe_user
+                    auth_user
                 ):
                     return
             except Exception as e:
@@ -1083,11 +1145,31 @@ class DuckHuntBot:
                     )
 
             await self._execute_command_safely(
-                cmd, nick, safe_channel, player, args, safe_user
+                cmd, nick, safe_channel, player, args, auth_user
             )
 
         except Exception as e:
             self.logger.error(f"Critical error in handle_command: {e}")
+
+    async def _handle_private_command(self, cmd, nick, entry, args, auth_user):
+        """A command that arrived in PM.
+
+        The IRC target is our own nick. Replies go to the sender. Game and shop
+        commands are channel-only so they cannot create a parallel ``__pm__``
+        player or spend XP outside a channel. Admin commands and !duckhelp are
+        the ones that are meant to work in private.
+        """
+        admin_only, _handler = entry
+        if cmd == "reload" and self.is_admin(auth_user):
+            await self.handle_reloadbot(nick, nick)
+            return
+        if cmd == "duckhelp":
+            await self._execute_command_safely(cmd, nick, nick, None, args, auth_user)
+            return
+        if admin_only:
+            await self._execute_command_safely(cmd, nick, nick, None, args, auth_user)
+            return
+        self.send_message(nick, f"{nick} > That command only works in a channel.")
 
     async def _execute_command_safely(self, cmd, nick, channel, player, args, user):
         """Execute a command via the dispatch table with error isolation."""
@@ -1099,8 +1181,26 @@ class DuckHuntBot:
                 if safe_arg:
                     safe_args.append(safe_arg)
 
-            # Rate-limited command set
-            limited_cmds = {"bang", "bef", "befriend", "shop", "use"}
+            # Rate-limited command set. Multi-line info commands are included so
+            # !profile / !achievements / !topduck / !globaltop / !duckhelp cannot
+            # bypass the limiter that already covers !bang and !shop.
+            limited_cmds = {
+                "bang",
+                "bef",
+                "befriend",
+                "shop",
+                "use",
+                "give",
+                "profile",
+                "achievements",
+                "topduck",
+                "globaltop",
+                "duckstats",
+                "duckhelp",
+                "inv",
+                "effects",
+                "daily",
+            }
 
             # Check rate limiter for these commands
             if cmd in limited_cmds:
@@ -1124,15 +1224,19 @@ class DuckHuntBot:
                     rl["last_refill"] = now
 
                 if rl["tokens"] < 1.0:
-                    # Deny execution and notify user
-                    try:
-                        msg = self.messages.get("rate_limited", nick=nick)
-                        self.send_message(channel, msg)
-                    except Exception:
-                        self.send_message(
-                            channel,
-                            f"{nick} > You're doing that too quickly — slow down!",
-                        )
+                    # One denial per refill window. A flood of !bang used to queue
+                    # a reply for every single denial and fill the send queue.
+                    last_notice = rl.get("last_deny_notice", 0)
+                    if now - last_notice >= max(self._rl_refill_secs, 1.0):
+                        rl["last_deny_notice"] = now
+                        try:
+                            msg = self.messages.get("rate_limited", nick=nick)
+                            self.send_message(channel, msg)
+                        except Exception:
+                            self.send_message(
+                                channel,
+                                f"{nick} > You're doing that too quickly — slow down!",
+                            )
                     return
                 else:
                     rl["tokens"] -= 1.0
@@ -1203,11 +1307,16 @@ class DuckHuntBot:
                 f"Player '{target_nick}' not found in {channel}. They need to participate in this channel first.",
             )
 
+        # Every saved player has current_ammo and magazines, so a key-presence
+        # check was true for anyone who had ever run a command. Activity means
+        # they have actually hunted or spent XP. This is not an account-age or
+        # anti-sybil policy; a nick with no record is already rejected above.
         has_activity = (
             player.get("xp", 0) > 0
             or player.get("shots_fired", 0) > 0
-            or "current_ammo" in player
-            or "magazines" in player
+            or player.get("ducks_shot", 0) > 0
+            or player.get("ducks_befriended", 0) > 0
+            or player.get("total_xp_spent", 0) > 0
         )
 
         if not has_activity:
@@ -1418,7 +1527,14 @@ class DuckHuntBot:
         )
 
         def _ctrl(c):
-            return c[0] if isinstance(c, str) and c else ""
+            # Keep the colour number. The first byte alone is a bare ^C, which
+            # drops the colour (green is "\x033", not "\x03"). Stats place these
+            # codes before letters, so the digits are not parsed as the next value.
+            if not isinstance(c, str) or not c:
+                return ""
+            if c[0] not in ("\x02", "\x03", "\x0f", "\x16", "\x1d", "\x1e", "\x1f"):
+                return ""
+            return c
 
         bold = _ctrl(colours_map.get("bold", ""))
         reset = _ctrl(colours_map.get("reset", ""))
@@ -1457,7 +1573,7 @@ class DuckHuntBot:
         # Ammo info
         current_ammo = display_player.get("current_ammo", 0)
         bullets_per_mag = display_player.get("bullets_per_magazine", 6)
-        jam_chance = display_player.get("jam_chance", 0)
+        jam_chance = self._format_jam_chance(display_player)
 
         # Spare magazine count:
         # - active_spares: reloads available from level-based magazine slots (can reload without inventory item)
@@ -1702,10 +1818,10 @@ class DuckHuntBot:
             "Good luck hunting!",
         ]
 
-        # Send lines as PM with a small delay to avoid IRC excess flood
+        # The send queue already paces lines. Sleeping here runs inside the
+        # read loop (~0.4s * every help line) and stops PING from being answered.
         for line in help_lines:
             self.send_message(nick, line)
-            await asyncio.sleep(0.4)
 
     async def handle_reloadbot(self, nick, channel):
         """Admin-only: restart the bot process via PM (!reload) to apply code changes."""
@@ -1875,7 +1991,7 @@ class DuckHuntBot:
         current_ammo = player.get("current_ammo", 0)
         bullets_per = player.get("bullets_per_magazine", 6)
         magazines = player.get("magazines", 0)
-        jam_chance = player.get("jam_chance", 0)
+        jam_chance = self._format_jam_chance(player)
         total_spent = player.get("total_xp_spent", 0)
 
         lines = [
@@ -1931,27 +2047,31 @@ class DuckHuntBot:
             found_item = None
             target_nick = None
 
-            # 1. Try first argument as item (e.g. "!use 5", "!use bread", "!use bread bob")
-            res = self.shop.find_item(args[0])
+            # Prefer the longest item name so "!use gun brush" is the brush and
+            # not a brush used on a player named "brush". A trailing word is a
+            # target only when the words before it are the item.
+            #   !use gun brush        -> Gun Brush, no target
+            #   !use gun brush bob    -> Gun Brush, target bob
+            #   !use bread bob        -> Bread, target bob
+            #   !use 4                -> item id 4
+            full_query = " ".join(args)
+            res = self.shop.find_item(full_query)
             if res:
                 item_id, item_obj = res
-                target_nick = args[1] if len(args) > 1 else None
                 found_item = (item_id, item_obj)
-            else:
-                # 2. Multi-word item name with target (e.g. "!use gun brush bob")
-                if len(args) > 1:
-                    res = self.shop.find_item(" ".join(args[:-1]))
+                target_nick = None
+            elif len(args) > 1:
+                res = self.shop.find_item(" ".join(args[:-1]))
+                if res:
+                    item_id, item_obj = res
+                    found_item = (item_id, item_obj)
+                    target_nick = args[-1]
+                else:
+                    res = self.shop.find_item(args[0])
                     if res:
                         item_id, item_obj = res
-                        target_nick = args[-1]
                         found_item = (item_id, item_obj)
-                # 3. Full argument string as item name without target (e.g. "!use gun brush")
-                if not found_item:
-                    res = self.shop.find_item(" ".join(args))
-                    if res:
-                        item_id, item_obj = res
-                        target_nick = None
-                        found_item = (item_id, item_obj)
+                        target_nick = args[1] if len(args) > 1 else None
 
             if not found_item:
                 message = f"{nick} > Unknown item '{' '.join(args)}'. Use {self.command_prefix}duckstats to see your items."
@@ -2136,7 +2256,8 @@ class DuckHuntBot:
                 nick, channel, target_nick
             )
             if error_message:
-                self.send_message(channel, f"{nick} > {error_message}")
+                # _get_validated_target_player already prefixes "{nick} > ".
+                self.send_message(channel, error_message)
                 return
 
             if not target_player:
@@ -2971,7 +3092,9 @@ class DuckHuntBot:
                     reconnect_delay = min(reconnect_delay * 2, max_delay)
                     continue
 
-                reconnect_delay = initial_delay
+                # Backoff resets only after a session that actually registered.
+                # Resetting here, on TCP connect, retried a registration failure
+                # every initial_delay seconds.
 
                 # Preserve active channels so reconnect rejoins them
                 if self.channels_joined:
@@ -2979,6 +3102,7 @@ class DuckHuntBot:
 
                 # Reset per-connection state (never the database)
                 self.registered = False
+                self._session_registered = False
                 self.channels_joined.clear()
                 self.pending_joins = {}
                 self._last_activity = time.monotonic()
@@ -3028,6 +3152,7 @@ class DuckHuntBot:
                     except asyncio.TimeoutError:
                         pass
                 await self._close_connection()
+                was_registered = self._pause_after_disconnect()
 
                 if self.shutdown_requested:
                     break
@@ -3045,11 +3170,15 @@ class DuckHuntBot:
                     self.logger.info("Connection lost and reconnect is disabled")
                     break
 
+                if was_registered:
+                    reconnect_delay = initial_delay
+                else:
+                    reconnect_delay = min(reconnect_delay * 2, max_delay)
+
                 self.logger.warning(
                     f"Connection lost; reconnecting in {reconnect_delay:.0f}s..."
                 )
                 await asyncio.sleep(reconnect_delay)
-                reconnect_delay = min(reconnect_delay * 2, max_delay)
 
             self.logger.info("Shutdown initiated, cleaning up...")
 
@@ -3104,6 +3233,33 @@ class DuckHuntBot:
             if self.restart_requested:
                 self.logger.warning("Restart requested; re-executing process...")
                 os.execv(sys.executable, [sys.executable] + sys.argv)
+
+    def _pause_after_disconnect(self) -> bool:
+        """Stop channel work as soon as the socket is gone.
+
+        Returns whether this connection had completed registration. The reconnect
+        loop uses that to decide whether to reset backoff. Spawn loops are
+        cancelled and ducks from the dead connection are dropped so they are not
+        still sitting there when the bot rejoins.
+        """
+        was_registered = bool(getattr(self, "_session_registered", False) or self.registered)
+        if self.channels_joined:
+            self._active_channels_before_disconnect = set(self.channels_joined)
+        self.channels_joined.clear()
+        self.registered = False
+        self._session_registered = False
+        self.pending_joins = {}
+        for task in list(self.rejoin_tasks.values()):
+            if task and not task.done():
+                task.cancel()
+        self.rejoin_tasks.clear()
+        game = getattr(self, "game", None)
+        if game is not None and hasattr(game, "pause_for_disconnect"):
+            try:
+                game.pause_for_disconnect()
+            except Exception as e:
+                self.logger.error(f"Error pausing game after disconnect: {e}")
+        return was_registered
 
     async def _close_connection(self):
         """Close IRC connection with comprehensive error handling"""

@@ -29,6 +29,7 @@ class SASLHandler:
         self.authenticated = False
         self.cap_negotiating = False
         self._timeout_task = None
+        self._cap_ls_buffer = []
 
     def reset(self):
         """Reset per-connection negotiation state.
@@ -40,6 +41,7 @@ class SASLHandler:
         self._cancel_timeout_watchdog()
         self.authenticated = False
         self.cap_negotiating = False
+        self._cap_ls_buffer = []
 
     def is_enabled(self):
         """Check if SASL is enabled and properly configured."""
@@ -116,15 +118,28 @@ class SASLHandler:
 
     async def handle_cap_response(self, params, trailing):
         """Handle CAP responses for SASL negotiation."""
-        if len(params) < 2:
+        if not params:
             return False
 
-        subcommand = params[1]
+        subcommand, continued = self._cap_subcommand(params)
+        if subcommand is None:
+            return False
 
         if subcommand == "LS":
             caps = trailing.split() if trailing else []
-            self.logger.info(f"Server capabilities: {caps}")
-            if self._has_sasl_cap(caps):
+            self._cap_ls_buffer.extend(caps)
+            # CAP LS may arrive in several lines. A "*" parameter means more are coming.
+            # Aborting on the first chunk drops sasl when it is listed later and also
+            # registers (NICK/USER) before negotiation has actually finished.
+            if continued:
+                self.logger.info(
+                    f"Server capabilities (more coming): {caps}"
+                )
+                return True
+            all_caps = self._cap_ls_buffer
+            self._cap_ls_buffer = []
+            self.logger.info(f"Server capabilities: {all_caps}")
+            if self._has_sasl_cap(all_caps):
                 self.logger.info("SASL capability available")
                 self.bot.send_raw("CAP REQ :sasl")
                 return True
@@ -150,6 +165,26 @@ class SASLHandler:
             return False
 
         return False
+
+    @staticmethod
+    def _cap_subcommand(params):
+        """Return (subcommand, more_lines_coming) for a CAP message.
+
+        Both ``CAP * LS * :caps`` and ``CAP LS * :caps`` show up during registration.
+        The bare ``*`` parameter, not a capability name, marks a continued list.
+        """
+        if not params:
+            return None, False
+        commands = {"LS", "ACK", "NAK", "NEW", "DEL", "LIST", "END"}
+        if params[0] in commands:
+            sub = params[0]
+            rest = params[1:]
+        elif len(params) >= 2:
+            sub = params[1]
+            rest = params[2:]
+        else:
+            return None, False
+        return sub, "*" in rest
 
     @staticmethod
     def _has_sasl_cap(caps):
@@ -247,7 +282,10 @@ class SASLHandler:
         """
         self._cancel_timeout_watchdog()
         self.bot.send_raw("CAP END")
-        await self.bot.register_user()
+        # 903 finishes negotiation before registration. 907 ("already authenticated")
+        # can also arrive after NICK/USER were sent; sending them again collides.
+        if not getattr(self.bot, "registered", False):
+            await self.bot.register_user()
 
     def is_authenticated(self):
         """Check if SASL authentication was successful."""

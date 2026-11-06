@@ -7,7 +7,9 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
+
+from .levels import coerce_jam_modifier
 
 
 class ShopManager:
@@ -42,11 +44,17 @@ class ShopManager:
         16: {"name": "Mystery Box", "type": "mystery"},
     }
 
-    def __init__(self, shop_file: str = "shop.json", levels_manager=None):
+    def __init__(
+        self, shop_file: str = "shop.json", levels_manager=None, config=None
+    ):
         self.shop_file = shop_file
         self.levels = levels_manager
         self.items = {}
         self.logger = logging.getLogger("DuckHuntBot.Shop")
+        # The bot passes the config it already loaded (cwd config.json). Reading a
+        # second config.json from the repo root made shop limits disagree with the
+        # bot whenever the process was not started in the repo directory.
+        self._config = config if isinstance(config, dict) else None
         # Load inventory limits once at startup instead of on every purchase
         self.max_per_item = 99
         self.max_total_items = 20
@@ -55,14 +63,13 @@ class ShopManager:
 
     def _load_inventory_limits(self):
         """Load inventory limit config once at startup (avoids per-purchase disk reads)."""
+        config = self._config
+        if not isinstance(config, dict):
+            return
         try:
-            config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "config.json",
-            )
-            with open(config_path, "r") as f:
-                config = json.load(f)
             limits = config.get("limits", {})
+            if not isinstance(limits, dict):
+                return
             self.max_total_items = limits.get(
                 "max_inventory_items", self.max_total_items
             )
@@ -169,48 +176,87 @@ class ShopManager:
             return item["name"]
         return None
 
-    def find_item(self, query: Any) -> Optional[Tuple[int, Dict[str, Any]]]:
-        """Find an item by integer ID or by name (case-insensitive substring/exact match).
+    @staticmethod
+    def _name_words(name: str) -> List[str]:
+        cleaned = []
+        for ch in name.lower():
+            cleaned.append(ch if ch.isalnum() else " ")
+        return [w for w in "".join(cleaned).split(" ") if w]
 
-        Returns (item_id, item_dict) or None.
+    def _iter_catalog(self):
+        """Active items first, then legacy definitions not currently for sale."""
+        for iid, item in self.items.items():
+            yield iid, item
+        for iid, item in self.LEGACY_ITEMS.items():
+            if iid not in self.items:
+                yield iid, item
+
+    def _word_match(self, query: str, name: str) -> bool:
+        """True when every query word is a full word of the item name, in order."""
+        q_words = self._name_words(query)
+        n_words = self._name_words(name)
+        if not q_words or not n_words or len(q_words) > len(n_words):
+            return False
+        if len(q_words) == 1:
+            return q_words[0] in n_words
+        for i in range(len(n_words) - len(q_words) + 1):
+            if n_words[i : i + len(q_words)] == q_words:
+                return True
+        return False
+
+    def find_item(self, query: Any) -> Optional[Tuple[int, Dict[str, Any]]]:
+        """Find an item by id, exact name/type, or an unambiguous full-word name.
+
+        Substring matches are intentionally not used: ``a`` is contained in
+        ``Magazine`` and ``gun`` is contained in both ``Gun Brush`` and
+        ``Buy Gun Back``. A query that matches more than one item returns None
+        so the caller does not buy or use the wrong thing.
         """
         if query is None:
             return None
+        if isinstance(query, bool):
+            return None
+        if isinstance(query, int):
+            item = self.get_item(query)
+            return (query, item) if item else None
+
         q_str = str(query).strip()
         if not q_str:
             return None
 
-        # Check if numeric ID
-        if q_str.isdigit():
+        # ASCII digits only. str.isdigit() is true for superscripts such as "²",
+        # and int() then raises ValueError.
+        if q_str.isascii() and q_str.isdigit():
             iid = int(q_str)
             item = self.get_item(iid)
             if item:
                 return (iid, item)
+            return None
 
         q_lower = q_str.lower()
+        catalog = list(self._iter_catalog())
 
-        # 1. Exact match on name in active items
-        for iid, item in self.items.items():
+        for iid, item in catalog:
             if item.get("name", "").lower() == q_lower:
                 return (iid, item)
 
-        # 2. Exact match on type in active items
-        for iid, item in self.items.items():
-            if item.get("type", "").lower() == q_lower:
-                return (iid, item)
+        type_hits = [
+            (iid, item)
+            for iid, item in catalog
+            if item.get("type", "").lower() == q_lower
+        ]
+        if len(type_hits) == 1:
+            return type_hits[0]
+        if len(type_hits) > 1:
+            return None
 
-        # 3. Substring / alias match in active items
-        for iid, item in self.items.items():
-            name_lower = item.get("name", "").lower()
-            if q_lower in name_lower or name_lower in q_lower:
-                return (iid, item)
-
-        # 4. Check legacy items
-        for iid, item in self.LEGACY_ITEMS.items():
-            name_lower = item.get("name", "").lower()
-            if q_lower == name_lower or q_lower in name_lower or name_lower in q_lower:
-                return (iid, item)
-
+        word_hits = [
+            (iid, item)
+            for iid, item in catalog
+            if self._word_match(q_lower, item.get("name", ""))
+        ]
+        if len(word_hits) == 1:
+            return word_hits[0]
         return None
 
     def get_all_valid_ids(self) -> Set[str]:
@@ -263,13 +309,11 @@ class ShopManager:
                 return "Accuracy is already at 100%!"
 
         elif item_type == "clean_gun":
-            current_jam = affected_player.get("jam_chance", 5)
-            if current_jam <= 0:
+            if self._effective_jam(affected_player) <= 0:
                 return "Gun jam chance is already at 0% — no need to clean!"
 
         elif item_type == "jam_resistance":
-            current_jam = affected_player.get("jam_chance", 5)
-            if current_jam <= 0:
+            if self._effective_jam(affected_player) <= 0:
                 return "Gun jam chance is already at 0%!"
 
         elif item_type == "critical_hit":
@@ -278,8 +322,7 @@ class ShopManager:
                 return "Critical hit chance is already at maximum (25%)!"
 
         elif item_type == "sabotage_jam":
-            current_jam = affected_player.get("jam_chance", 5)
-            if current_jam >= 50:
+            if self._effective_jam(affected_player) >= 50:
                 return "Target's jam chance is already at maximum (50%)!"
 
         elif item_type == "sabotage_accuracy":
@@ -300,6 +343,29 @@ class ShopManager:
                 return "Not wet — no need to change clothes!"
 
         return None  # Item is usable
+
+    def _effective_jam(self, player: Dict[str, Any]) -> float:
+        """Jam chance the shot roll actually uses, when a level table is available."""
+        if self.levels is not None and hasattr(self.levels, "get_jam_chance"):
+            try:
+                return float(self.levels.get_jam_chance(player))
+            except (TypeError, ValueError):
+                return 0.0
+        try:
+            return max(0.0, min(100.0, float(player.get("jam_chance", 5))))
+        except (TypeError, ValueError):
+            return 5.0
+
+    def _adjust_jam_modifier(self, player: Dict[str, Any], delta: int) -> Tuple[float, float]:
+        """Apply a permanent jam delta. Returns (previous effective, new effective)."""
+        before = self._effective_jam(player)
+        modifier = coerce_jam_modifier(player)
+        player["jam_modifier"] = max(-100, min(100, modifier + int(delta)))
+        after = self._effective_jam(player)
+        # Keep the legacy absolute field aligned with what players see, so a later
+        # migration cannot treat a displayed 0 as another full brush.
+        player["jam_chance"] = int(round(after))
+        return before, after
 
     def purchase_item(
         self,
@@ -553,14 +619,12 @@ class ShopManager:
             }
 
         elif item_type == "jam_resistance":
-            # Reduce gun jamming chance (lower is better)
-            current_jam = player.get("jam_chance", 5)  # Default 5% jam chance
-            new_jam = max(current_jam - amount, 0)  # Can't go below 0%
-            player["jam_chance"] = new_jam
+            # Reduce gun jamming chance (lower is better). `amount` is positive.
+            before, after = self._adjust_jam_modifier(player, -int(amount or 0))
             return {
                 "type": "jam_resistance",
-                "reduced": current_jam - new_jam,
-                "new_total": new_jam,
+                "reduced": before - after,
+                "new_total": after,
             }
 
         elif item_type == "duck_attraction":
@@ -586,10 +650,17 @@ class ShopManager:
             }
 
         elif item_type == "sabotage_jam":
-            # Increase target's gun jamming chance temporarily
-            current_jam = player.get("jam_chance", 5)
-            new_jam = min(current_jam + amount, 50)  # Max 50% jam chance
-            player["jam_chance"] = new_jam
+            # Increase target's gun jamming chance. The stored change is permanent
+            # (expiry never rolled it back); the temporary_effects entry records it.
+            before, after = self._adjust_jam_modifier(player, int(amount or 0))
+            if after > 50:
+                # Honour the historical 50% cap by undoing the overflow on the modifier.
+                overflow = after - 50
+                player["jam_modifier"] = max(
+                    -100, min(100, int(player.get("jam_modifier", 0)) - int(round(overflow)))
+                )
+                after = self._effective_jam(player)
+                player["jam_chance"] = int(round(after))
 
             # Add temporary effect tracking
             if "temporary_effects" not in player:
@@ -605,8 +676,8 @@ class ShopManager:
 
             return {
                 "type": "sabotage_jam",
-                "added": new_jam - current_jam,
-                "new_total": new_jam,
+                "added": after - before,
+                "new_total": after,
                 "duration": item.get("duration", 5),
             }
 
@@ -661,17 +732,13 @@ class ShopManager:
             }
 
         elif item_type == "clean_gun":
-            # Clean gun to reduce jamming chance (positive amount reduces jam chance)
-            current_jam = player.get("jam_chance", 5)  # Default 5% jam chance
-            new_jam = min(
-                max(current_jam + amount, 0), 100
-            )  # Bounded between 0% and 100%
-            player["jam_chance"] = new_jam
-
+            # `amount` is negative (Gun Brush is -10): a permanent modifier on top
+            # of the level's base jam, not a second absolute jam stat.
+            before, after = self._adjust_jam_modifier(player, int(amount or 0))
             return {
                 "type": "clean_gun",
-                "reduced": current_jam - new_jam,
-                "new_total": new_jam,
+                "reduced": before - after,
+                "new_total": after,
             }
 
         elif item_type == "attract_ducks":

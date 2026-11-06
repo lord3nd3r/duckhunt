@@ -283,6 +283,64 @@ class InputValidator:
         return sanitized[:500]
 
 
+def split_irc_text(text: str, max_bytes: int) -> List[str]:
+    """Split text so each piece encodes to at most ``max_bytes`` UTF-8 bytes.
+
+    IRC line length is 512 bytes including CRLF, not 512 characters. A 400-character
+    message of non-ASCII text overflows that. Words longer than the budget are
+    hard-wrapped on character boundaries that stay valid UTF-8.
+    """
+    if not isinstance(text, str) or not text:
+        return []
+    if max_bytes < 8:
+        max_bytes = 8
+    parts: List[str] = []
+    current: List[str] = []
+    size = 0
+
+    def flush() -> None:
+        nonlocal current, size
+        if current:
+            parts.append("".join(current))
+            current = []
+            size = 0
+
+    def hard_wrap(word: str) -> None:
+        nonlocal current, size
+        flush()
+        buf = bytearray()
+        chars: List[str] = []
+        for ch in word:
+            encoded = ch.encode("utf-8")
+            if len(encoded) > max_bytes:
+                continue
+            if len(buf) + len(encoded) > max_bytes:
+                parts.append("".join(chars))
+                buf = bytearray()
+                chars = []
+            buf.extend(encoded)
+            chars.append(ch)
+        if chars:
+            current = ["".join(chars)]
+            size = len(buf)
+
+    for word in text.split(" "):
+        word_len = len(word.encode("utf-8"))
+        if word_len > max_bytes:
+            hard_wrap(word)
+            continue
+        extra = word_len if size == 0 else size + 1 + word_len
+        if size and extra > max_bytes:
+            flush()
+        if current:
+            current.append(" ")
+            size += 1
+        current.append(word)
+        size += word_len
+    flush()
+    return parts
+
+
 def parse_irc_message(line: str) -> Tuple[str, str, List[str], str]:
     """Parse IRC message format with comprehensive error handling"""
     try:

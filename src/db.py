@@ -7,12 +7,16 @@ import json
 import logging
 import os
 import shutil
+import stat
+import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from .error_handling import ErrorRecovery, RetryConfig, sanitize_user_input, with_retry
+from .levels import LEGACY_JAM_BASELINE
 
 
 class DuckDB:
@@ -47,6 +51,17 @@ class DuckDB:
         # so once this future is done, every earlier queued save is done too - it's
         # what flush_pending_saves() waits on (bounded by its timeout).
         self._last_save_future = None
+        # Coalesce saves: only one write runs at a time, and any saves requested
+        # while it runs collapse to the latest payload. This keeps a stalled NAS
+        # from queueing an unbounded number of full snapshots.
+        self._save_lock = threading.Lock()
+        self._pending_payload = None
+        self._worker_active = False
+        self._async_saves = True
+        # Set when the file on disk could not be read safely. Saves stay refused
+        # so an empty in-memory database can never replace the unreadable file.
+        self._writes_blocked = False
+        self._writes_blocked_reason = ""
 
         data = self.load_database()
         # Hydrate in-memory state from disk.
@@ -224,45 +239,84 @@ class DuckDB:
             return {}
         return flattened
 
+    def _path_status(self, path: str):
+        """Distinguish missing from present from inaccessible.
+
+        ``os.path.exists`` returns False for both "not there" and "stat failed"
+        (permission error, stale NAS handle, I/O error). Treating those the same
+        lets startup create or truncate a database that is still on disk.
+        """
+        try:
+            st = os.stat(path)
+        except FileNotFoundError:
+            return "missing", None
+        except OSError as e:
+            return "inaccessible", e
+        if stat.S_ISDIR(st.st_mode):
+            return "inaccessible", "path is a directory"
+        return "present", st
+
+    def _block_writes(self, reason: str) -> None:
+        """Refuse later saves. An empty memory image must not replace good data."""
+        self._writes_blocked = True
+        self._writes_blocked_reason = reason
+        self.logger.error(reason)
+
+    def _empty_database(self) -> dict:
+        return {
+            "channels": {},
+            "last_save": str(time.time()),
+            "version": "2.0",
+            "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "description": "DuckHunt Bot Player Database",
+        }
+
     def load_database(self) -> dict:
         """Load the database, creating it if it doesn't exist.
 
-        IMPORTANT: This never silently overwrites an existing, unreadable database file.
-        If the file is missing entirely there's nothing to lose, so a fresh DB is created.
-        Otherwise (empty file, corrupt JSON, unexpected error) the unreadable file is first
-        quarantined (copied aside, never deleted) and we attempt to recover from the rolling
-        `.bak` snapshot written before the last successful save. Only if no backup is usable
-        do we fall back to a brand-new empty database - and even then the original bad file
-        is preserved on disk for manual recovery.
+        A missing file is a legitimate first-time setup and is created exclusively
+        (O_EXCL) so a file that appears mid-create is not truncated. A path that
+        exists but cannot be read or stated is left untouched and saves are refused.
+        Corrupt JSON is quarantined (copied, never deleted) and recovered from
+        ``.bak`` then ``.bak.1``. A fresh database replaces the primary only after
+        that quarantine copy succeeded.
         """
+        status, info = self._path_status(self.db_file)
+        if status == "missing":
+            self.logger.info(
+                f"Database file {self.db_file} not found, creating new one"
+            )
+            return self._create_default_database(exclusive=True)
+        if status == "inaccessible":
+            self._block_writes(
+                f"Database path is inaccessible ({info}); "
+                "refusing to create or overwrite it."
+            )
+            return self._empty_database()
+
         try:
-            if not os.path.exists(self.db_file):
-                self.logger.info(
-                    f"Database file {self.db_file} not found, creating new one"
-                )
-                return self._create_default_database()
-
-            with open(self.db_file, "r") as f:
+            with open(self.db_file, "r", encoding="utf-8") as f:
                 content = f.read().strip()
+        except OSError as e:
+            self._block_writes(
+                f"Database file could not be read ({e}); refusing to overwrite it."
+            )
+            return self._empty_database()
 
-            if not content:
-                return self._recover_or_default("Database file is empty")
+        if not content:
+            return self._recover_or_default("Database file is empty")
 
-            try:
-                data = json.loads(content)
-            except json.JSONDecodeError as e:
-                return self._recover_or_default(
-                    f"Database file contains invalid JSON: {e}"
-                )
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            return self._recover_or_default(
+                f"Database file contains invalid JSON: {e}"
+            )
 
-            # Validate basic structure
-            if not isinstance(data, dict):
-                return self._recover_or_default("Database root is not a dictionary")
+        if not isinstance(data, dict):
+            return self._recover_or_default("Database root is not a dictionary")
 
-            return self._normalize_loaded_data(data)
-
-        except Exception as e:
-            return self._recover_or_default(f"Unexpected error loading database: {e}")
+        return self._normalize_loaded_data(data)
 
     def _normalize_loaded_data(self, data: dict) -> dict:
         """Apply metadata init + legacy migration to a freshly parsed database dict."""
@@ -346,11 +400,13 @@ class DuckDB:
                 f"No usable backup found. Starting with a new empty database. "
                 f"The unreadable file was preserved at: {quarantine_path} for manual recovery."
             )
-        else:
-            self.logger.error(
-                "No usable backup found. Starting with a new empty database."
-            )
-        return self._create_default_database()
+            return self._create_default_database(exclusive=False)
+
+        self._block_writes(
+            "No usable backup and the unreadable database could not be quarantined; "
+            "refusing to overwrite it."
+        )
+        return self._empty_database()
 
     def _quarantine_unreadable_file(self) -> Optional[str]:
         """Copy (never move/delete) the current db_file aside before it gets overwritten.
@@ -359,7 +415,12 @@ class DuckDB:
         if a collision somehow still occurs, so multiple quarantine events can never
         overwrite each other's preserved data.
         """
-        if not os.path.exists(self.db_file):
+        status, info = self._path_status(self.db_file)
+        if status != "present":
+            if status == "inaccessible":
+                self.logger.error(
+                    f"Cannot quarantine database ({info}); leaving the file untouched."
+                )
             return None
         try:
             timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
@@ -378,9 +439,19 @@ class DuckDB:
             return None
 
     def _try_load_backup(self) -> Optional[dict]:
-        """Attempt to load the rolling .bak snapshot written before the last successful save."""
-        backup_path = f"{self.db_file}.bak"
-        if not os.path.exists(backup_path):
+        """Load ``.bak``, then the previous generation ``.bak.1``."""
+        for suffix in (".bak", ".bak.1"):
+            recovered = self._try_load_one_backup(self.db_file + suffix)
+            if recovered is not None:
+                return recovered
+        return None
+
+    def _try_load_one_backup(self, backup_path: str) -> Optional[dict]:
+        status, info = self._path_status(backup_path)
+        if status == "missing":
+            return None
+        if status == "inaccessible":
+            self.logger.error(f"Backup {backup_path} is inaccessible: {info}")
             return None
         try:
             with open(backup_path, "r", encoding="utf-8") as f:
@@ -390,38 +461,65 @@ class DuckDB:
             data = json.loads(content)
             if not isinstance(data, dict):
                 return None
+            self.logger.warning(f"Using backup snapshot {backup_path}")
             return self._normalize_loaded_data(data)
         except Exception as e:
-            self.logger.error(f"Backup file {backup_path} is also unreadable: {e}")
+            self.logger.error(f"Backup file {backup_path} is unreadable: {e}")
             return None
 
-    def _create_default_database(self) -> dict:
-        """Create a new default database file with proper structure"""
+    def _create_default_database(self, exclusive: bool = True) -> dict:
+        """Create a new database without truncating an existing one by accident.
+
+        ``exclusive=True`` (first-time setup) uses ``O_EXCL`` so a file that
+        appears between the stat and the create is loaded instead of wiped.
+        ``exclusive=False`` replaces the primary only after a quarantine copy
+        of the corrupt file has already been made.
+        """
+        default_data = self._empty_database()
         try:
-            default_data = {
-                "channels": {},
-                "last_save": str(time.time()),
-                "version": "2.0",
-                "created": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "description": "DuckHunt Bot Player Database",
-            }
-
-            with open(self.db_file, "w", encoding="utf-8") as f:
-                json.dump(default_data, f, indent=2, ensure_ascii=False, sort_keys=True)
-
+            if exclusive:
+                flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                try:
+                    fd = os.open(self.db_file, flags, 0o644)
+                except FileExistsError:
+                    self.logger.warning(
+                        "Database file appeared during initialization; loading it"
+                    )
+                    existing = self._try_read_database_file()
+                    if existing is not None:
+                        return existing
+                    self._block_writes(
+                        "Database file appeared during initialization but could not be read; "
+                        "refusing to overwrite it."
+                    )
+                    return self._empty_database()
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(
+                        default_data, f, indent=2, ensure_ascii=False, sort_keys=True
+                    )
+                    f.flush()
+                    os.fsync(f.fileno())
+                self._fsync_parent_dir()
+            else:
+                self._atomic_write_json(default_data)
             self.logger.info(f"Created new database file: {self.db_file}")
             return default_data
-
         except Exception as e:
             self.logger.error(f"Failed to create default database: {e}")
-            # Return a minimal valid structure even if file creation fails
-            return {
-                "channels": {},
-                "last_save": str(time.time()),
-                "version": "2.0",
-                "created": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "description": "DuckHunt Bot Player Database",
-            }
+            self._block_writes(
+                f"Could not create a database file ({e}); saves are disabled."
+            )
+            return default_data
+
+    def _try_read_database_file(self) -> Optional[dict]:
+        try:
+            with open(self.db_file, "r", encoding="utf-8") as f:
+                data = json.loads(f.read())
+            if isinstance(data, dict):
+                return self._normalize_loaded_data(data)
+        except Exception as e:
+            self.logger.error(f"Could not read database that appeared on disk: {e}")
+        return None
 
     @staticmethod
     def _safe_int(value, default=0, min_val=None, max_val=None) -> int:
@@ -550,6 +648,20 @@ class DuckDB:
             0,
             100,
         )
+        # Permanent brush/sabotage delta. Once present it is authoritative: do not
+        # recompute it from jam_chance, because saves may also store the effective
+        # percentage in that legacy field. A missing key is the one-time migration
+        # from the old absolute (15 untouched, 0 after brushes were clamped).
+        if "jam_modifier" in player_data:
+            sanitized["jam_modifier"] = self._safe_int(
+                player_data.get("jam_modifier"), 0, -100, 100
+            )
+        elif "jam_chance" not in player_data:
+            sanitized["jam_modifier"] = 0
+        else:
+            sanitized["jam_modifier"] = max(
+                -100, min(100, sanitized["jam_chance"] - LEGACY_JAM_BASELINE)
+            )
 
         # Confiscated ammo (optional fields but with safe defaults)
         sanitized["confiscated_ammo"] = self._safe_int(
@@ -629,13 +741,18 @@ class DuckDB:
                     continue
         sanitized["inventory"] = clean_inventory
 
-        # Safe temporary effects
+        # Safe temporary effects. Keep the newest entries: players append purchases,
+        # and slicing from the front dropped the effect they just paid for once
+        # the list was full.
         temp_effects = player_data.get("temporary_effects", [])
         clean_effects = []
         if isinstance(temp_effects, list):
-            for effect in temp_effects[:20]:
-                if isinstance(effect, dict) and "type" in effect:
-                    clean_effects.append(effect)
+            valid_effects = [
+                effect
+                for effect in temp_effects
+                if isinstance(effect, dict) and "type" in effect
+            ]
+            clean_effects = valid_effects[-20:]
         sanitized["temporary_effects"] = clean_effects
 
         # Add any missing fields that messages might reference
@@ -682,7 +799,43 @@ class DuckDB:
                 else:
                     sanitized[field] = player_data.get(field, default_value)
 
+        self._preserve_extra_player_fields(player_data, sanitized)
         return sanitized
+
+    def _preserve_extra_player_fields(self, player_data, sanitized) -> None:
+        """Keep JSON-safe fields the whitelist does not know about yet.
+
+        Dropping unknown keys made new effect bookkeeping and any future stat
+        disappear on the next ``get_player`` / save. Only small, serializable
+        values under plain names are copied through.
+        """
+        if not isinstance(player_data, dict):
+            return
+        for key, value in player_data.items():
+            if key in sanitized or not isinstance(key, str):
+                continue
+            if not key.isidentifier() or len(key) > 40:
+                continue
+            if isinstance(value, str):
+                if len(value) <= 500:
+                    sanitized[key] = value
+                continue
+            if isinstance(value, bool) or value is None:
+                sanitized[key] = value
+                continue
+            if isinstance(value, int) and not isinstance(value, bool):
+                sanitized[key] = value
+                continue
+            if isinstance(value, float):
+                if value == value and value not in (float("inf"), float("-inf")):
+                    sanitized[key] = value
+                continue
+            if isinstance(value, (list, dict)) and len(value) <= 50:
+                try:
+                    json.dumps(value)
+                except (TypeError, ValueError):
+                    continue
+                sanitized[key] = value
 
     def save_database(self) -> bool:
         """Persist all player data to disk.
@@ -695,34 +848,68 @@ class DuckDB:
         asyncio event loop. Safe to call from both sync and async code, exactly as
         before, with no `await` needed.
 
+        Saves coalesce: if a write is already running, this payload replaces any
+        not-yet-started payload instead of queueing another full snapshot. The
+        newest payload is the one that lands on disk.
+
         The return value only reflects whether the save was *scheduled* successfully,
         not whether it has completed - call `flush_pending_saves()` (e.g. during
         shutdown, or before an os.execv restart) to block until all pending writes
         are actually done, so a save can never be silently lost to a killed thread.
         """
+        if self._writes_blocked:
+            self.logger.error(
+                "Refusing to save because the database was not loaded safely: "
+                f"{self._writes_blocked_reason}"
+            )
+            return False
         try:
             data = self._build_save_payload()
         except Exception as e:
             self.logger.error(f"Error preparing database for save: {e}")
             return False
 
+        with self._save_lock:
+            # Latest payload wins. Intermediate snapshots are dropped on purpose.
+            self._pending_payload = data
+            if self._worker_active:
+                return True
+            self._worker_active = True
+            use_async = self._async_saves
+
+        if not use_async:
+            return self._drain_saves()
+
         try:
-            future = self._save_executor.submit(self._write_database_to_disk, data)
+            future = self._save_executor.submit(self._drain_saves)
             future.add_done_callback(self._log_save_result)
-            self._last_save_future = future
+            with self._save_lock:
+                self._last_save_future = future
             return True
         except RuntimeError as e:
             # Executor already shut down (e.g. a save was triggered after
-            # flush_pending_saves() during shutdown) - fall back to a direct
-            # synchronous write so this save is never silently lost.
+            # flush_pending_saves() during shutdown). Drain on this thread; the
+            # same lock the worker uses, so this cannot overlap a queued write.
             self.logger.warning(
                 f"Save executor unavailable ({e}); writing synchronously instead."
             )
+            return self._drain_saves()
+
+    def _drain_saves(self) -> bool:
+        """Write queued payloads until none remain. Caller has set ``_worker_active``."""
+        wrote = False
+        while True:
+            with self._save_lock:
+                data = self._pending_payload
+                self._pending_payload = None
+                if data is None:
+                    self._worker_active = False
+                    return wrote
             try:
-                return self._write_database_to_disk(data)
-            except Exception as e2:
-                self.logger.error(f"Synchronous fallback save failed: {e2}")
-                return False
+                self._write_database_to_disk(data)
+                wrote = True
+            except Exception:
+                self.logger.exception("Database save failed")
 
     def _log_save_result(self, future) -> None:
         """Done-callback for background saves: surface any failure to the logs."""
@@ -732,32 +919,53 @@ class DuckDB:
             self.logger.error(f"Background database save failed: {e}")
 
     def flush_pending_saves(self, timeout: float = 10.0) -> None:
-        """Block (up to `timeout` seconds) until all queued background saves complete.
+        """Block (up to `timeout` seconds) until the latest queued save completes.
 
         Call this once, during final shutdown (including immediately before an
         os.execv restart), so the last save can never be lost to a killed background
-        thread. After this returns, the executor rejects new submissions, so later
-        `save_database()` calls fall back to writing synchronously instead - see above.
+        thread. After this returns, further saves run synchronously on the caller
+        and still take the same write lock, so they cannot race the worker.
 
-        Waiting on the most recently submitted future is sufficient: the executor has
-        a single worker, so all earlier queued saves necessarily finish first.
+        The worker drains every payload queued before it exits, including one that
+        replaced an in-flight snapshot. Waiting only for the newest future is enough.
         """
+        self._async_saves = False
+        deadline = time.monotonic() + max(0.0, float(timeout))
         try:
-            # Stop accepting new background saves, but don't block here -
-            # shutdown(wait=True) has no timeout, which made the parameter a no-op.
-            self._save_executor.shutdown(wait=False)
-            future = self._last_save_future
-            if future is not None:
-                try:
-                    future.result(timeout=timeout)
-                except TimeoutError:
+            while True:
+                with self._save_lock:
+                    future = self._last_save_future
+                    active = self._worker_active
+                    pending = self._pending_payload is not None
+                if not active and not pending:
+                    break
+                if time.monotonic() >= deadline:
                     self.logger.error(
                         f"Timed out after {timeout}s waiting for pending database "
                         "saves to finish; the last save may not have completed."
                     )
-                except Exception:
-                    # Write failures are already logged by _log_save_result.
-                    pass
+                    break
+                if active and future is not None and not future.done():
+                    remaining = max(0.05, deadline - time.monotonic())
+                    try:
+                        future.result(timeout=remaining)
+                    except TimeoutError:
+                        continue
+                    except Exception:
+                        # Write failures are already logged by _log_save_result / drain.
+                        pass
+                elif pending and not active:
+                    with self._save_lock:
+                        if self._worker_active or self._pending_payload is None:
+                            continue
+                        self._worker_active = True
+                    self._drain_saves()
+                else:
+                    time.sleep(0.05)
+            try:
+                self._save_executor.shutdown(wait=False)
+            except Exception as e:
+                self.logger.error(f"Error shutting down the save executor: {e}")
         except Exception as e:
             self.logger.error(f"Error flushing pending database saves: {e}")
 
@@ -807,6 +1015,78 @@ class DuckDB:
         self.logger.debug(f"Prepared save payload with {valid_count} players")
         return data
 
+    def _temp_path(self, kind: str) -> str:
+        """Unique temp name so two writers (or a crashed previous run) cannot share one file."""
+        return (
+            f"{self.db_file}.{os.getpid()}.{threading.get_ident()}."
+            f"{uuid.uuid4().hex}.{kind}"
+        )
+
+    def _fsync_parent_dir(self) -> None:
+        """Best-effort directory fsync. Some NAS filesystems reject it; that is not a failed save."""
+        directory = os.path.dirname(self.db_file) or "."
+        try:
+            fd = os.open(directory, os.O_RDONLY)
+        except OSError as e:
+            self.logger.debug(f"Directory fsync skipped: {e}")
+            return
+        try:
+            try:
+                os.fsync(fd)
+            except OSError as e:
+                self.logger.debug(f"Directory fsync not supported here: {e}")
+        finally:
+            os.close(fd)
+
+    def _rotate_backup(self) -> None:
+        """Atomically refresh ``.bak`` and keep the previous one as ``.bak.1``.
+
+        The previous backup is renamed aside before the new one is published, so a
+        crash mid-copy cannot leave both the primary and the only backup half-written.
+        If this fails, the caller must not replace the primary.
+        """
+        status, info = self._path_status(self.db_file)
+        if status == "missing":
+            return
+        if status != "present":
+            raise OSError(f"Cannot back up database ({info})")
+        bak = self.db_file + ".bak"
+        prev = self.db_file + ".bak.1"
+        tmp = self._temp_path("bak")
+        try:
+            with open(self.db_file, "rb") as src, open(tmp, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+                dst.flush()
+                os.fsync(dst.fileno())
+            if self._path_status(bak)[0] == "present":
+                os.replace(bak, prev)
+            os.replace(tmp, bak)
+        finally:
+            try:
+                if os.path.isfile(tmp):
+                    os.remove(tmp)
+            except OSError:
+                pass
+
+    def _atomic_write_json(self, data: dict) -> None:
+        temp_file = self._temp_path("tmp")
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
+                f.flush()
+                os.fsync(f.fileno())
+            with open(temp_file, "r", encoding="utf-8") as f:
+                json.load(f)
+            self._rotate_backup()
+            os.replace(temp_file, self.db_file)
+            self._fsync_parent_dir()
+        finally:
+            try:
+                if os.path.isfile(temp_file):
+                    os.remove(temp_file)
+            except OSError:
+                pass
+
     @with_retry(
         RetryConfig(max_attempts=3, base_delay=0.5, max_delay=5.0),
         exceptions=(OSError, PermissionError, IOError),
@@ -817,47 +1097,13 @@ class DuckDB:
         Runs on the background save executor thread - the blocking retry backoff and
         os.fsync here never touch the asyncio event loop.
         """
-        temp_file = f"{self.db_file}.tmp"
-
         try:
-            # Write to temporary file first (atomic write)
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
-                f.flush()
-                os.fsync(f.fileno())
-
-            # Verify temp file was written correctly
-            try:
-                with open(temp_file, "r", encoding="utf-8") as f:
-                    json.load(f)  # Verify it's valid JSON
-            except json.JSONDecodeError:
-                raise IOError("Temporary file contains invalid JSON")
-
-            # Keep a rolling backup of the last known-good file before replacing it, so a
-            # corrupted/interrupted write can never take down the only copy of the data.
-            if os.path.exists(self.db_file):
-                try:
-                    shutil.copy2(self.db_file, f"{self.db_file}.bak")
-                except Exception as e:
-                    self.logger.warning(f"Could not update .bak backup file: {e}")
-
-            # os.replace is atomic on both POSIX and Windows (unlike os.rename, which fails
-            # on Windows if the destination already exists).
-            os.replace(temp_file, self.db_file)
-
+            self._atomic_write_json(data)
             self.logger.debug("Database saved successfully")
             return True
-
         except Exception as e:
             self.logger.error(f"Error writing database to disk: {e}")
             raise  # Re-raise for retry mechanism
-        finally:
-            # Clean up temp file if it still exists
-            try:
-                if os.path.exists(temp_file):
-                    os.remove(temp_file)
-            except Exception:
-                pass
 
     def get_players_for_channel(self, channel: str) -> Dict[str, Any]:
         """Get the players dict for a channel, creating the channel bucket if needed."""
@@ -948,12 +1194,15 @@ class DuckDB:
                     # Migrate and validate existing player data with error recovery.
                     # NOTE: _migrate_and_validate_player no longer raises for normal data
                     # (see its docstring), so this fallback should never actually be used.
-                    validated = self.error_recovery.safe_execute(
+                    # Update the stored dict in place. Replacing it dropped mutations
+                    # held by commands that had already fetched the same player.
+                    self.error_recovery.safe_execute(
                         lambda: self._migrate_and_validate_player(player, nick_clean),
-                        fallback=self.create_player(nick_clean),
+                        fallback=None,
                         logger=self.logger,
                     )
-                    players[nick_lower] = validated
+                    if not isinstance(players.get(nick_lower), dict):
+                        players[nick_lower] = self.create_player(nick_clean)
 
             return players[nick_lower]
 
@@ -972,7 +1221,9 @@ class DuckDB:
         validated_player = self._sanitize_player_data(player)
 
         try:
-            # Migrate from old ammo/chargers system to magazine system if needed
+            # Migrate from old ammo/chargers system to magazine system if needed.
+            # Read the original record: sanitize always writes magazines, so the
+            # "magazines not in player" check has to happen before that copy.
             if (
                 isinstance(player, dict)
                 and "magazines" not in player
@@ -994,6 +1245,11 @@ class DuckDB:
         # Update nick in case it changed
         validated_player["nick"] = str(nick)[:50]
 
+        # Same object the caller already holds.
+        if isinstance(player, dict):
+            player.clear()
+            player.update(validated_player)
+            return player
         return validated_player
 
     def create_player(self, nick: str) -> Dict[str, Any]:
@@ -1029,6 +1285,7 @@ class DuckDB:
                 "bullets_per_magazine": bullets_per_mag,
                 "accuracy": accuracy,
                 "jam_chance": jam_chance,
+                "jam_modifier": 0,
                 "gun_confiscated": False,
                 "confiscated_ammo": 0,
                 "confiscated_magazines": 0,
@@ -1073,6 +1330,7 @@ class DuckDB:
                 "bullets_per_magazine": 6,
                 "accuracy": 75,
                 "jam_chance": 15,
+                "jam_modifier": 0,
                 "gun_confiscated": False,
                 "confiscated_ammo": 0,
                 "confiscated_magazines": 0,
