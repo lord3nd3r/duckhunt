@@ -73,8 +73,8 @@ Four duck types plus flock events:
 - **Normal** - Standard duck, 1 HP, base XP.
 - **Golden** - Multi-HP duck (3–5 HP), higher XP, awards XP per hit.
 - **Fast** - Quick duck, 1 HP, flies away faster.
-- **Ninja** - Has a dodge chance making it harder to hit.
-- **Flock** - 2–4 normal ducks spawn at once — shoot them one by one.
+- **Ninja** - Has a dodge chance making it harder to hit. A killing shot uses the ninja drop table when that table is configured.
+- **Flock** - 2–4 normal ducks spawn at once — shoot them one by one. Each duck you kill rolls for loot. With no flock drop table, that roll is the normal duck's chance and table.
 
 Duck spawn behavior is configured in `config.json` under `duck_types`.
 

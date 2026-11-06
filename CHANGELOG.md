@@ -42,7 +42,12 @@ A brush bought while the effective chance is already 0 is refused and stays in i
 ### Reviewed and not changed
 
 - `duck_spawn_speed_modifier` is in the level table and has a helper, but nothing applies it to the spawn timer. The descriptions say higher levels see fewer ducks; the number itself does not say whether it multiplies the wait or the rate. Spawn timing is unchanged.
-- Flock ducks have no drop chance and no drop table. They still do not drop items.
+
+## 2026-11-06 — Item drops for every duck type
+
+A killing shot rolls one item drop. Normal, fast, golden, and ninja keep the drop chance and table in config when that type has a non-empty `*_duck_drops` list (`config.json.example`: normal 15%, fast 25%, ninja 30%, golden 50%). Flock members have no table. Each member you kill uses the normal duck's chance and `normal_duck_drops`. Any other type without a table does the same, so a missing table is not a silent 0% drop. A type that has a table and `drop_chance` 0 still never drops.
+
+Misses, ninja dodges, befriends, fly-aways, and a golden duck's non-killing hits do not drop. One flock is not one shared roll: each member is one shot and at most one item. The same inventory total cap as before still applies. No config edit is required for a bot whose config already has normal duck drops.
 - `!daily` remains a 24 hour cooldown. The streak still uses the local calendar date, and the per-day bonus is still unbounded. The help text already says 24 hours.
 - Nicks and channels still use `str.lower()`. RFC 1459 casemapping would risk merging or splitting saved names, so there is no automatic rewrite.
 - No player-count check was added to block saves. A small or empty database can be legitimate.

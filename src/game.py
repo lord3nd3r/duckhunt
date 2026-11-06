@@ -1144,15 +1144,48 @@ class DuckGame:
     # Item drops
     # -----------------------------------------------------------------------
 
-    def _check_item_drop(self, player, duck_type):
-        """Check for item drops and add to player inventory. Returns drop info or None."""
-        try:
-            drop_chance = self.bot.get_config(
-                f"duck_types.{duck_type}.drop_chance", 0.0
+    def _resolve_drop_settings(self, duck_type: str):
+        """Return ``(drop_chance, drop_table)`` for one killing shot.
+
+        A non-empty ``item_drops.<type>_duck_drops`` list is that type's loot,
+        including an explicit ``drop_chance`` of 0 (configured to never drop).
+        When that type has no table, both values come from the normal duck.
+        Flock members are normal ducks and have no table of their own, so they
+        use this path. The same fallback covers any other type that was never
+        given a table. Chance and table are not mixed: a type either has its
+        own loot or it uses the normal duck's.
+        """
+        normal_chance = self.bot.get_config("duck_types.normal.drop_chance", 0.0)
+        normal_table = self.bot.get_config("item_drops.normal_duck_drops", [])
+        if not isinstance(normal_table, list):
+            normal_table = []
+
+        if not duck_type or duck_type == "normal":
+            return normal_chance, normal_table
+
+        table = self.bot.get_config(f"item_drops.{duck_type}_duck_drops", None)
+        if isinstance(table, list) and table:
+            chance = self.bot.get_config(
+                f"duck_types.{duck_type}.drop_chance", normal_chance
             )
+            return chance, table
+
+        return normal_chance, normal_table
+
+    def _check_item_drop(self, player, duck_type):
+        """Check for item drops and add to player inventory. Returns drop info or None.
+
+        Called once per killing shot. Misses, ninja dodges, befriends, fly-aways,
+        and a golden duck's non-killing hits do not call this.
+        """
+        try:
+            drop_chance, drop_table = self._resolve_drop_settings(duck_type)
+            try:
+                drop_chance = float(drop_chance)
+            except (TypeError, ValueError):
+                return None
             if random.random() > drop_chance:
                 return None
-            drop_table = self.bot.get_config(f"item_drops.{duck_type}_duck_drops", [])
             if not drop_table:
                 return None
             total_weight = sum(item.get("weight", 1) for item in drop_table)

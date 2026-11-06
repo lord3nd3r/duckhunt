@@ -86,6 +86,7 @@
     }
   },
   "item_drops": {
+    "_comment_fallback": "A non-empty <type>_duck_drops table is that type's loot, with duck_types.<type>.drop_chance (0 disables drops for that type). Flock has no table: each killed member uses normal drop_chance and normal_duck_drops. Any other type without a table does the same. Befriending, dodging, missing, and flying away do not drop.",
     "normal_duck_drops": [
       {"item_id": 1, "weight": 40},
       {"item_id": 2, "weight": 25},
