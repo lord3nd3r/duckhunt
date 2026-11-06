@@ -16,7 +16,7 @@ Existing saves are migrated once:
 - Each point the stored value sits below 15 is kept. A Gun Brush is -10, so one brush zeros every current level (the highest base is 8). A stored 0, the old clamp after cleaning, becomes -15 and also jams at 0%.
 - After `jam_modifier` is saved, later writes of the displayed percentage do not get migrated again.
 
-A brush bought while the effective chance is already 0 is refused and stays in inventory. A brush used while there is jam to remove keeps the full -10 across level-ups and restarts, even when the current level cannot show all 10 points.
+Using a Gun Brush while effective jam is already 0% is refused, and the brush stays in inventory. Buying one into inventory is not that check. A brush that is used while there is jam to remove keeps the full -10 across level-ups and restarts, even when the current level cannot show all 10 points.
 
 ### Other corrections
 
@@ -47,7 +47,10 @@ A brush bought while the effective chance is already 0 is refused and stays in i
 
 A killing shot rolls one item drop. Normal, fast, golden, and ninja keep the drop chance and table in config when that type has a non-empty `*_duck_drops` list (`config.json.example`: normal 15%, fast 25%, ninja 30%, golden 50%). Flock members have no table. Each member you kill uses the normal duck's chance and `normal_duck_drops`. Any other type without a table does the same, so a missing table is not a silent 0% drop. A type that has a table and `drop_chance` 0 still never drops.
 
-Misses, ninja dodges, befriends, fly-aways, and a golden duck's non-killing hits do not drop. One flock is not one shared roll: each member is one shot and at most one item. The same inventory total cap as before still applies. No config edit is required for a bot whose config already has normal duck drops.
+Misses, ninja dodges, befriends, fly-aways, and a golden duck's non-killing hits do not drop. One flock is not one shared roll: each member is one shot and at most one item. The same inventory total cap as before still applies. No config edit is required for a bot whose config already has normal duck drops. `drop_chance` 0 on a type that has a table skips ordinary rolls. The comparison is `random > chance`, so a roll of exactly 0.0 would still drop.
+
+### Still unchanged
+
 - `!daily` remains a 24 hour cooldown. The streak still uses the local calendar date, and the per-day bonus is still unbounded. The help text already says 24 hours.
 - Nicks and channels still use `str.lower()`. RFC 1459 casemapping would risk merging or splitting saved names, so there is no automatic rewrite.
 - No player-count check was added to block saves. A small or empty database can be legitimate.

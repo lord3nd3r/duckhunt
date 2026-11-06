@@ -14,7 +14,7 @@
     "timeout": 30,
     "_comment_send_throttle": "Minimum seconds between outgoing chat lines (PRIVMSG/NOTICE) to avoid server flood limits",
     "send_throttle": 0.3,
-    "_comment_reconnect": "Automatic reconnection after an established connection drops. The delay starts at initial_delay and doubles up to max_delay between attempts.",
+    "_comment_reconnect": "Automatic reconnection. After a session that received numeric 001, the next delay is initial_delay. If the TCP connect fails, or the socket drops before registration, the delay doubles up to max_delay.",
     "reconnect": {
       "enabled": true,
       "initial_delay": 5,
@@ -37,7 +37,7 @@
   "admins": [
     "yourNickHere"
   ],
-  "_comment_admins": "For stronger security than nick-only auth (spoofable if someone else takes that nick), use hostmask entries instead, e.g.: \"admins\": [{\"nick\": \"yourNickHere\", \"hostmask\": \"*!youruser@your.host\"}]",
+  "_comment_admins": "A string entry matches the nickname only. Anyone who takes that nick is an admin. Prefer an object with both nick and hostmask. The mask is matched against the full nick!ident@host prefix. Many idents start with ~ (nick!~ident@host). Include the tilde only when it is really there, e.g. {\"nick\": \"yourNickHere\", \"hostmask\": \"*!~ident@trusted.example\"}. *!ident@host does not match !~ident. The tilde is not always present.",
   "commands": {
     "_comment_prefix": "The character(s) that trigger bot commands in-channel and in PM, e.g. '!' for !bang, '@' for @bang, '$' for $bang. Must be non-empty and contain no whitespace.",
     "prefix": "!"
@@ -45,6 +45,7 @@
   "duck_spawning": {
     "spawn_min": 1200,
     "spawn_max": 3600,
+    "_comment_flock_chance": "Omitted on purpose. When duck_spawning.flock_chance is absent, about 8% of spawns (0.08) are flocks. Set the key only to override that code default.",
     "timeout": 60,
     "rearm_on_duck_shot": true
   },
@@ -86,7 +87,7 @@
     }
   },
   "item_drops": {
-    "_comment_fallback": "A non-empty <type>_duck_drops table is that type's loot, with duck_types.<type>.drop_chance (0 disables drops for that type). Flock has no table: each killed member uses normal drop_chance and normal_duck_drops. Any other type without a table does the same. Befriending, dodging, missing, and flying away do not drop.",
+    "_comment_fallback": "A non-empty <type>_duck_drops table is that type's loot, together with duck_types.<type>.drop_chance. drop_chance 0 skips ordinary rolls; the check is random > chance, so an exact 0.0 roll would still drop. Flock has no table: each killed member uses normal drop_chance and normal_duck_drops. Any other type without a table does the same. Misses, dodges, befriends, fly-aways, and a golden duck's non-killing hits do not drop. One kill is at most one item, still subject to limits.max_inventory_items.",
     "normal_duck_drops": [
       {"item_id": 1, "weight": 40},
       {"item_id": 2, "weight": 25},
@@ -118,6 +119,7 @@
     "magazines": 3,
     "bullets_per_magazine": 6,
     "jam_chance": 15,
+    "_comment_jam_chance": "Legacy baseline only, not the chance a hunter rolls. New players also store jam_modifier 0. Displayed jam and the bang roll are the level base plus jam_modifier (level 1 is 0%, level 8 is 8%, before brushes). A stored 15 with no jam_modifier migrates to modifier 0. A stored 0 migrates to -15. Using a Gun Brush subtracts 10 from jam_modifier. Using one at 0% effective jam is refused and the item stays in inventory. Do not delete jam_modifier from duckhunt.json.",
     "xp": 0
   },
   "gameplay": {
@@ -132,6 +134,7 @@
     "wet_clothes_duration": 300
   },
   "features": {
+    "_comment_unused": "shop_enabled, inventory_enabled, and auto_rearm_enabled are not read. Rearm-on-kill is duck_spawning.rearm_on_duck_shot.",
     "shop_enabled": true,
     "inventory_enabled": true,
     "auto_rearm_enabled": true

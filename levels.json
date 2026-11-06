@@ -50,7 +50,7 @@
       "duck_spawn_speed_modifier": 0.8,
       "magazines": 2,
       "bullets_per_magazine": 6,
-      "description": "Ducks flee at your approach, spawns are less frequent"
+      "description": "Ducks flee at your approach, and your shots are less sure"
     },
     "5": {
       "name": "Apex Predator",
@@ -62,7 +62,7 @@
       "duck_spawn_speed_modifier": 0.7,
       "magazines": 2,
       "bullets_per_magazine": 6,
-      "description": "You're feared throughout the pond, ducks are very elusive"
+      "description": "You're feared throughout the pond, and ducks are harder to hit"
     },
     "6": {
       "name": "Duck Whisperer",
@@ -74,7 +74,7 @@
       "duck_spawn_speed_modifier": 0.6,
       "magazines": 1,
       "bullets_per_magazine": 6,
-      "description": "Only the bravest ducks dare show themselves"
+      "description": "The pond knows your name, and every shot is harder"
     },
     "7": {
       "name": "Legendary Hunter",
@@ -86,7 +86,7 @@
       "duck_spawn_speed_modifier": 0.5,
       "magazines": 1,
       "bullets_per_magazine": 6,
-      "description": "Duck folklore speaks of your prowess, they're extremely rare"
+      "description": "Duck folklore speaks of your prowess, and the gun jams more often"
     },
     "8": {
       "name": "Duck Deity",
@@ -98,7 +98,7 @@
       "duck_spawn_speed_modifier": 0.4,
       "magazines": 1,
       "bullets_per_magazine": 6,
-      "description": "You've transcended mortal hunting, ducks are mythically scarce"
+      "description": "You've transcended mortal hunting; the work is harder, not rarer"
     }
   }
 }

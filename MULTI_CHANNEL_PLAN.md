@@ -1,45 +1,39 @@
-# Multi-Channel Support Implementation
+# Multi-channel support
 
-## What Multi-Channel Means
-- Players have **separate stats in each channel**
-- Nick "Bob" in #channel1 has different XP than "Bob" in #channel2
-- Database structure: `channels -> #channel1 -> players -> bob`
+This note is historical. The behavior below is what the bot does now. It is not a list of remaining work.
 
-## Changes Needed
+## What it means
 
-### 1. Database Structure (db.py)
-```python
+- Players have separate stats in each channel.
+- Nick "Bob" in `#channel1` has different XP from "Bob" in `#channel2`.
+- Database shape: `channels` → `#channel1` → `players` → `bob`.
+
+```json
 {
   "channels": {
     "#channel1": {
       "players": {
-        "bob": { "xp": 100, ... },
-        "alice": { "xp": 50, ... }
+        "bob": { "xp": 100 },
+        "alice": { "xp": 50 }
       }
     },
     "#channel2": {
       "players": {
-        "bob": { "xp": 20, ... }  # Different stats!
+        "bob": { "xp": 20 }
       }
     }
   }
 }
 ```
 
-### 2. Database Methods
-- `get_player(nick, channel)` - Get player in specific channel
-- `get_players_for_channel(channel)` - Get all players in a channel
-- `iter_all_players()` - Iterate over all channels and players
+## What the code does
 
-### 3. Command Changes (duckhuntbot.py)
-- Pass `channel` parameter when calling `db.get_player(nick, channel)`
-- Channel normalization (case-insensitive)
+- `get_player(nick, channel)` returns that channel's player.
+- `get_players_for_channel(channel)` returns that channel's players.
+- `iter_all_players()` walks every channel.
+- Channel keys are lowercased. `#Channel` and `#channel` are the same bucket.
+- `!duckstats` shows the current channel.
+- `!topduck` is that channel's leaderboard.
+- `!globaltop` is the top 5 by XP across channels. There is no `!globalducks` command.
 
-### 4. Stats Commands
-- `!duckstats` shows stats for current channel
-- `!globalducks` shows combined stats across all channels
-
-## Benefits
-- Fair: Can't bring channel1 XP into channel2
-- Better: Each channel has own leaderboard
-- Clean: Stats don't mix between channels
+Stats from one channel are not spent in another.
