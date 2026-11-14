@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-14
+
+Bread (2x spawn rate for 20 minutes) now shortens the wait that is already running. Each second adds the current multiplier, so those 20 minutes count double and that credit remains after the effect expires. The old wait compared elapsed time to `base_wait / multiplier` and snapped back to the full wait when bread ended first, which is what happened on a 3305-second wait when bread ran from about 3 minutes in until it expired.
+
 ## 2026-11-06
 
 Fixes on top of the 2026-11-05 source snapshot. Nothing here was deployed, and no live database was opened. Restart the bot yourself after you copy these files in.

@@ -609,5 +609,91 @@ class TestGameLoopResilience(unittest.TestCase):
         asyncio.run(scenario())
 
 
+class TestBreadSpawnProgress(unittest.TestCase):
+    """Bread time counts toward the current wait and is kept after it expires."""
+
+    def _run(self, base_wait, active_from, active_until):
+        start = 1_700_000_000.0
+        clock = {"t": start}
+        sleeps = {"n": 0}
+
+        def players(_channel):
+            now = clock["t"]
+            if (
+                active_from is not None
+                and start + active_from <= now < start + active_until
+            ):
+                return {
+                    "peorth": {
+                        "temporary_effects": [
+                            {
+                                "type": "attract_ducks",
+                                "spawn_multiplier": 2.0,
+                                "expires_at": start + active_until,
+                            }
+                        ]
+                    }
+                }
+            return {"peorth": {"temporary_effects": []}}
+
+        game = object.__new__(DuckGame)
+        game.logger = logging.getLogger("test.bread")
+        game.bot = type("B", (), {})()
+        game.bot.channels_joined = {"#pond"}
+        game.bot.is_channel_enabled = lambda _channel: True
+        game.bot.get_config = lambda key, default=None: (
+            base_wait
+            if key
+            in (
+                "duck_spawning.spawn_min",
+                "duck_spawning.spawn_max",
+            )
+            else default
+        )
+        game.db = type(
+            "D", (), {"get_players_for_channel": staticmethod(players)}
+        )()
+        spawned = []
+
+        async def stop_after_one(_channel):
+            spawned.append(clock["t"] - start)
+            raise asyncio.CancelledError
+
+        game.spawn_duck = stop_after_one
+
+        async def fake_sleep(delay):
+            clock["t"] += delay
+            if delay == 1:
+                sleeps["n"] += 1
+
+        async def go():
+            with patch("src.game.random.randint", return_value=base_wait), patch(
+                "src.game.time.time", side_effect=lambda: clock["t"]
+            ), patch("src.game.asyncio.sleep", side_effect=fake_sleep):
+                with self.assertRaises(asyncio.CancelledError):
+                    await game._channel_spawn_loop("#pond")
+
+        asyncio.run(go())
+        return sleeps["n"], spawned
+
+    def test_no_bread_waits_the_full_base(self):
+        slept, spawned = self._run(3305, None, None)
+        self.assertEqual(slept, 3305)
+        self.assertEqual(spawned, [3305])
+
+    def test_bread_the_whole_time_halves_the_wait(self):
+        slept, spawned = self._run(3305, 0, 10_000_000)
+        self.assertEqual(slept, 1653)
+        self.assertAlmostEqual(slept, 3305 / 2, delta=1)
+        self.assertEqual(spawned, [1653])
+
+    def test_partial_bread_keeps_the_doubled_minutes(self):
+        # 1200s of 2x bread (t=180 through t=1380) is 1200s of extra progress,
+        # so a 3305s wait ends at 2105s instead of snapping back to 3305s.
+        slept, spawned = self._run(3305, 180, 1380)
+        self.assertEqual(slept, 2105)
+        self.assertEqual(spawned, [2105])
+
+
 if __name__ == "__main__":
     unittest.main()

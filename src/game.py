@@ -191,12 +191,17 @@ class DuckGame:
                 self.logger.debug(
                     f"Next spawn in {channel_key} in {base_wait}s (range {min_wait}-{max_wait})"
                 )
-                # Re-check the spawn multiplier every second so a bread effect used
-                # mid-wait shortens the remaining wait instead of only counting if it
-                # happened to be active when this cycle started (with hour-long waits,
-                # a 20-minute effect would otherwise usually expire unseen).
-                elapsed = 0
-                while True:
+                # Each second adds the live bread multiplier (at least 1) to
+                # progress, and the duck spawns when progress reaches base_wait.
+                # Twenty minutes at 2x is 2400s of progress and stays counted
+                # after the effect expires. Comparing elapsed time to
+                # base_wait/multiplier threw that credit away: on a 3305s wait,
+                # bread from ~3 minutes in until 20 minutes later expired at
+                # elapsed ~1378, still under the halved mark 1652, and the next
+                # duck arrived on the full wait.
+                progress = 0.0
+                logged_boost = False
+                while progress < base_wait:
                     if not is_enabled(channel):
                         self.logger.info(
                             f"Spawn loop for {channel_key} stopped (channel disabled)"
@@ -208,13 +213,20 @@ class DuckGame:
                         )
                         return
                     spawn_multiplier = self._get_active_spawn_multiplier(channel)
-                    effective_wait = base_wait
-                    if spawn_multiplier > 1.0:
-                        effective_wait = base_wait / spawn_multiplier
-                    if elapsed >= effective_wait:
-                        break
+                    try:
+                        spawn_multiplier = float(spawn_multiplier)
+                    except (TypeError, ValueError):
+                        spawn_multiplier = 1.0
+                    if spawn_multiplier < 1.0:
+                        spawn_multiplier = 1.0
+                    if spawn_multiplier > 1.0 and not logged_boost:
+                        self.logger.debug(
+                            f"Bread is speeding the next spawn in {channel_key} "
+                            f"(x{spawn_multiplier:g})"
+                        )
+                        logged_boost = True
                     await asyncio.sleep(1)
-                    elapsed += 1
+                    progress += spawn_multiplier
                 if not self._spawn_channel_still_joined(channel_key):
                     self.logger.info(
                         f"Spawn loop for {channel_key} stopped (disconnected)"
